@@ -54,6 +54,7 @@ This directory currently contains:
 
 - `README.md`: project positioning, naming options, and phase goals.
 - `docs/requirements-analysis.md`: structured requirements analysis report.
+- `docs/technical-implementation-plan.md`: implementation-ready technical architecture, module plan, API draft, and engineering standards.
 
 Phase 1 goals:
 
