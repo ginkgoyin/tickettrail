@@ -55,6 +55,10 @@ This directory currently contains:
 - `README.md`: project positioning, naming options, and phase goals.
 - `docs/requirements-analysis.md`: structured requirements analysis report.
 - `docs/technical-implementation-plan.md`: implementation-ready technical architecture, module plan, API draft, and engineering standards.
+- `docs/development-setup.md`: scaffold status and local startup guidance.
+- `src/`: React-based Windows-first frontend scaffold.
+- `src-tauri/`: Tauri 2 desktop shell and Rust command scaffold.
+- `database/schema.sql`: initial SQLite schema draft.
 
 Phase 1 goals:
 

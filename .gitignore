@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.vite/
+target/
+src-tauri/target/
+*.db
+*.db-shm
+*.db-wal
+artifacts/
+.DS_Store
+Thumbs.db
