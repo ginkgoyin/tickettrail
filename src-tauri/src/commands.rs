@@ -1,31 +1,30 @@
-use crate::models::{StubPreview, TicketSummary};
+use crate::{
+    db,
+    models::{StubPreview, TicketDraftPayload, TicketRecordPayload},
+};
 use tauri::command;
+use tauri::AppHandle;
 
 #[command]
-pub fn get_bootstrap_summary() -> String {
-    "TicketTrail scaffold ready: React frontend, Tauri shell, Rust commands, and SQLite schema.".to_string()
+pub fn get_bootstrap_summary(app: AppHandle) -> Result<String, String> {
+    let ticket_count = db::list_tickets(&app)?.len();
+    Ok(format!(
+        "TicketTrail MVP ready: SQLite wired, {} persisted ticket(s) available.",
+        ticket_count
+    ))
 }
 
 #[command]
-pub fn list_sample_tickets() -> Vec<TicketSummary> {
-    vec![
-        TicketSummary {
-            id: "ticket-pvg-syd".into(),
-            ticket_type: "flight".into(),
-            carrier_name: "China Eastern".into(),
-            code: "MU561".into(),
-            departure_name: "Shanghai Pudong".into(),
-            arrival_name: "Sydney Airport".into(),
-        },
-        TicketSummary {
-            id: "ticket-shhq-nj".into(),
-            ticket_type: "train".into(),
-            carrier_name: "China Railway".into(),
-            code: "G7012".into(),
-            departure_name: "Shanghai Hongqiao".into(),
-            arrival_name: "Nanjing South".into(),
-        },
-    ]
+pub fn list_tickets(app: AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
+    db::list_tickets(&app)
+}
+
+#[command]
+pub fn create_ticket(
+    app: AppHandle,
+    draft: TicketDraftPayload,
+) -> Result<TicketRecordPayload, String> {
+    db::create_ticket(&app, draft)
 }
 
 #[command]

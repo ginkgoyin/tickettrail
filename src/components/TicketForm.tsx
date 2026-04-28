@@ -23,10 +23,11 @@ const defaultDraft: TicketDraft = {
 };
 
 interface TicketFormProps {
-  onCreateTicket: (draft: TicketDraft) => void;
+  isSaving: boolean;
+  onCreateTicket: (draft: TicketDraft) => Promise<void>;
 }
 
-export function TicketForm({ onCreateTicket }: TicketFormProps) {
+export function TicketForm({ isSaving, onCreateTicket }: TicketFormProps) {
   const [draft, setDraft] = useState<TicketDraft>(defaultDraft);
 
   const updateField = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) => {
@@ -54,8 +55,9 @@ export function TicketForm({ onCreateTicket }: TicketFormProps) {
       return;
     }
 
-    onCreateTicket(draft);
-    setDraft(defaultDraft);
+    void onCreateTicket(draft).then(() => {
+      setDraft(defaultDraft);
+    });
   };
 
   return (
@@ -65,7 +67,7 @@ export function TicketForm({ onCreateTicket }: TicketFormProps) {
           <p className="eyebrow">Capture</p>
           <h3>Create ticket record</h3>
         </div>
-        <span className="status-pill">Draft flow</span>
+        <span className="status-pill">{isSaving ? "Saving..." : "SQLite flow"}</span>
       </div>
 
       <form className="ticket-form" onSubmit={handleSubmit}>
@@ -175,7 +177,7 @@ export function TicketForm({ onCreateTicket }: TicketFormProps) {
         </label>
 
         <button className="primary-button wide" type="submit">
-          Save ticket draft
+          {isSaving ? "Saving ticket..." : "Save ticket draft"}
         </button>
       </form>
     </section>

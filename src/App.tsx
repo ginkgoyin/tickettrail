@@ -1,39 +1,69 @@
-import { useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { TicketForm } from "./components/TicketForm";
 import { TicketList } from "./components/TicketList";
-import { initialTickets } from "./data/mockTickets";
+import { createTicket, listTickets } from "./lib/ticketService";
 import type { TicketDraft, TicketRecord } from "./types/ticket";
 
-const buildRouteLabel = (ticket: TicketDraft) =>
-  `${ticket.departure.name} -> ${ticket.arrival.name}`;
-
-function createTicketRecord(ticket: TicketDraft): TicketRecord {
-  const now = new Date().toISOString();
-
-  return {
-    id: globalThis.crypto?.randomUUID?.() ?? `ticket-${Date.now()}`,
-    createdAt: now,
-    updatedAt: now,
-    status: "draft",
-    routeLabel: buildRouteLabel(ticket),
-    ...ticket,
-  };
-}
-
 export default function App() {
-  const [tickets, setTickets] = useState<TicketRecord[]>(initialTickets);
-  const [selectedId, setSelectedId] = useState<string>(initialTickets[0]?.id ?? "");
+  const [tickets, setTickets] = useState<TicketRecord[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const selectedTicket =
     tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null;
 
-  const handleCreateTicket = (draft: TicketDraft) => {
-    const nextTicket = createTicketRecord(draft);
-    setTickets((current) => [nextTicket, ...current]);
-    setSelectedId(nextTicket.id);
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadTickets = async () => {
+      try {
+        const storedTickets = await listTickets();
+        if (!isMounted) {
+          return;
+        }
+
+        startTransition(() => {
+          setTickets(storedTickets);
+          setSelectedId(storedTickets[0]?.id ?? "");
+        });
+      } catch (error) {
+        if (isMounted) {
+          setErrorMessage(error instanceof Error ? error.message : "Failed to load tickets.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadTickets();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleCreateTicket = async (draft: TicketDraft) => {
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try {
+      const nextTicket = await createTicket(draft);
+      startTransition(() => {
+        setTickets((current) => [nextTicket, ...current]);
+        setSelectedId(nextTicket.id);
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to save ticket.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -49,6 +79,12 @@ export default function App() {
               Capture flights and rail trips, normalize them into structured journeys,
               preview map routes, and prepare branded ticket-stub exports.
             </p>
+            <p className="hero-copy">
+              {loading
+                ? "Loading local archive..."
+                : "SQLite-backed ticket storage is active for this MVP."}
+            </p>
+            {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
           </div>
           <div className="hero-stats">
             <div className="stat-card">
@@ -72,7 +108,7 @@ export default function App() {
 
         <section className="content-grid">
           <div className="panel-stack">
-            <TicketForm onCreateTicket={handleCreateTicket} />
+            <TicketForm isSaving={isSaving} onCreateTicket={handleCreateTicket} />
             <TicketList
               tickets={tickets}
               selectedId={selectedTicket?.id ?? ""}
