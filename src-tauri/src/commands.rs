@@ -1,6 +1,6 @@
 use crate::{
     db,
-    models::{StubPreview, TicketDraftPayload, TicketRecordPayload},
+    models::{StubPreviewPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload},
 };
 use tauri::command;
 use tauri::AppHandle;
@@ -28,10 +28,24 @@ pub fn create_ticket(
 }
 
 #[command]
-pub fn create_stub_preview(code: String, route_label: String) -> StubPreview {
-    StubPreview {
+pub fn get_ticket_detail(app: AppHandle, ticket_id: String) -> Result<TicketDetailPayload, String> {
+    db::get_ticket_detail(&app, &ticket_id)
+}
+
+#[command]
+pub fn create_stub_preview(code: String, route_label: String) -> StubPreviewPayload {
+    StubPreviewPayload {
         title: "Ticket Stub Preview".into(),
         subtitle: format!("Reference {}", code),
+        transport_badge: "PREVIEW".into(),
+        primary_code: code,
+        departure_label: "Departure".into(),
+        departure_time_local: "--".into(),
+        arrival_label: "Arrival".into(),
+        arrival_time_local: "--".into(),
+        carrier_name: "Carrier".into(),
+        seat_label: "TBD / TBD".into(),
+        notes: "Preview payload".into(),
         route_label,
         accent: "#70d4ff".into(),
     }

@@ -45,9 +45,56 @@ pub struct TicketRecordPayload {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StubPreview {
+pub struct MapPointPayload {
+    pub label: String,
+    pub code: Option<String>,
+    pub timezone: String,
+    pub latitude: f64,
+    pub longitude: f64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapViewportPayload {
+    pub min_latitude: f64,
+    pub max_latitude: f64,
+    pub min_longitude: f64,
+    pub max_longitude: f64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapRoutePayload {
+    pub line_label: String,
+    pub direction_hint: String,
+    pub distance_hint_km: u32,
+    pub origin: MapPointPayload,
+    pub destination: MapPointPayload,
+    pub viewport: MapViewportPayload,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StubPreviewPayload {
     pub title: String,
     pub subtitle: String,
+    pub transport_badge: String,
+    pub primary_code: String,
+    pub departure_label: String,
+    pub departure_time_local: String,
+    pub arrival_label: String,
+    pub arrival_time_local: String,
+    pub carrier_name: String,
+    pub seat_label: String,
+    pub notes: String,
     pub route_label: String,
     pub accent: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TicketDetailPayload {
+    pub ticket: TicketRecordPayload,
+    pub map: MapRoutePayload,
+    pub stub: StubPreviewPayload,
 }

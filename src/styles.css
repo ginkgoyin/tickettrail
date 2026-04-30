@@ -304,6 +304,19 @@ textarea {
   gap: 20px;
 }
 
+.detail-loading,
+.map-summary {
+  color: var(--text-soft);
+  font-size: 0.92rem;
+}
+
+.map-summary {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
 .map-preview,
 .stub-preview,
 .detail-card {

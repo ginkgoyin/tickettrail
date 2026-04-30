@@ -4,15 +4,17 @@ import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { TicketForm } from "./components/TicketForm";
 import { TicketList } from "./components/TicketList";
-import { createTicket, listTickets } from "./lib/ticketService";
-import type { TicketDraft, TicketRecord } from "./types/ticket";
+import { createTicket, getTicketDetail, listTickets } from "./lib/ticketService";
+import type { TicketDetailPayload, TicketDraft, TicketRecord } from "./types/ticket";
 
 export default function App() {
   const [tickets, setTickets] = useState<TicketRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedDetail, setSelectedDetail] = useState<TicketDetailPayload | null>(null);
 
   const selectedTicket =
     tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null;
@@ -48,6 +50,40 @@ export default function App() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedDetail(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadDetail = async () => {
+      setDetailLoading(true);
+
+      try {
+        const detail = await getTicketDetail(selectedId);
+        if (isMounted) {
+          setSelectedDetail(detail);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setErrorMessage(error instanceof Error ? error.message : "Failed to load ticket detail.");
+        }
+      } finally {
+        if (isMounted) {
+          setDetailLoading(false);
+        }
+      }
+    };
+
+    void loadDetail();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedId]);
 
   const handleCreateTicket = async (draft: TicketDraft) => {
     setIsSaving(true);
@@ -115,7 +151,7 @@ export default function App() {
               onSelect={setSelectedId}
             />
           </div>
-          <Dashboard ticket={selectedTicket} />
+          <Dashboard detail={selectedDetail} isLoading={detailLoading} ticket={selectedTicket} />
         </section>
       </main>
     </div>

@@ -26,3 +26,49 @@ export interface TicketRecord extends TicketDraft {
   routeLabel: string;
   status: "draft" | "saved";
 }
+
+export interface MapPointPayload {
+  label: string;
+  code?: string;
+  timezone: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface MapViewportPayload {
+  minLatitude: number;
+  maxLatitude: number;
+  minLongitude: number;
+  maxLongitude: number;
+}
+
+export interface MapRoutePayload {
+  lineLabel: string;
+  directionHint: string;
+  distanceHintKm: number;
+  origin: MapPointPayload;
+  destination: MapPointPayload;
+  viewport: MapViewportPayload;
+}
+
+export interface StubPreviewPayload {
+  title: string;
+  subtitle: string;
+  transportBadge: string;
+  primaryCode: string;
+  departureLabel: string;
+  departureTimeLocal: string;
+  arrivalLabel: string;
+  arrivalTimeLocal: string;
+  carrierName: string;
+  seatLabel: string;
+  notes: string;
+  routeLabel: string;
+  accent: string;
+}
+
+export interface TicketDetailPayload {
+  ticket: TicketRecord;
+  map: MapRoutePayload;
+  stub: StubPreviewPayload;
+}
