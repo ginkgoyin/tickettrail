@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   buildMapSvg,
   buildStubSvg,
   exportPng,
   exportSvg,
+  type StubTheme,
   visualizationSizes,
 } from "../lib/visualization";
 import type { TicketDetailPayload, TicketRecord } from "../types/ticket";
@@ -16,6 +17,10 @@ interface DashboardProps {
 
 export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
   const [exportMessage, setExportMessage] = useState("");
+  const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
+  const [mapScale, setMapScale] = useState(1);
+  const [mapOffset, setMapOffset] = useState({ x: 0, y: 0 });
+  const dragState = useRef<{ x: number; y: number } | null>(null);
 
   if (!ticket) {
     return (
@@ -27,7 +32,48 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
 
   const activeDetail = detail?.ticket.id === ticket.id ? detail : null;
   const mapSvg = useMemo(() => (activeDetail ? buildMapSvg(activeDetail.map) : ""), [activeDetail]);
-  const stubSvg = useMemo(() => (activeDetail ? buildStubSvg(activeDetail.stub) : ""), [activeDetail]);
+  const stubSvg = useMemo(
+    () => (activeDetail ? buildStubSvg(activeDetail.stub, stubTheme) : ""),
+    [activeDetail, stubTheme],
+  );
+
+  const resetMapView = () => {
+    setMapScale(1);
+    setMapOffset({ x: 0, y: 0 });
+  };
+
+  const updateMapScale = (nextScale: number) => {
+    setMapScale(Math.max(0.8, Math.min(2.4, Number(nextScale.toFixed(2)))));
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragState.current = {
+      x: event.clientX - mapOffset.x,
+      y: event.clientY - mapOffset.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current) {
+      return;
+    }
+
+    setMapOffset({
+      x: event.clientX - dragState.current.x,
+      y: event.clientY - dragState.current.y,
+    });
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragState.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const handleMapWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    updateMapScale(mapScale + (event.deltaY < 0 ? 0.12 : -0.12));
+  };
 
   const handleExportSvg = (kind: "map" | "stub") => {
     if (!activeDetail) {
@@ -36,12 +82,12 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
 
     if (kind === "map") {
       exportSvg(`${activeDetail.ticket.code}-route-map.svg`, mapSvg);
-      setExportMessage("Route map SVG exported.");
+      setExportMessage("路线 SVG 已导出。");
       return;
     }
 
     exportSvg(`${activeDetail.ticket.code}-ticket-stub.svg`, stubSvg);
-    setExportMessage("Ticket stub SVG exported.");
+    setExportMessage("票根 SVG 已导出。");
   };
 
   const handleExportPng = async () => {
@@ -56,9 +102,9 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
         visualizationSizes.stub.width,
         visualizationSizes.stub.height,
       );
-      setExportMessage("Ticket stub PNG exported.");
+      setExportMessage("票根 PNG 已导出。");
     } catch (error) {
-      setExportMessage(error instanceof Error ? error.message : "PNG export failed.");
+      setExportMessage(error instanceof Error ? error.message : "PNG 导出失败。");
     }
   };
 
@@ -72,18 +118,44 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
         <span className="status-pill">{ticket.status}</span>
       </div>
 
-      {isLoading ? <p className="detail-loading">Loading derived route and stub data...</p> : null}
+      {isLoading ? <p className="detail-loading">正在加载路线和票根派生数据...</p> : null}
 
       <article className="map-preview">
         {activeDetail ? (
           <>
+            <div className="map-toolbar">
+              <div className="map-toolbar-group">
+                <button className="ghost-button" onClick={() => updateMapScale(mapScale - 0.12)} type="button">
+                  缩小
+                </button>
+                <button className="ghost-button" onClick={() => updateMapScale(mapScale + 0.12)} type="button">
+                  放大
+                </button>
+                <button className="ghost-button" onClick={resetMapView} type="button">
+                  重置视图
+                </button>
+              </div>
+              <span className="detail-loading">缩放 {Math.round(mapScale * 100)}%</span>
+            </div>
             <div
-              className="svg-frame map-canvas"
-              dangerouslySetInnerHTML={{ __html: mapSvg }}
-            />
+              className="svg-frame map-canvas interactive-map"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              onWheel={handleMapWheel}
+            >
+              <div
+                className="map-transform"
+                style={{
+                  transform: `translate(${mapOffset.x}px, ${mapOffset.y}px) scale(${mapScale})`,
+                }}
+                dangerouslySetInnerHTML={{ __html: mapSvg }}
+              />
+            </div>
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("map")} type="button">
-                Export map SVG
+                导出路线 SVG
               </button>
             </div>
           </>
@@ -121,16 +193,28 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
       <article className="stub-preview">
         {activeDetail ? (
           <>
+            <div className="theme-switcher">
+              {(["boarding", "ledger", "night"] as StubTheme[]).map((theme) => (
+                <button
+                  key={theme}
+                  className={stubTheme === theme ? "theme-chip active" : "theme-chip"}
+                  onClick={() => setStubTheme(theme)}
+                  type="button"
+                >
+                  {theme}
+                </button>
+              ))}
+            </div>
             <div
               className="svg-frame stub-canvas"
               dangerouslySetInnerHTML={{ __html: stubSvg }}
             />
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("stub")} type="button">
-                Export stub SVG
+                导出票根 SVG
               </button>
               <button className="primary-button" onClick={() => void handleExportPng()} type="button">
-                Export stub PNG
+                导出票根 PNG
               </button>
             </div>
           </>

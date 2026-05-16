@@ -11,6 +11,7 @@ const MAP_PADDING = 44;
 
 const STUB_WIDTH = 960;
 const STUB_HEIGHT = 520;
+export type StubTheme = "boarding" | "ledger" | "night";
 
 function escapeXml(value: string) {
   return value
@@ -104,46 +105,84 @@ export function buildMapSvg(route: MapRoutePayload) {
   </svg>`.trim();
 }
 
-export function buildStubSvg(stub: StubPreviewPayload) {
+function getStubThemeTokens(theme: StubTheme) {
+  if (theme === "ledger") {
+    return {
+      background: "#f0e6cf",
+      panel: "#fff9ec",
+      stroke: "rgba(77, 60, 38, 0.16)",
+      primary: "#3e3022",
+      muted: "#7f6d57",
+      accentStart: "#ca8f3b",
+      accentEnd: "#7c4d1f",
+    };
+  }
+
+  if (theme === "night") {
+    return {
+      background: "#130b20",
+      panel: "#1e1431",
+      stroke: "rgba(164, 141, 225, 0.16)",
+      primary: "#f5f0ff",
+      muted: "#b9afd0",
+      accentStart: "#7be0ff",
+      accentEnd: "#9e7cff",
+    };
+  }
+
+  return {
+    background: "#12344a",
+    panel: "#0b1d2a",
+    stroke: "rgba(255,255,255,0.12)",
+    primary: "#f8fcff",
+    muted: "#c1d5de",
+    accentStart: "#70d4ff",
+    accentEnd: "#ffb15a",
+  };
+}
+
+export function buildStubSvg(stub: StubPreviewPayload, theme: StubTheme = "boarding") {
+  const tokens = getStubThemeTokens(theme);
+
   return `
   <svg xmlns="http://www.w3.org/2000/svg" width="${STUB_WIDTH}" height="${STUB_HEIGHT}" viewBox="0 0 ${STUB_WIDTH} ${STUB_HEIGHT}">
     <defs>
       <linearGradient id="stubGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#12344a" />
-        <stop offset="60%" stop-color="#0b1d2a" />
+        <stop offset="0%" stop-color="${tokens.background}" />
+        <stop offset="60%" stop-color="${tokens.panel}" />
         <stop offset="100%" stop-color="#051018" />
       </linearGradient>
       <linearGradient id="stubAccent" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stop-color="${escapeXml(stub.accent)}" />
-        <stop offset="100%" stop-color="#ffb15a" />
+        <stop offset="0%" stop-color="${theme === "boarding" ? escapeXml(stub.accent) : tokens.accentStart}" />
+        <stop offset="100%" stop-color="${tokens.accentEnd}" />
       </linearGradient>
     </defs>
     <rect width="${STUB_WIDTH}" height="${STUB_HEIGHT}" rx="36" fill="url(#stubGradient)" />
-    <rect x="24" y="24" width="${STUB_WIDTH - 48}" height="${STUB_HEIGHT - 48}" rx="28" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)" />
+    <rect x="24" y="24" width="${STUB_WIDTH - 48}" height="${STUB_HEIGHT - 48}" rx="28" fill="${tokens.panel}" stroke="${tokens.stroke}" />
     <rect x="36" y="36" width="${STUB_WIDTH - 72}" height="10" rx="5" fill="url(#stubAccent)" />
-    <text x="52" y="92" fill="#70d4ff" font-size="18" letter-spacing="4" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.transportBadge)}</text>
-    <text x="52" y="142" fill="#f8fcff" font-size="44" font-weight="700" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.primaryCode)}</text>
-    <text x="52" y="178" fill="#c1d5de" font-size="22" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.subtitle)}</text>
+    <text x="52" y="92" fill="${tokens.accentStart}" font-size="18" letter-spacing="4" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.transportBadge)}</text>
+    <text x="52" y="142" fill="${tokens.primary}" font-size="44" font-weight="700" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.primaryCode)}</text>
+    <text x="52" y="178" fill="${tokens.muted}" font-size="22" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.subtitle)}</text>
 
-    <text x="52" y="250" fill="#7aa4b6" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">DEPARTURE</text>
-    <text x="52" y="286" fill="#f8fcff" font-size="28" font-weight="700" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.departureLabel)}</text>
-    <text x="52" y="320" fill="#c1d5de" font-size="20" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.departureTimeLocal.replace("T", " "))}</text>
+    <text x="52" y="250" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">DEPARTURE</text>
+    <text x="52" y="286" fill="${tokens.primary}" font-size="28" font-weight="700" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.departureLabel)}</text>
+    <text x="52" y="320" fill="${tokens.muted}" font-size="20" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.departureTimeLocal.replace("T", " "))}</text>
 
-    <text x="520" y="250" fill="#7aa4b6" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">ARRIVAL</text>
-    <text x="520" y="286" fill="#f8fcff" font-size="28" font-weight="700" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.arrivalLabel)}</text>
-    <text x="520" y="320" fill="#c1d5de" font-size="20" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.arrivalTimeLocal.replace("T", " "))}</text>
+    <text x="520" y="250" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">ARRIVAL</text>
+    <text x="520" y="286" fill="${tokens.primary}" font-size="28" font-weight="700" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.arrivalLabel)}</text>
+    <text x="520" y="320" fill="${tokens.muted}" font-size="20" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.arrivalTimeLocal.replace("T", " "))}</text>
 
-    <line x1="472" y1="272" x2="492" y2="272" stroke="#ffb15a" stroke-width="4" stroke-linecap="round" />
-    <path d="M 492 264 L 512 272 L 492 280" fill="none" stroke="#ffb15a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="472" y1="272" x2="492" y2="272" stroke="${tokens.accentEnd}" stroke-width="4" stroke-linecap="round" />
+    <path d="M 492 264 L 512 272 L 492 280" fill="none" stroke="${tokens.accentEnd}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
 
-    <text x="52" y="396" fill="#7aa4b6" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">CARRIER</text>
-    <text x="52" y="430" fill="#f8fcff" font-size="22" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.carrierName)}</text>
+    <text x="52" y="396" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">CARRIER</text>
+    <text x="52" y="430" fill="${tokens.primary}" font-size="22" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.carrierName)}</text>
 
-    <text x="370" y="396" fill="#7aa4b6" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">SEAT</text>
-    <text x="370" y="430" fill="#f8fcff" font-size="22" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.seatLabel)}</text>
+    <text x="370" y="396" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">SEAT</text>
+    <text x="370" y="430" fill="${tokens.primary}" font-size="22" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.seatLabel)}</text>
 
-    <text x="52" y="474" fill="#7aa4b6" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">NOTES</text>
-    <text x="52" y="506" fill="#d8e6ed" font-size="18" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.notes)}</text>
+    <text x="52" y="474" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans, sans-serif">NOTES</text>
+    <text x="52" y="506" fill="${tokens.primary}" font-size="18" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(stub.notes)}</text>
   </svg>`.trim();
 }
 

@@ -318,10 +318,26 @@ textarea {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.interactive-map {
+  position: relative;
+  min-height: 280px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.interactive-map:active {
+  cursor: grabbing;
+}
+
 .svg-frame svg {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.map-transform {
+  transform-origin: center center;
+  transition: transform 120ms ease-out;
 }
 
 .export-row {
@@ -329,6 +345,39 @@ textarea {
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 14px;
+}
+
+.map-toolbar,
+.map-toolbar-group,
+.theme-switcher {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.map-toolbar {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.theme-switcher {
+  margin-bottom: 14px;
+}
+
+.theme-chip {
+  border-radius: 999px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-transform: capitalize;
+}
+
+.theme-chip.active {
+  background: linear-gradient(135deg, #1ca4da, #ff9854);
+  color: #06131c;
+  font-weight: 700;
 }
 
 .map-summary {
