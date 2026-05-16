@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import {
   buildMapSvg,
   buildStubSvg,
@@ -30,6 +30,12 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
   }
 
   const activeDetail = detail?.ticket.id === ticket.id ? detail : null;
+  const isTrainTicket = ticket.ticketType === "train";
+
+  useEffect(() => {
+    setStubTheme(isTrainTicket ? "ledger" : "boarding");
+  }, [isTrainTicket, ticket.id]);
+
   const mapSvg = useMemo(() => (activeDetail ? buildMapSvg(activeDetail.map) : ""), [activeDetail]);
   const stubSvg = useMemo(
     () => (activeDetail ? buildStubSvg(activeDetail.stub, stubTheme) : ""),
@@ -43,12 +49,12 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
 
     if (kind === "map") {
       exportSvg(`${activeDetail.ticket.code}-route-map.svg`, mapSvg);
-      setExportMessage("路线 SVG 已导出。");
+      setExportMessage("\u8def\u7ebf SVG \u5df2\u5bfc\u51fa\u3002");
       return;
     }
 
     exportSvg(`${activeDetail.ticket.code}-ticket-stub.svg`, stubSvg);
-    setExportMessage("票根 SVG 已导出。");
+    setExportMessage("\u7968\u6839 SVG \u5df2\u5bfc\u51fa\u3002");
   };
 
   const handleExportPng = async () => {
@@ -63,11 +69,15 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
         visualizationSizes.stub.width,
         visualizationSizes.stub.height,
       );
-      setExportMessage("票根 PNG 已导出。");
+      setExportMessage("\u7968\u6839 PNG \u5df2\u5bfc\u51fa\u3002");
     } catch (error) {
-      setExportMessage(error instanceof Error ? error.message : "PNG 导出失败。");
+      setExportMessage(error instanceof Error ? error.message : "PNG \u5bfc\u51fa\u5931\u8d25\u3002");
     }
   };
+
+  const themeOptions: StubTheme[] = isTrainTicket
+    ? ["ledger", "boarding", "night"]
+    : ["boarding", "ledger", "night"];
 
   return (
     <section className="panel dashboard">
@@ -79,17 +89,27 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
         <span className="status-pill">{ticket.status}</span>
       </div>
 
-      {isLoading ? <p className="detail-loading">正在加载路线和票根派生数据...</p> : null}
+      {isLoading ? (
+        <p className="detail-loading">
+          {"\u6b63\u5728\u52a0\u8f7d\u8def\u7ebf\u548c\u7968\u6839\u6d3e\u751f\u6570\u636e..."}
+        </p>
+      ) : null}
 
       <article className="map-preview">
         {activeDetail ? (
           <>
-            <Suspense fallback={<p className="detail-loading">正在加载真实地图组件...</p>}>
+            <Suspense
+              fallback={
+                <p className="detail-loading">
+                  {"\u6b63\u5728\u52a0\u8f7d\u771f\u5b9e\u5730\u56fe\u7ec4\u4ef6..."}
+                </p>
+              }
+            >
               <RouteMap route={activeDetail.map} />
             </Suspense>
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("map")} type="button">
-                导出路线 SVG
+                {"\u5bfc\u51fa\u8def\u7ebf SVG"}
               </button>
             </div>
           </>
@@ -128,7 +148,7 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
         {activeDetail ? (
           <>
             <div className="theme-switcher">
-              {(["boarding", "ledger", "night"] as StubTheme[]).map((theme) => (
+              {themeOptions.map((theme) => (
                 <button
                   key={theme}
                   className={stubTheme === theme ? "theme-chip active" : "theme-chip"}
@@ -136,20 +156,20 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
                   type="button"
                 >
                   {theme === "boarding"
-                    ? "登机牌"
+                    ? "\u767b\u673a\u724c"
                     : theme === "ledger"
-                      ? "复古票据"
-                      : "夜间霓虹"}
+                      ? "\u62a5\u9500\u51ed\u8bc1"
+                      : "\u591c\u95f4\u9713\u8679"}
                 </button>
               ))}
             </div>
             <div className="svg-frame stub-canvas" dangerouslySetInnerHTML={{ __html: stubSvg }} />
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("stub")} type="button">
-                导出票根 SVG
+                {"\u5bfc\u51fa\u7968\u6839 SVG"}
               </button>
               <button className="primary-button" onClick={() => void handleExportPng()} type="button">
-                导出票根 PNG
+                {"\u5bfc\u51fa\u7968\u6839 PNG"}
               </button>
             </div>
           </>
@@ -193,7 +213,7 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
           <strong>{activeDetail?.stub.notes || ticket.notes || "No notes yet"}</strong>
         </div>
         <div className="detail-card">
-          <span>起点坐标</span>
+          <span>{"\u8d77\u70b9\u5750\u6807"}</span>
           <strong>
             {activeDetail
               ? `${activeDetail.map.origin.latitude.toFixed(2)}, ${activeDetail.map.origin.longitude.toFixed(2)}`
