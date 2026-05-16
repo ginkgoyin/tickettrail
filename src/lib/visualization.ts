@@ -11,6 +11,7 @@ const MAP_PADDING = 44;
 
 const STUB_WIDTH = 960;
 const STUB_HEIGHT = 520;
+
 export type StubTheme = "boarding" | "ledger" | "night";
 
 function escapeXml(value: string) {

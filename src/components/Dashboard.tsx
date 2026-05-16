@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
 import {
   buildMapSvg,
   buildStubSvg,
@@ -9,6 +9,8 @@ import {
 } from "../lib/visualization";
 import type { TicketDetailPayload, TicketRecord } from "../types/ticket";
 
+const RouteMap = lazy(async () => import("./RouteMap").then((module) => ({ default: module.RouteMap })));
+
 interface DashboardProps {
   detail: TicketDetailPayload | null;
   isLoading: boolean;
@@ -18,9 +20,6 @@ interface DashboardProps {
 export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
   const [exportMessage, setExportMessage] = useState("");
   const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
-  const [mapScale, setMapScale] = useState(1);
-  const [mapOffset, setMapOffset] = useState({ x: 0, y: 0 });
-  const dragState = useRef<{ x: number; y: number } | null>(null);
 
   if (!ticket) {
     return (
@@ -36,44 +35,6 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
     () => (activeDetail ? buildStubSvg(activeDetail.stub, stubTheme) : ""),
     [activeDetail, stubTheme],
   );
-
-  const resetMapView = () => {
-    setMapScale(1);
-    setMapOffset({ x: 0, y: 0 });
-  };
-
-  const updateMapScale = (nextScale: number) => {
-    setMapScale(Math.max(0.8, Math.min(2.4, Number(nextScale.toFixed(2)))));
-  };
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    dragState.current = {
-      x: event.clientX - mapOffset.x,
-      y: event.clientY - mapOffset.y,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragState.current) {
-      return;
-    }
-
-    setMapOffset({
-      x: event.clientX - dragState.current.x,
-      y: event.clientY - dragState.current.y,
-    });
-  };
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    dragState.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-  };
-
-  const handleMapWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    updateMapScale(mapScale + (event.deltaY < 0 ? 0.12 : -0.12));
-  };
 
   const handleExportSvg = (kind: "map" | "stub") => {
     if (!activeDetail) {
@@ -123,36 +84,9 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
       <article className="map-preview">
         {activeDetail ? (
           <>
-            <div className="map-toolbar">
-              <div className="map-toolbar-group">
-                <button className="ghost-button" onClick={() => updateMapScale(mapScale - 0.12)} type="button">
-                  缩小
-                </button>
-                <button className="ghost-button" onClick={() => updateMapScale(mapScale + 0.12)} type="button">
-                  放大
-                </button>
-                <button className="ghost-button" onClick={resetMapView} type="button">
-                  重置视图
-                </button>
-              </div>
-              <span className="detail-loading">缩放 {Math.round(mapScale * 100)}%</span>
-            </div>
-            <div
-              className="svg-frame map-canvas interactive-map"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              onWheel={handleMapWheel}
-            >
-              <div
-                className="map-transform"
-                style={{
-                  transform: `translate(${mapOffset.x}px, ${mapOffset.y}px) scale(${mapScale})`,
-                }}
-                dangerouslySetInnerHTML={{ __html: mapSvg }}
-              />
-            </div>
+            <Suspense fallback={<p className="detail-loading">正在加载真实地图组件...</p>}>
+              <RouteMap route={activeDetail.map} />
+            </Suspense>
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("map")} type="button">
                 导出路线 SVG
@@ -201,14 +135,15 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
                   onClick={() => setStubTheme(theme)}
                   type="button"
                 >
-                  {theme}
+                  {theme === "boarding"
+                    ? "登机牌"
+                    : theme === "ledger"
+                      ? "复古票据"
+                      : "夜间霓虹"}
                 </button>
               ))}
             </div>
-            <div
-              className="svg-frame stub-canvas"
-              dangerouslySetInnerHTML={{ __html: stubSvg }}
-            />
+            <div className="svg-frame stub-canvas" dangerouslySetInnerHTML={{ __html: stubSvg }} />
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("stub")} type="button">
                 导出票根 SVG
@@ -258,7 +193,7 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
           <strong>{activeDetail?.stub.notes || ticket.notes || "No notes yet"}</strong>
         </div>
         <div className="detail-card">
-          <span>Map coords</span>
+          <span>起点坐标</span>
           <strong>
             {activeDetail
               ? `${activeDetail.map.origin.latitude.toFixed(2)}, ${activeDetail.map.origin.longitude.toFixed(2)}`

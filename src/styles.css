@@ -318,51 +318,19 @@ textarea {
   background: rgba(255, 255, 255, 0.02);
 }
 
-.interactive-map {
-  position: relative;
-  min-height: 280px;
-  cursor: grab;
-  touch-action: none;
-}
-
-.interactive-map:active {
-  cursor: grabbing;
-}
-
 .svg-frame svg {
   display: block;
   width: 100%;
   height: auto;
 }
 
-.map-transform {
-  transform-origin: center center;
-  transition: transform 120ms ease-out;
-}
-
-.export-row {
+.export-row,
+.theme-switcher {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 14px;
-}
-
-.map-toolbar,
-.map-toolbar-group,
-.theme-switcher {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
   align-items: center;
-}
-
-.map-toolbar {
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.theme-switcher {
-  margin-bottom: 14px;
 }
 
 .theme-chip {
@@ -371,7 +339,6 @@ textarea {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
   color: inherit;
-  text-transform: capitalize;
 }
 
 .theme-chip.active {
@@ -394,6 +361,92 @@ textarea {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.route-map-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.route-map {
+  width: 100%;
+  min-height: 360px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 22, 32, 0.8);
+}
+
+.route-map .maplibregl-ctrl-top-right {
+  top: 12px;
+  right: 12px;
+}
+
+.route-map .maplibregl-ctrl-group {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.route-map .maplibregl-ctrl button {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.route-map .maplibregl-ctrl-attrib {
+  background: rgba(6, 24, 36, 0.85);
+  color: #dbe9ef;
+}
+
+.route-map .maplibregl-ctrl-attrib a {
+  color: #8fdcff;
+}
+
+.route-map-message {
+  margin: 0;
+}
+
+.route-marker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateY(-8px);
+}
+
+.route-marker-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 4px rgba(6, 24, 36, 0.24);
+}
+
+.route-marker-origin .route-marker-dot {
+  background: #1ca4da;
+}
+
+.route-marker-destination .route-marker-dot {
+  background: #ff9854;
+}
+
+.route-marker-card {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  min-width: 96px;
+  border-radius: 12px;
+  background: rgba(6, 24, 36, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #eef3f6;
+}
+
+.route-marker-card strong {
+  font-size: 0.9rem;
+}
+
+.route-marker-card small {
+  color: var(--text-soft);
+  font-size: 0.75rem;
 }
 
 .map-grid {
@@ -483,6 +536,7 @@ textarea {
   .hero,
   .header-actions,
   .export-row,
+  .theme-switcher,
   .stub-preview header,
   .stub-preview footer {
     flex-direction: column;
