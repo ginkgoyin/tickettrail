@@ -310,6 +310,27 @@ textarea {
   font-size: 0.92rem;
 }
 
+.svg-frame {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.svg-frame svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.export-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
 .map-summary {
   display: flex;
   gap: 12px;
@@ -412,6 +433,7 @@ textarea {
   .panel-heading,
   .hero,
   .header-actions,
+  .export-row,
   .stub-preview header,
   .stub-preview footer {
     flex-direction: column;
