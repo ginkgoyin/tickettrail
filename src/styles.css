@@ -206,6 +206,40 @@ button {
   gap: 16px;
 }
 
+.smart-import {
+  display: grid;
+  gap: 16px;
+}
+
+.import-textarea {
+  min-height: 160px;
+}
+
+.import-preview {
+  display: grid;
+  gap: 14px;
+}
+
+.import-summary {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.import-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.import-warnings {
+  display: grid;
+  gap: 8px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -677,6 +711,7 @@ textarea {
   }
 
   .form-grid,
+  .import-grid,
   .detail-grid,
   .hero-stats,
   .stub-body,

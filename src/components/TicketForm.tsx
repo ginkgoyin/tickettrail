@@ -36,6 +36,7 @@ interface TicketFormProps {
   isSaving: boolean;
   mode: "create" | "edit";
   initialDraft?: TicketDraft | null;
+  importedDraft?: TicketDraft | null;
   onSubmitTicket: (draft: TicketDraft) => Promise<void>;
   onCancelEdit?: () => void;
 }
@@ -44,14 +45,25 @@ export function TicketForm({
   isSaving,
   mode,
   initialDraft,
+  importedDraft,
   onSubmitTicket,
   onCancelEdit,
 }: TicketFormProps) {
   const [draft, setDraft] = useState<TicketDraft>(createDefaultDraft());
 
   useEffect(() => {
-    setDraft(initialDraft ? cloneDraft(initialDraft) : createDefaultDraft());
-  }, [initialDraft, mode]);
+    if (mode === "edit") {
+      setDraft(initialDraft ? cloneDraft(initialDraft) : createDefaultDraft());
+      return;
+    }
+
+    if (importedDraft) {
+      setDraft(cloneDraft(importedDraft));
+      return;
+    }
+
+    setDraft(createDefaultDraft());
+  }, [importedDraft, initialDraft, mode]);
 
   const updateField = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -93,7 +105,7 @@ export function TicketForm({
           <h3>{mode === "edit" ? "Edit ticket record" : "Create ticket record"}</h3>
         </div>
         <span className="status-pill">
-          {isSaving ? "Saving..." : mode === "edit" ? "Update mode" : "SQLite flow"}
+          {isSaving ? "Saving..." : mode === "edit" ? "Update mode" : importedDraft ? "Imported draft" : "SQLite flow"}
         </span>
       </div>
 

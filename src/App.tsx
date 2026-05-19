@@ -2,6 +2,7 @@ import { startTransition, useDeferredValue, useEffect, useMemo, useState } from 
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
+import { SmartImport } from "./components/SmartImport";
 import { TicketForm } from "./components/TicketForm";
 import { TicketList } from "./components/TicketList";
 import {
@@ -101,6 +102,7 @@ export default function App() {
   const [selectedDetail, setSelectedDetail] = useState<TicketDetailPayload | null>(null);
   const [detailVersion, setDetailVersion] = useState(0);
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
+  const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
 
   const deferredQuery = useDeferredValue(filters.query);
 
@@ -224,6 +226,7 @@ export default function App() {
         startTransition(() => {
           setTickets((current) => [nextTicket, ...current]);
           setSelectedId(nextTicket.id);
+          setImportedDraft(null);
           setDetailVersion((current) => current + 1);
         });
       }
@@ -237,6 +240,7 @@ export default function App() {
   const handleEditTicket = (ticketId: string) => {
     setEditingId(ticketId);
     setSelectedId(ticketId);
+    setImportedDraft(null);
     setErrorMessage("");
   };
 
@@ -323,6 +327,12 @@ export default function App() {
     }
   };
 
+  const handleApplyImport = (draft: TicketDraft) => {
+    setEditingId("");
+    setImportedDraft(draft);
+    setErrorMessage("");
+  };
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -365,7 +375,9 @@ export default function App() {
 
         <section className="content-grid">
           <div className="panel-stack">
+            <SmartImport onApplyImport={handleApplyImport} />
             <TicketForm
+              importedDraft={importedDraft}
               initialDraft={formDraft}
               isSaving={isSaving}
               mode={editingTicket ? "edit" : "create"}
