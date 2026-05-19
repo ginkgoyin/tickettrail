@@ -30,7 +30,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -219,7 +220,8 @@ label {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -274,6 +276,18 @@ textarea {
 .ticket-list {
   display: grid;
   gap: 14px;
+}
+
+.ticket-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 0.8fr)) auto;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: end;
+}
+
+.filter-reset {
+  white-space: nowrap;
 }
 
 .empty-state {
@@ -610,6 +624,10 @@ textarea {
   .hero-stats,
   .stub-body,
   .map-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-filters {
     grid-template-columns: 1fr;
   }
 }
