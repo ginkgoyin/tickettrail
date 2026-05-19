@@ -3,8 +3,9 @@ mod db;
 mod models;
 
 use commands::{
-    create_stub_preview, create_ticket, delete_ticket, get_bootstrap_summary, get_ticket_detail,
-    list_tickets, update_ticket, update_ticket_status,
+    add_ticket_attachment, create_stub_preview, create_ticket, delete_ticket,
+    delete_ticket_attachment, get_bootstrap_summary, get_ticket_detail, list_tickets, update_ticket,
+    update_ticket_status,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -17,6 +18,8 @@ pub fn run() {
             update_ticket,
             update_ticket_status,
             delete_ticket,
+            add_ticket_attachment,
+            delete_ticket_attachment,
             get_ticket_detail,
             create_stub_preview
         ])

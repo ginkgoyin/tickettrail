@@ -5,8 +5,10 @@ import { Sidebar } from "./components/Sidebar";
 import { TicketForm } from "./components/TicketForm";
 import { TicketList } from "./components/TicketList";
 import {
+  addTicketAttachment,
   createTicket,
   deleteTicket,
+  deleteTicketAttachment,
   getTicketDetail,
   listTickets,
   updateTicket,
@@ -93,6 +95,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [busyTicketId, setBusyTicketId] = useState("");
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedDetail, setSelectedDetail] = useState<TicketDetailPayload | null>(null);
@@ -284,6 +287,42 @@ export default function App() {
     }
   };
 
+  const handleAddAttachment = async (file: File) => {
+    if (!selectedTicket) {
+      return;
+    }
+
+    setAttachmentBusy(true);
+    setErrorMessage("");
+
+    try {
+      await addTicketAttachment(selectedTicket.id, file);
+      setDetailVersion((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to add attachment.");
+    } finally {
+      setAttachmentBusy(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!selectedTicket) {
+      return;
+    }
+
+    setAttachmentBusy(true);
+    setErrorMessage("");
+
+    try {
+      await deleteTicketAttachment(attachmentId, selectedTicket.id);
+      setDetailVersion((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to delete attachment.");
+    } finally {
+      setAttachmentBusy(false);
+    }
+  };
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -347,7 +386,14 @@ export default function App() {
               totalCount={tickets.length}
             />
           </div>
-          <Dashboard detail={selectedDetail} isLoading={detailLoading} ticket={selectedTicket} />
+          <Dashboard
+            attachmentBusy={attachmentBusy}
+            detail={selectedDetail}
+            isLoading={detailLoading}
+            onAddAttachment={handleAddAttachment}
+            onDeleteAttachment={handleDeleteAttachment}
+            ticket={selectedTicket}
+          />
         </section>
       </main>
     </div>

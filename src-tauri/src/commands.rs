@@ -1,6 +1,9 @@
 use crate::{
     db,
-    models::{StubPreviewPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload},
+    models::{
+        StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
+        TicketDraftPayload, TicketRecordPayload,
+    },
 };
 use tauri::command;
 use tauri::AppHandle;
@@ -45,6 +48,20 @@ pub fn update_ticket_status(
 #[command]
 pub fn delete_ticket(app: AppHandle, ticket_id: String) -> Result<(), String> {
     db::delete_ticket(&app, &ticket_id)
+}
+
+#[command]
+pub fn add_ticket_attachment(
+    app: AppHandle,
+    ticket_id: String,
+    upload: TicketAttachmentUploadPayload,
+) -> Result<TicketAttachmentPayload, String> {
+    db::add_ticket_attachment(&app, &ticket_id, upload)
+}
+
+#[command]
+pub fn delete_ticket_attachment(app: AppHandle, attachment_id: String) -> Result<(), String> {
+    db::delete_ticket_attachment(&app, &attachment_id)
 }
 
 #[command]

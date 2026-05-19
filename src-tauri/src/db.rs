@@ -1,11 +1,16 @@
 use crate::models::{
-    MapPointPayload, MapRoutePayload, MapViewportPayload, StubPreviewPayload, TicketDetailPayload,
-    TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
+    MapPointPayload, MapRoutePayload, MapViewportPayload, StubPreviewPayload, TicketAttachmentPayload,
+    TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketLocationPayload,
+    TicketRecordPayload,
 };
 use chrono::{LocalResult, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use rusqlite::{params, Connection, Row};
-use std::{fs, path::PathBuf};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::{Path, PathBuf},
+};
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
@@ -23,6 +28,16 @@ struct TicketRowData {
     updated_at: String,
 }
 
+struct AttachmentRowData {
+    id: String,
+    ticket_id: String,
+    file_name: String,
+    mime_type: String,
+    file_size: i64,
+    file_path: String,
+    created_at: String,
+}
+
 pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
     let conn = open_connection(app)?;
     let mut stmt = conn
@@ -33,9 +48,7 @@ pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String>
         )
         .map_err(|err| err.to_string())?;
 
-    let rows = stmt
-        .query_map([], parse_ticket_row)
-        .map_err(|err| err.to_string())?;
+    let rows = stmt.query_map([], parse_ticket_row).map_err(|err| err.to_string())?;
 
     rows.map(|row| row.and_then(ticket_row_to_record))
         .collect::<Result<Vec<_>, _>>()
@@ -338,11 +351,14 @@ pub fn delete_ticket(app: &AppHandle, ticket_id: &str) -> Result<(), String> {
         .journey_id
         .clone()
         .ok_or_else(|| "Ticket journey relation is missing.".to_string())?;
+    let attachments = list_ticket_attachments(&conn, ticket_id)?;
 
     conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
         .map_err(|err| err.to_string())?;
 
     let result = (|| {
+        conn.execute("DELETE FROM ticket_attachments WHERE ticket_id = ?1", [ticket_id])
+            .map_err(|err| err.to_string())?;
         conn.execute("DELETE FROM ticket_records WHERE id = ?1", [ticket_id])
             .map_err(|err| err.to_string())?;
         conn.execute("DELETE FROM segments WHERE journey_id = ?1", [&journey_id])
@@ -354,16 +370,100 @@ pub fn delete_ticket(app: &AppHandle, ticket_id: &str) -> Result<(), String> {
 
     if result.is_err() {
         let _ = conn.execute_batch("ROLLBACK;");
+        return result;
     }
 
-    result
+    for attachment in attachments {
+        let _ = fs::remove_file(&attachment.file_path);
+    }
+    let attachment_dir = attachment_ticket_dir(app, ticket_id)?;
+    if attachment_dir.exists() {
+        let _ = fs::remove_dir_all(attachment_dir);
+    }
+
+    Ok(())
+}
+
+pub fn add_ticket_attachment(
+    app: &AppHandle,
+    ticket_id: &str,
+    upload: TicketAttachmentUploadPayload,
+) -> Result<TicketAttachmentPayload, String> {
+    if upload.bytes.is_empty() {
+        return Err("Attachment file is empty.".to_string());
+    }
+
+    let conn = open_connection(app)?;
+    let _ = get_ticket_row(&conn, ticket_id)?;
+
+    let attachment_id = Uuid::new_v4().to_string();
+    let created_at = Utc::now().to_rfc3339();
+    let file_name = sanitize_file_name(&upload.file_name);
+    let stored_name = build_stored_file_name(&attachment_id, &file_name);
+    let ticket_dir = attachment_ticket_dir(app, ticket_id)?;
+    fs::create_dir_all(&ticket_dir).map_err(|err| err.to_string())?;
+    let stored_path = ticket_dir.join(stored_name);
+    fs::write(&stored_path, &upload.bytes).map_err(|err| err.to_string())?;
+
+    conn.execute(
+        "INSERT INTO ticket_attachments (
+            id, ticket_id, file_name, mime_type, file_size, file_path, created_at_utc
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            &attachment_id,
+            ticket_id,
+            &file_name,
+            &upload.mime_type,
+            upload.bytes.len() as i64,
+            stored_path.to_string_lossy().to_string(),
+            &created_at
+        ],
+    )
+    .map_err(|err| {
+        let _ = fs::remove_file(&stored_path);
+        err.to_string()
+    })?;
+
+    touch_ticket_updated_at(&conn, ticket_id, &created_at)?;
+
+    Ok(TicketAttachmentPayload {
+        id: attachment_id,
+        ticket_id: ticket_id.to_string(),
+        file_name,
+        mime_type: upload.mime_type,
+        file_size: upload.bytes.len() as u64,
+        created_at,
+        file_path: stored_path.to_string_lossy().to_string(),
+    })
+}
+
+pub fn delete_ticket_attachment(app: &AppHandle, attachment_id: &str) -> Result<(), String> {
+    let conn = open_connection(app)?;
+    let attachment = get_attachment_row(&conn, attachment_id)?;
+
+    conn.execute("DELETE FROM ticket_attachments WHERE id = ?1", [attachment_id])
+        .map_err(|err| err.to_string())?;
+    let updated_at = Utc::now().to_rfc3339();
+    touch_ticket_updated_at(&conn, &attachment.ticket_id, &updated_at)?;
+
+    if Path::new(&attachment.file_path).exists() {
+        fs::remove_file(&attachment.file_path).map_err(|err| err.to_string())?;
+    }
+
+    let ticket_dir = attachment_ticket_dir(app, &attachment.ticket_id)?;
+    if ticket_dir.exists() && fs::read_dir(&ticket_dir).map_err(|err| err.to_string())?.next().is_none() {
+        let _ = fs::remove_dir(ticket_dir);
+    }
+
+    Ok(())
 }
 
 pub fn get_ticket_detail(app: &AppHandle, ticket_id: &str) -> Result<TicketDetailPayload, String> {
     let conn = open_connection(app)?;
     let row = get_ticket_row(&conn, ticket_id)?;
+    let attachments = list_ticket_attachments(&conn, ticket_id)?;
     let ticket = ticket_row_to_record(row).map_err(|err| err.to_string())?;
-    Ok(build_ticket_detail(ticket))
+    Ok(build_ticket_detail(ticket, attachments))
 }
 
 fn build_ticket_record(
@@ -405,7 +505,10 @@ fn build_ticket_record(
     }
 }
 
-fn build_ticket_detail(ticket: TicketRecordPayload) -> TicketDetailPayload {
+fn build_ticket_detail(
+    ticket: TicketRecordPayload,
+    attachments: Vec<TicketAttachmentPayload>,
+) -> TicketDetailPayload {
     let origin = resolve_map_point(&ticket.departure);
     let destination = resolve_map_point(&ticket.arrival);
     let viewport = build_viewport(&origin, &destination);
@@ -444,7 +547,12 @@ fn build_ticket_detail(ticket: TicketRecordPayload) -> TicketDetailPayload {
         accent: "#70d4ff".to_string(),
     };
 
-    TicketDetailPayload { ticket, map, stub }
+    TicketDetailPayload {
+        ticket,
+        map,
+        stub,
+        attachments,
+    }
 }
 
 fn map_status(value: &str) -> String {
@@ -530,6 +638,18 @@ fn parse_ticket_row(row: &Row<'_>) -> rusqlite::Result<TicketRowData> {
     })
 }
 
+fn parse_attachment_row(row: &Row<'_>) -> rusqlite::Result<AttachmentRowData> {
+    Ok(AttachmentRowData {
+        id: row.get(0)?,
+        ticket_id: row.get(1)?,
+        file_name: row.get(2)?,
+        mime_type: row.get(3)?,
+        file_size: row.get(4)?,
+        file_path: row.get(5)?,
+        created_at: row.get(6)?,
+    })
+}
+
 fn ticket_row_to_record(row: TicketRowData) -> rusqlite::Result<TicketRecordPayload> {
     let draft = serde_json::from_str::<TicketDraftPayload>(&row.raw_payload_json).map_err(|err| {
         rusqlite::Error::FromSqlConversionFailure(
@@ -551,6 +671,18 @@ fn ticket_row_to_record(row: TicketRowData) -> rusqlite::Result<TicketRecordPayl
     ))
 }
 
+fn attachment_row_to_payload(row: AttachmentRowData) -> Result<TicketAttachmentPayload, String> {
+    Ok(TicketAttachmentPayload {
+        id: row.id,
+        ticket_id: row.ticket_id,
+        file_name: row.file_name,
+        mime_type: row.mime_type,
+        file_size: row.file_size.max(0) as u64,
+        created_at: row.created_at,
+        file_path: row.file_path,
+    })
+}
+
 fn get_ticket_row(conn: &Connection, ticket_id: &str) -> Result<TicketRowData, String> {
     let mut stmt = conn
         .prepare(
@@ -562,6 +694,80 @@ fn get_ticket_row(conn: &Connection, ticket_id: &str) -> Result<TicketRowData, S
 
     stmt.query_row([ticket_id], parse_ticket_row)
         .map_err(|err| err.to_string())
+}
+
+fn get_attachment_row(conn: &Connection, attachment_id: &str) -> Result<AttachmentRowData, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, ticket_id, file_name, mime_type, file_size, file_path, created_at_utc
+             FROM ticket_attachments
+             WHERE id = ?1",
+        )
+        .map_err(|err| err.to_string())?;
+
+    stmt.query_row([attachment_id], parse_attachment_row)
+        .map_err(|err| err.to_string())
+}
+
+fn list_ticket_attachments(
+    conn: &Connection,
+    ticket_id: &str,
+) -> Result<Vec<TicketAttachmentPayload>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, ticket_id, file_name, mime_type, file_size, file_path, created_at_utc
+             FROM ticket_attachments
+             WHERE ticket_id = ?1
+             ORDER BY created_at_utc DESC",
+        )
+        .map_err(|err| err.to_string())?;
+
+    let rows = stmt
+        .query_map([ticket_id], parse_attachment_row)
+        .map_err(|err| err.to_string())?;
+
+    rows.map(|row| row.map_err(|err| err.to_string()).and_then(attachment_row_to_payload))
+        .collect()
+}
+
+fn touch_ticket_updated_at(conn: &Connection, ticket_id: &str, updated_at: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE ticket_records
+         SET updated_at_utc = ?1,
+             version = version + 1
+         WHERE id = ?2",
+        params![updated_at, ticket_id],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+fn sanitize_file_name(file_name: &str) -> String {
+    let sanitized = file_name
+        .chars()
+        .map(|char| match char {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            _ => char,
+        })
+        .collect::<String>()
+        .trim()
+        .to_string();
+
+    if sanitized.is_empty() {
+        "attachment.bin".to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn build_stored_file_name(attachment_id: &str, file_name: &str) -> String {
+    let extension = Path::new(file_name)
+        .extension()
+        .and_then(OsStr::to_str)
+        .map(|ext| format!(".{}", ext))
+        .unwrap_or_default();
+
+    format!("{}{}", attachment_id, extension)
 }
 
 fn journey_status_for_ticket_status(status: &str) -> &str {
@@ -602,6 +808,15 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
 fn database_path(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
     Ok(data_dir.join("tickettrail.sqlite3"))
+}
+
+fn attachment_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
+    Ok(data_dir.join("attachments"))
+}
+
+fn attachment_ticket_dir(app: &AppHandle, ticket_id: &str) -> Result<PathBuf, String> {
+    Ok(attachment_root_dir(app)?.join(ticket_id))
 }
 
 fn resolve_map_point(location: &TicketLocationPayload) -> MapPointPayload {

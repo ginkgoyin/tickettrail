@@ -431,11 +431,68 @@ textarea {
 
 .map-preview,
 .stub-preview,
+.attachments-panel,
 .detail-card {
   padding: 18px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.attachment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.attachment-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.attachment-preview,
+.attachment-fallback {
+  width: 100%;
+  aspect-ratio: 1.4 / 1;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.attachment-preview {
+  display: block;
+  object-fit: cover;
+}
+
+.attachment-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.attachment-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.attachment-meta span {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+.attachment-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .route-map-shell {
@@ -623,7 +680,8 @@ textarea {
   .detail-grid,
   .hero-stats,
   .stub-body,
-  .map-grid {
+  .map-grid,
+  .attachment-grid {
     grid-template-columns: 1fr;
   }
 

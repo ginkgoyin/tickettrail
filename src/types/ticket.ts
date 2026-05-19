@@ -28,6 +28,23 @@ export interface TicketRecord extends TicketDraft {
   status: TicketStatus;
 }
 
+export interface TicketAttachment {
+  id: string;
+  ticketId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  createdAt: string;
+  filePath?: string;
+  previewUrl?: string;
+}
+
+export interface TicketAttachmentUpload {
+  fileName: string;
+  mimeType: string;
+  bytes: number[];
+}
+
 export interface MapPointPayload {
   label: string;
   code?: string;
@@ -72,4 +89,5 @@ export interface TicketDetailPayload {
   ticket: TicketRecord;
   map: MapRoutePayload;
   stub: StubPreviewPayload;
+  attachments: TicketAttachment[];
 }

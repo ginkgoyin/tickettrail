@@ -71,6 +71,16 @@ CREATE TABLE IF NOT EXISTS rendered_artifacts (
     created_at_utc TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ticket_attachments (
+    id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL REFERENCES ticket_records(id),
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    file_path TEXT NOT NULL,
+    created_at_utc TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_ticket_records_type_created
     ON ticket_records(ticket_type, created_at_utc);
 
@@ -85,3 +95,6 @@ CREATE INDEX IF NOT EXISTS idx_segments_route
 
 CREATE INDEX IF NOT EXISTS idx_rendered_artifacts_owner
     ON rendered_artifacts(owner_type, owner_id, artifact_type);
+
+CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_created
+    ON ticket_attachments(ticket_id, created_at_utc DESC);

@@ -43,6 +43,26 @@ pub struct TicketRecordPayload {
     pub updated_at: String,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TicketAttachmentUploadPayload {
+    pub file_name: String,
+    pub mime_type: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TicketAttachmentPayload {
+    pub id: String,
+    pub ticket_id: String,
+    pub file_name: String,
+    pub mime_type: String,
+    pub file_size: u64,
+    pub created_at: String,
+    pub file_path: String,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MapPointPayload {
@@ -97,4 +117,5 @@ pub struct TicketDetailPayload {
     pub ticket: TicketRecordPayload,
     pub map: MapRoutePayload,
     pub stub: StubPreviewPayload,
+    pub attachments: Vec<TicketAttachmentPayload>,
 }

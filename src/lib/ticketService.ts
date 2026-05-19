@@ -1,5 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type {
+  TicketAttachment,
+  TicketAttachmentUpload,
   TicketDetailPayload,
   TicketDraft,
   TicketRecord,
@@ -7,6 +9,7 @@ import type {
 } from "../types/ticket";
 
 const STORAGE_KEY = "tickettrail.web-fallback.tickets";
+const ATTACHMENT_STORAGE_KEY = "tickettrail.web-fallback.attachments";
 
 function buildRouteLabel(ticket: TicketDraft) {
   return `${ticket.departure.name} -> ${ticket.arrival.name}`;
@@ -39,6 +42,29 @@ function writeFallbackTickets(tickets: TicketRecord[]) {
   }
 }
 
+function readFallbackAttachments(): Record<string, TicketAttachment[]> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const stored = window.localStorage.getItem(ATTACHMENT_STORAGE_KEY);
+  if (!stored) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(stored) as Record<string, TicketAttachment[]>;
+  } catch {
+    return {};
+  }
+}
+
+function writeFallbackAttachments(attachments: Record<string, TicketAttachment[]>) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(ATTACHMENT_STORAGE_KEY, JSON.stringify(attachments));
+  }
+}
+
 function createFallbackTicket(draft: TicketDraft): TicketRecord {
   const now = new Date().toISOString();
 
@@ -50,6 +76,10 @@ function createFallbackTicket(draft: TicketDraft): TicketRecord {
     status: "saved",
     ...draft,
   };
+}
+
+function getTicketAttachments(ticketId: string): TicketAttachment[] {
+  return readFallbackAttachments()[ticketId] ?? [];
 }
 
 function createFallbackDetail(ticket: TicketRecord): TicketDetailPayload {
@@ -100,12 +130,46 @@ function createFallbackDetail(ticket: TicketRecord): TicketDetailPayload {
       routeLabel: ticket.routeLabel,
       accent: "#70d4ff",
     },
+    attachments: getTicketAttachments(ticket.id),
   };
 }
 
 function replaceFallbackTicket(ticketId: string, nextTicket: TicketRecord) {
   const tickets = readFallbackTickets().map((ticket) => (ticket.id === ticketId ? nextTicket : ticket));
   writeFallbackTickets(tickets);
+}
+
+function normalizeAttachmentSource(attachment: TicketAttachment): TicketAttachment {
+  if (attachment.previewUrl) {
+    return attachment;
+  }
+
+  if (attachment.filePath && supportsTauri()) {
+    return {
+      ...attachment,
+      previewUrl: convertFileSrc(attachment.filePath),
+    };
+  }
+
+  return attachment;
+}
+
+async function fileToUpload(file: File): Promise<TicketAttachmentUpload> {
+  const arrayBuffer = await file.arrayBuffer();
+  return {
+    fileName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    bytes: Array.from(new Uint8Array(arrayBuffer)),
+  };
+}
+
+async function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("Failed to read attachment file."));
+    reader.readAsDataURL(file);
+  });
 }
 
 export async function listTickets(): Promise<TicketRecord[]> {
@@ -180,11 +244,53 @@ export async function deleteTicket(ticketId: string): Promise<void> {
 
   const tickets = readFallbackTickets().filter((ticket) => ticket.id !== ticketId);
   writeFallbackTickets(tickets);
+  const attachments = readFallbackAttachments();
+  delete attachments[ticketId];
+  writeFallbackAttachments(attachments);
+}
+
+export async function addTicketAttachment(ticketId: string, file: File): Promise<TicketAttachment> {
+  if (supportsTauri()) {
+    const upload = await fileToUpload(file);
+    const attachment = await invoke<TicketAttachment>("add_ticket_attachment", { ticketId, upload });
+    return normalizeAttachmentSource(attachment);
+  }
+
+  const previewUrl = await fileToDataUrl(file);
+  const attachments = readFallbackAttachments();
+  const nextAttachment: TicketAttachment = {
+    id: globalThis.crypto?.randomUUID?.() ?? `attachment-${Date.now()}`,
+    ticketId,
+    fileName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    fileSize: file.size,
+    createdAt: new Date().toISOString(),
+    previewUrl,
+  };
+
+  attachments[ticketId] = [nextAttachment, ...(attachments[ticketId] ?? [])];
+  writeFallbackAttachments(attachments);
+  return nextAttachment;
+}
+
+export async function deleteTicketAttachment(attachmentId: string, ticketId: string): Promise<void> {
+  if (supportsTauri()) {
+    await invoke("delete_ticket_attachment", { attachmentId });
+    return;
+  }
+
+  const attachments = readFallbackAttachments();
+  attachments[ticketId] = (attachments[ticketId] ?? []).filter((attachment) => attachment.id !== attachmentId);
+  writeFallbackAttachments(attachments);
 }
 
 export async function getTicketDetail(ticketId: string): Promise<TicketDetailPayload> {
   if (supportsTauri()) {
-    return invoke<TicketDetailPayload>("get_ticket_detail", { ticketId });
+    const detail = await invoke<TicketDetailPayload>("get_ticket_detail", { ticketId });
+    return {
+      ...detail,
+      attachments: detail.attachments.map(normalizeAttachmentSource),
+    };
   }
 
   const ticket = readFallbackTickets().find((item) => item.id === ticketId);

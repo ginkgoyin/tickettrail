@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   buildMapSvg,
   buildStubSvg,
@@ -7,7 +7,7 @@ import {
   type StubTheme,
   visualizationSizes,
 } from "../lib/visualization";
-import type { TicketDetailPayload, TicketRecord } from "../types/ticket";
+import type { TicketAttachment, TicketDetailPayload, TicketRecord } from "../types/ticket";
 
 const RouteMap = lazy(async () => import("./RouteMap").then((module) => ({ default: module.RouteMap })));
 
@@ -15,11 +15,26 @@ interface DashboardProps {
   detail: TicketDetailPayload | null;
   isLoading: boolean;
   ticket: TicketRecord | null;
+  attachmentBusy: boolean;
+  onAddAttachment: (file: File) => Promise<void>;
+  onDeleteAttachment: (attachmentId: string) => Promise<void>;
 }
 
-export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
+function isImageAttachment(attachment: TicketAttachment) {
+  return attachment.mimeType.startsWith("image/");
+}
+
+export function Dashboard({
+  detail,
+  isLoading,
+  ticket,
+  attachmentBusy,
+  onAddAttachment,
+  onDeleteAttachment,
+}: DashboardProps) {
   const [exportMessage, setExportMessage] = useState("");
   const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!ticket) {
     return (
@@ -75,6 +90,21 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
     }
   };
 
+  const handleChooseAttachment = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    await onAddAttachment(file);
+  };
+
   const themeOptions: StubTheme[] = isTrainTicket
     ? ["ledger", "boarding", "night"]
     : ["boarding", "ledger", "night"];
@@ -91,7 +121,7 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
 
       {isLoading ? (
         <p className="detail-loading">
-          {"\u6b63\u5728\u52a0\u8f7d\u8def\u7ebf\u548c\u7968\u6839\u6d3e\u751f\u6570\u636e..."}
+          {"\u6b63\u5728\u52a0\u8f7d\u8def\u7ebf\u3001\u7968\u6839\u548c\u9644\u4ef6\u6570\u636e..."}
         </p>
       ) : null}
 
@@ -194,6 +224,77 @@ export function Dashboard({ detail, isLoading, ticket }: DashboardProps) {
               <span>{`${ticket.classInfo || "TBD"} / ${ticket.seatInfo || "TBD"}`}</span>
             </footer>
           </>
+        )}
+      </article>
+
+      <article className="attachments-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Attachments</p>
+            <h3>Original ticket files</h3>
+          </div>
+          <span className="status-pill">{activeDetail?.attachments.length ?? 0} files</span>
+        </div>
+        <input
+          accept="image/*,application/pdf"
+          className="hidden-file-input"
+          onChange={(event) => void handleFileChange(event)}
+          ref={fileInputRef}
+          type="file"
+        />
+        <div className="export-row">
+          <button
+            className="primary-button"
+            disabled={!activeDetail || attachmentBusy}
+            onClick={handleChooseAttachment}
+            type="button"
+          >
+            {attachmentBusy ? "\u6b63\u5728\u5904\u7406\u9644\u4ef6..." : "\u6dfb\u52a0\u9644\u4ef6"}
+          </button>
+        </div>
+        {activeDetail?.attachments.length ? (
+          <div className="attachment-grid">
+            {activeDetail.attachments.map((attachment) => (
+              <article className="attachment-card" key={attachment.id}>
+                {isImageAttachment(attachment) && attachment.previewUrl ? (
+                  <img
+                    alt={attachment.fileName}
+                    className="attachment-preview"
+                    src={attachment.previewUrl}
+                  />
+                ) : (
+                  <div className="attachment-fallback">
+                    <strong>{attachment.mimeType.includes("pdf") ? "PDF" : "FILE"}</strong>
+                  </div>
+                )}
+                <div className="attachment-meta">
+                  <strong>{attachment.fileName}</strong>
+                  <span>{Math.max(1, Math.round(attachment.fileSize / 1024))} KB</span>
+                  <span>{attachment.createdAt.replace("T", " ").slice(0, 16)}</span>
+                </div>
+                <div className="attachment-actions">
+                  {attachment.previewUrl ? (
+                    <a className="ghost-button compact-button" href={attachment.previewUrl} target="_blank" rel="noreferrer">
+                      Open
+                    </a>
+                  ) : null}
+                  <button
+                    className="ghost-button compact-button danger-button"
+                    disabled={attachmentBusy}
+                    onClick={() => void onDeleteAttachment(attachment.id)}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <strong>No attachments yet</strong>
+            <p>Upload screenshots, scanned tickets, or PDF reimbursement files for this record.</p>
+          </div>
         )}
       </article>
 
