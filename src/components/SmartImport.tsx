@@ -1,14 +1,23 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { parseImportedText, type ImportParseResult } from "../lib/importParser";
+import { recognizeTicketImage } from "../lib/ocrService";
 import type { TicketDraft } from "../types/ticket";
 
 interface SmartImportProps {
   onApplyImport: (draft: TicketDraft) => void;
 }
 
+function toPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
 export function SmartImport({ onApplyImport }: SmartImportProps) {
   const [rawText, setRawText] = useState("");
   const [lastApplied, setLastApplied] = useState("");
+  const [ocrStatus, setOcrStatus] = useState("");
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [isRecognizing, setIsRecognizing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const parsed = useMemo<ImportParseResult | null>(() => parseImportedText(rawText), [rawText]);
 
@@ -18,7 +27,48 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
     }
 
     onApplyImport(parsed.draft);
-    setLastApplied(parsed.detectedType === "train" ? "已将火车票信息填入表单。" : "已将机票信息填入表单。");
+    setLastApplied(
+      parsed.detectedType === "train"
+        ? "\u5df2\u5c06\u706b\u8f66\u7968\u4fe1\u606f\u586b\u5165\u8868\u5355\u3002"
+        : "\u5df2\u5c06\u673a\u7968\u4fe1\u606f\u586b\u5165\u8868\u5355\u3002",
+    );
+  };
+
+  const handleChooseImage = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setIsRecognizing(true);
+    setLastApplied("");
+    setOcrStatus("\u6b63\u5728\u521d\u59cb\u5316 OCR...");
+    setOcrProgress(0);
+
+    try {
+      const result = await recognizeTicketImage(file, (progress) => {
+        setOcrStatus(progress.status);
+        setOcrProgress(progress.progress);
+      });
+
+      setRawText(result.text);
+      setOcrStatus("\u8bc6\u522b\u5b8c\u6210\uff0c\u53ef\u4ee5\u76f4\u63a5\u5957\u7528\u5230\u8868\u5355\u3002");
+      setOcrProgress(1);
+    } catch (error) {
+      setOcrStatus(
+        error instanceof Error
+          ? error.message
+          : "\u56fe\u7247 OCR \u8bc6\u522b\u5931\u8d25\u3002",
+      );
+    } finally {
+      setIsRecognizing(false);
+    }
   };
 
   return (
@@ -28,10 +78,43 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
           <p className="eyebrow">Import</p>
           <h3>Smart text import</h3>
         </div>
-        <span className="status-pill">{parsed ? `${parsed.matchedFields.length} fields matched` : "Paste OCR text"}</span>
+        <span className="status-pill">
+          {parsed ? `${parsed.matchedFields.length} fields matched` : "Paste OCR text"}
+        </span>
       </div>
 
       <div className="smart-import">
+        <input
+          accept="image/png,image/jpeg,image/webp,image/bmp"
+          className="hidden-file-input"
+          onChange={(event) => void handleImageChange(event)}
+          ref={fileInputRef}
+          type="file"
+        />
+
+        <div className="import-actions">
+          <button
+            className="primary-button"
+            disabled={isRecognizing}
+            onClick={handleChooseImage}
+            type="button"
+          >
+            {isRecognizing
+              ? "\u6b63\u5728\u8bc6\u522b\u56fe\u7247..."
+              : "\u4ece\u7968\u636e\u622a\u56fe\u8bc6\u522b"}
+          </button>
+          <span className="detail-loading">
+            {"\u4e5f\u53ef\u4ee5\u76f4\u63a5\u7c98\u8d34 OCR \u7ed3\u679c\u6216\u590d\u5236\u6587\u672c"}
+          </span>
+        </div>
+
+        {ocrStatus ? (
+          <div className="ocr-status-card">
+            <strong>{ocrStatus}</strong>
+            <span>{toPercent(ocrProgress)}</span>
+          </div>
+        ) : null}
+
         <label>
           OCR / copied ticket text
           <textarea
