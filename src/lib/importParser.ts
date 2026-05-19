@@ -5,7 +5,11 @@ export interface ImportParseResult {
   detectedType: TicketType;
   matchedFields: string[];
   warnings: string[];
+  normalizedText: string;
+  confidence: number;
 }
+
+const currentYear = new Date().getFullYear();
 
 const airportTimezones: Record<string, string> = {
   PVG: "Asia/Shanghai",
@@ -22,28 +26,32 @@ const airportTimezones: Record<string, string> = {
   SIN: "Asia/Singapore",
 };
 
-const cityTimezones: Array<{ matcher: RegExp; timezone: string }> = [
-  { matcher: /(?:\u4e0a\u6d77|shanghai)/i, timezone: "Asia/Shanghai" },
-  { matcher: /(?:\u6089\u5c3c|sydney)/i, timezone: "Australia/Sydney" },
-  { matcher: /(?:\u58a8\u5c14\u672c|melbourne)/i, timezone: "Australia/Melbourne" },
-  { matcher: /(?:\u5317\u4eac|beijing)/i, timezone: "Asia/Shanghai" },
-  { matcher: /(?:\u5e7f\u5dde|guangzhou)/i, timezone: "Asia/Shanghai" },
-  { matcher: /(?:\u6df1\u5733|shenzhen)/i, timezone: "Asia/Shanghai" },
-  { matcher: /(?:\u4e1c\u4eac|tokyo)/i, timezone: "Asia/Tokyo" },
-  { matcher: /(?:\u65b0\u52a0\u5761|singapore)/i, timezone: "Asia/Singapore" },
-  { matcher: /(?:\u9999\u6e2f|hong kong)/i, timezone: "Asia/Hong_Kong" },
+const locationAliases: Array<{ matcher: RegExp; name: string; code?: string; timezone: string }> = [
+  { matcher: /(?:\u4e0a\u6d77\u6d66\u4e1c|shanghai pudong|pudong)/i, name: "\u4e0a\u6d77\u6d66\u4e1c", code: "PVG", timezone: "Asia/Shanghai" },
+  { matcher: /(?:\u4e0a\u6d77\u8679\u6865\u673a\u573a|shanghai hongqiao airport)/i, name: "\u4e0a\u6d77\u8679\u6865\u673a\u573a", code: "SHA", timezone: "Asia/Shanghai" },
+  { matcher: /(?:\u4e0a\u6d77\u8679\u6865\u7ad9|shanghai hongqiao station)/i, name: "\u4e0a\u6d77\u8679\u6865\u7ad9", code: "SHH", timezone: "Asia/Shanghai" },
+  { matcher: /(?:\u6089\u5c3c|sydney)/i, name: "\u6089\u5c3c", code: "SYD", timezone: "Australia/Sydney" },
+  { matcher: /(?:\u58a8\u5c14\u672c|melbourne)/i, name: "\u58a8\u5c14\u672c", code: "MEL", timezone: "Australia/Melbourne" },
+  { matcher: /(?:\u5317\u4eac\u9996\u90fd|beijing capital)/i, name: "\u5317\u4eac\u9996\u90fd", code: "PEK", timezone: "Asia/Shanghai" },
+  { matcher: /(?:\u5317\u4eac\u5927\u5174|beijing daxing)/i, name: "\u5317\u4eac\u5927\u5174", code: "PKX", timezone: "Asia/Shanghai" },
+  { matcher: /(?:\u5e7f\u5dde\u767d\u4e91|guangzhou baiyun|guangzhou)/i, name: "\u5e7f\u5dde", code: "CAN", timezone: "Asia/Shanghai" },
+  { matcher: /(?:\u6df1\u5733\u5b9d\u5b89|shenzhen baoan|shenzhen)/i, name: "\u6df1\u5733", code: "SZX", timezone: "Asia/Shanghai" },
+  { matcher: /(?:\u9999\u6e2f|hong kong)/i, name: "\u9999\u6e2f", code: "HKG", timezone: "Asia/Hong_Kong" },
+  { matcher: /(?:\u6771\u4eac|tokyo|\u6210\u7530|narita)/i, name: "\u4e1c\u4eac", code: "NRT", timezone: "Asia/Tokyo" },
+  { matcher: /(?:\u65b0\u52a0\u5761|singapore)/i, name: "\u65b0\u52a0\u5761", code: "SIN", timezone: "Asia/Singapore" },
+  { matcher: /(?:\u5357\u4eac\u5357\u7ad9|nanjing south)/i, name: "\u5357\u4eac\u5357\u7ad9", code: "NKH", timezone: "Asia/Shanghai" },
 ];
 
 const airlineMappings: Array<{ matcher: RegExp; name: string }> = [
-  { matcher: /(?:china eastern|\u4e1c\u65b9\u822a\u7a7a|\u4e1c\u822a)/i, name: "China Eastern" },
-  { matcher: /(?:china southern|\u5357\u65b9\u822a\u7a7a|\u5357\u822a)/i, name: "China Southern" },
-  { matcher: /(?:air china|\u56fd\u822a)/i, name: "Air China" },
-  { matcher: /(?:hainan airlines|\u6d77\u5357\u822a\u7a7a|\u6d77\u822a)/i, name: "Hainan Airlines" },
-  { matcher: /(?:spring airlines|\u6625\u79cb\u822a\u7a7a)/i, name: "Spring Airlines" },
-  { matcher: /(?:xiamen airlines|\u53a6\u95e8\u822a\u7a7a|\u53a6\u822a)/i, name: "XiamenAir" },
-  { matcher: /(?:cathay pacific|\u56fd\u6cf0\u822a\u7a7a)/i, name: "Cathay Pacific" },
-  { matcher: /qantas/i, name: "Qantas" },
-  { matcher: /virgin australia/i, name: "Virgin Australia" },
+  { matcher: /(?:china eastern|\u4e1c\u65b9\u822a\u7a7a|\u4e1c\u822a|mu)/i, name: "China Eastern" },
+  { matcher: /(?:china southern|\u5357\u65b9\u822a\u7a7a|\u5357\u822a|cz)/i, name: "China Southern" },
+  { matcher: /(?:air china|\u56fd\u822a|ca)/i, name: "Air China" },
+  { matcher: /(?:hainan airlines|\u6d77\u5357\u822a\u7a7a|\u6d77\u822a|hu)/i, name: "Hainan Airlines" },
+  { matcher: /(?:spring airlines|\u6625\u79cb\u822a\u7a7a|9c)/i, name: "Spring Airlines" },
+  { matcher: /(?:xiamen airlines|\u53a6\u95e8\u822a\u7a7a|\u53a6\u822a|mf)/i, name: "XiamenAir" },
+  { matcher: /(?:cathay pacific|\u56fd\u6cf0\u822a\u7a7a|cx)/i, name: "Cathay Pacific" },
+  { matcher: /qantas|qf/i, name: "Qantas" },
+  { matcher: /virgin australia|va/i, name: "Virgin Australia" },
 ];
 
 function createDefaultDraft(ticketType: TicketType): TicketDraft {
@@ -69,28 +77,97 @@ function createDefaultDraft(ticketType: TicketType): TicketDraft {
   };
 }
 
+function normalizeWhitespace(text: string) {
+  return text
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+function normalizeOcrCharacters(text: string) {
+  return text
+    .replace(/[—–~]/g, "-")
+    .replace(/[：]/g, ":")
+    .replace(/[（]/g, "(")
+    .replace(/[）]/g, ")")
+    .replace(/[，]/g, ",")
+    .replace(/[。]/g, ".")
+    .replace(/[票杳]/g, "票")
+    .replace(/[车卓]/g, "车")
+    .replace(/[开并]/g, "开")
+    .replace(/[站玷]/g, "站")
+    .replace(/([A-Z])\s+(\d)/g, "$1$2")
+    .replace(/([GDKCZ])\s+(\d{1,4})/gi, "$1$2")
+    .replace(/\bO(?=\d)/g, "0")
+    .replace(/(?<=\d)O\b/g, "0")
+    .replace(/\bI(?=\d)/g, "1")
+    .replace(/(?<=\d)I\b/g, "1")
+    .replace(/(?<=\d)l(?=\d)/g, "1")
+    .replace(/(?<=\b[A-Z]{2})O(?=\d)/g, "0")
+    .replace(/\bSYO\b/g, "SYD")
+    .replace(/\bPVO\b/g, "PVG")
+    .replace(/\bSHA\b/g, "SHA")
+    .replace(/\bPE0\b/g, "PEK");
+}
+
+function preprocessImportedText(rawText: string) {
+  return normalizeWhitespace(normalizeOcrCharacters(rawText));
+}
+
 function resolveTimezone(location: TicketLocation) {
   const code = location.code?.toUpperCase() || "";
   if (code && airportTimezones[code]) {
     return airportTimezones[code];
   }
 
-  const matched = cityTimezones.find((item) => item.matcher.test(location.name));
-  return matched?.timezone || location.timezone;
+  const alias = locationAliases.find((item) => item.matcher.test(location.name));
+  return alias?.timezone || location.timezone;
+}
+
+function hydrateLocation(location: TicketLocation) {
+  const alias = locationAliases.find((item) => item.matcher.test(location.name) || (!!location.code && item.code === location.code.toUpperCase()));
+  if (alias) {
+    return {
+      ...location,
+      name: location.name || alias.name,
+      code: location.code || alias.code,
+      timezone: alias.timezone,
+    };
+  }
+
+  return {
+    ...location,
+    timezone: resolveTimezone(location),
+  };
 }
 
 function normalizeDateTime(input: string) {
   const compact = input.replace(/\s+/g, " ").trim();
-  const match = compact.match(
+
+  const fullDateMatch = compact.match(
     /(\d{4})[\u5e74/\-.](\d{1,2})[\u6708/\-.](\d{1,2})(?:\u65e5|\u53f7)?\s*(\d{1,2}:\d{2})/,
   );
-
-  if (!match) {
-    return "";
+  if (fullDateMatch) {
+    const [, year, month, day, time] = fullDateMatch;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${time}`;
   }
 
-  const [, year, month, day, time] = match;
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${time}`;
+  const shortDateMatch = compact.match(/(\d{1,2})[\/\-.](\d{1,2})\s*(\d{1,2}:\d{2})/);
+  if (shortDateMatch) {
+    const [, month, day, time] = shortDateMatch;
+    return `${String(currentYear)}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${time}`;
+  }
+
+  return "";
+}
+
+function normalizeFlightCode(code: string) {
+  return code
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/^([A-Z]{2})O(?=\d)/, "$10")
+    .replace(/^([A-Z]{2})I(?=\d)/, "$11");
 }
 
 function pickAirlineName(text: string, code: string) {
@@ -108,6 +185,17 @@ function pickAirlineName(text: string, code: string) {
   return "";
 }
 
+function finalizeResult(result: Omit<ImportParseResult, "confidence">): ImportParseResult {
+  const fieldScore = Math.min(result.matchedFields.length / 8, 1);
+  const warningPenalty = Math.min(result.warnings.length * 0.12, 0.36);
+  const confidence = Math.max(0.2, Math.min(0.98, fieldScore - warningPenalty + 0.22));
+
+  return {
+    ...result,
+    confidence,
+  };
+}
+
 function parseTrain(text: string): ImportParseResult {
   const draft = createDefaultDraft("train");
   const matchedFields: string[] = [];
@@ -118,7 +206,7 @@ function parseTrain(text: string): ImportParseResult {
       /([^\s]{2,20}?(?:\u7ad9|\u4e1c\u7ad9|\u897f\u7ad9|\u5357\u7ad9|\u5317\u7ad9))\s*(G\d{1,4}|D\d{1,4}|K\d{1,4}|Z\d{1,4}|C\d{1,4})\s*([^\s]{2,20}?(?:\u7ad9|\u4e1c\u7ad9|\u897f\u7ad9|\u5357\u7ad9|\u5317\u7ad9))/i,
     ) ||
     text.match(
-      /([^\n\r]{2,20}?(?:\u7ad9|\u4e1c\u7ad9|\u897f\u7ad9|\u5357\u7ad9|\u5317\u7ad9)).{0,8}(G\d{1,4}|D\d{1,4}|K\d{1,4}|Z\d{1,4}|C\d{1,4}).{0,8}([^\n\r]{2,20}?(?:\u7ad9|\u4e1c\u7ad9|\u897f\u7ad9|\u5357\u7ad9|\u5317\u7ad9))/i,
+      /([^\n\r]{2,20}?(?:\u7ad9|\u4e1c\u7ad9|\u897f\u7ad9|\u5357\u7ad9|\u5317\u7ad9)).{0,12}(G\d{1,4}|D\d{1,4}|K\d{1,4}|Z\d{1,4}|C\d{1,4}).{0,12}([^\n\r]{2,20}?(?:\u7ad9|\u4e1c\u7ad9|\u897f\u7ad9|\u5357\u7ad9|\u5317\u7ad9))/i,
     );
 
   if (routeMatch) {
@@ -136,7 +224,7 @@ function parseTrain(text: string): ImportParseResult {
     matchedFields.push("departureTimeLocal");
   } else {
     const genericDateTime = text.match(
-      /(\d{4}[\u5e74/\-.]\d{1,2}[\u6708/\-.]\d{1,2}(?:\u65e5|\u53f7)?\s*\d{1,2}:\d{2})/,
+      /(\d{4}[\u5e74/\-.]\d{1,2}[\u6708/\-.]\d{1,2}(?:\u65e5|\u53f7)?\s*\d{1,2}:\d{2}|\d{1,2}[\/\-.]\d{1,2}\s*\d{1,2}:\d{2})/,
     );
     if (genericDateTime) {
       draft.departureTimeLocal = normalizeDateTime(genericDateTime[1]);
@@ -155,8 +243,8 @@ function parseTrain(text: string): ImportParseResult {
   }
 
   draft.carrierName = "China Railway";
-  draft.departure.timezone = resolveTimezone(draft.departure);
-  draft.arrival.timezone = resolveTimezone(draft.arrival);
+  draft.departure = hydrateLocation(draft.departure);
+  draft.arrival = hydrateLocation(draft.arrival);
 
   if (!draft.arrival.name) {
     warnings.push("\u672a\u8bc6\u522b\u5230\u5230\u8fbe\u7ad9\uff0c\u9700\u8981\u624b\u52a8\u8865\u5145\u3002");
@@ -165,14 +253,15 @@ function parseTrain(text: string): ImportParseResult {
     warnings.push("\u672a\u8bc6\u522b\u5230\u5f00\u8f66\u65f6\u95f4\uff0c\u9700\u8981\u624b\u52a8\u8865\u5145\u3002");
   }
 
-  draft.notes = "Imported from pasted OCR text";
+  draft.notes = "Imported from OCR text";
 
-  return {
+  return finalizeResult({
     draft,
     detectedType: "train",
     matchedFields,
     warnings,
-  };
+    normalizedText: text,
+  });
 }
 
 function parseFlight(text: string): ImportParseResult {
@@ -180,9 +269,9 @@ function parseFlight(text: string): ImportParseResult {
   const matchedFields: string[] = [];
   const warnings: string[] = [];
 
-  const flightCodeMatch = text.match(/\b([A-Z]{2}\d{3,4})\b/);
+  const flightCodeMatch = text.match(/\b([A-Z]{2}\s?\d{3,4})\b/);
   if (flightCodeMatch) {
-    draft.code = flightCodeMatch[1].toUpperCase();
+    draft.code = normalizeFlightCode(flightCodeMatch[1]);
     matchedFields.push("code");
   }
 
@@ -192,8 +281,6 @@ function parseFlight(text: string): ImportParseResult {
   if (airportCodes.length >= 2) {
     draft.departure.code = airportCodes[0];
     draft.arrival.code = airportCodes[1];
-    draft.departure.timezone = resolveTimezone(draft.departure);
-    draft.arrival.timezone = resolveTimezone(draft.arrival);
     matchedFields.push("departure.code", "arrival.code");
   }
 
@@ -206,7 +293,7 @@ function parseFlight(text: string): ImportParseResult {
     matchedFields.push("departure", "arrival");
   } else {
     const routeHintMatch = text.match(
-      /(\u4e0a\u6d77|Shanghai|\u6089\u5c3c|Sydney).{0,12}(\u4e0a\u6d77|Shanghai|\u6089\u5c3c|Sydney)/i,
+      /(\u4e0a\u6d77|Shanghai|\u6089\u5c3c|Sydney|\u58a8\u5c14\u672c|Melbourne|\u5317\u4eac|Beijing).{0,18}(\u4e0a\u6d77|Shanghai|\u6089\u5c3c|Sydney|\u58a8\u5c14\u672c|Melbourne|\u5317\u4eac|Beijing)/i,
     );
     if (routeHintMatch) {
       draft.departure.name = routeHintMatch[1].trim();
@@ -217,7 +304,7 @@ function parseFlight(text: string): ImportParseResult {
 
   const timeMatches = [
     ...text.matchAll(
-      /(\d{4}[\u5e74/\-.]\d{1,2}[\u6708/\-.]\d{1,2}(?:\u65e5|\u53f7)?\s*\d{1,2}:\d{2})/g,
+      /(\d{4}[\u5e74/\-.]\d{1,2}[\u6708/\-.]\d{1,2}(?:\u65e5|\u53f7)?\s*\d{1,2}:\d{2}|\d{1,2}[\/\-.]\d{1,2}\s*\d{1,2}:\d{2})/g,
     ),
   ].map((match) => normalizeDateTime(match[1]));
   if (timeMatches[0]) {
@@ -248,8 +335,8 @@ function parseFlight(text: string): ImportParseResult {
     matchedFields.push("carrierName");
   }
 
-  draft.departure.timezone = resolveTimezone(draft.departure);
-  draft.arrival.timezone = resolveTimezone(draft.arrival);
+  draft.departure = hydrateLocation(draft.departure);
+  draft.arrival = hydrateLocation(draft.arrival);
 
   if (!draft.departure.name && draft.departure.code) {
     draft.departure.name = draft.departure.code;
@@ -265,18 +352,19 @@ function parseFlight(text: string): ImportParseResult {
     warnings.push("\u672a\u8bc6\u522b\u5230\u5230\u8fbe\u65f6\u95f4\uff0c\u9700\u8981\u624b\u52a8\u8865\u5145\u3002");
   }
 
-  draft.notes = "Imported from pasted OCR text";
+  draft.notes = "Imported from OCR text";
 
-  return {
+  return finalizeResult({
     draft,
     detectedType: "flight",
     matchedFields,
     warnings,
-  };
+    normalizedText: text,
+  });
 }
 
 export function parseImportedText(rawText: string): ImportParseResult | null {
-  const text = rawText.replace(/\s+/g, " ").trim();
+  const text = preprocessImportedText(rawText);
   if (!text) {
     return null;
   }
@@ -286,5 +374,5 @@ export function parseImportedText(rawText: string): ImportParseResult | null {
       text,
     );
 
-  return looksLikeTrain ? parseTrain(rawText) : parseFlight(rawText);
+  return looksLikeTrain ? parseTrain(text) : parseFlight(text);
 }

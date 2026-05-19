@@ -246,6 +246,18 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.import-summary-top {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ticket-status-confidence {
+  color: #ffd79e;
+  background: rgba(255, 177, 90, 0.14);
+}
+
 .import-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -255,6 +267,24 @@ button {
 .import-warnings {
   display: grid;
   gap: 8px;
+}
+
+.normalized-text-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.normalized-text-panel pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-soft);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.82rem;
 }
 
 .form-grid {

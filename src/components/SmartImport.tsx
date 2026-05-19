@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { parseImportedText, type ImportParseResult } from "../lib/importParser";
 import { recognizeTicketImage } from "../lib/ocrService";
 import type { TicketDraft } from "../types/ticket";
@@ -11,12 +11,19 @@ function toPercent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function toConfidenceLabel(value: number) {
+  if (value >= 0.8) return "\u9ad8";
+  if (value >= 0.55) return "\u4e2d";
+  return "\u4f4e";
+}
+
 export function SmartImport({ onApplyImport }: SmartImportProps) {
   const [rawText, setRawText] = useState("");
   const [lastApplied, setLastApplied] = useState("");
   const [ocrStatus, setOcrStatus] = useState("");
   const [ocrProgress, setOcrProgress] = useState(0);
   const [isRecognizing, setIsRecognizing] = useState(false);
+  const [showNormalized, setShowNormalized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const parsed = useMemo<ImportParseResult | null>(() => parseImportedText(rawText), [rawText]);
@@ -38,7 +45,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
     fileInputRef.current?.click();
   };
 
-  const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -61,11 +68,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
       setOcrStatus("\u8bc6\u522b\u5b8c\u6210\uff0c\u53ef\u4ee5\u76f4\u63a5\u5957\u7528\u5230\u8868\u5355\u3002");
       setOcrProgress(1);
     } catch (error) {
-      setOcrStatus(
-        error instanceof Error
-          ? error.message
-          : "\u56fe\u7247 OCR \u8bc6\u522b\u5931\u8d25\u3002",
-      );
+      setOcrStatus(error instanceof Error ? error.message : "\u56fe\u7247 OCR \u8bc6\u522b\u5931\u8d25\u3002");
     } finally {
       setIsRecognizing(false);
     }
@@ -99,9 +102,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
             onClick={handleChooseImage}
             type="button"
           >
-            {isRecognizing
-              ? "\u6b63\u5728\u8bc6\u522b\u56fe\u7247..."
-              : "\u4ece\u7968\u636e\u622a\u56fe\u8bc6\u522b"}
+            {isRecognizing ? "\u6b63\u5728\u8bc6\u522b\u56fe\u7247..." : "\u4ece\u7968\u636e\u622a\u56fe\u8bc6\u522b"}
           </button>
           <span className="detail-loading">
             {"\u4e5f\u53ef\u4ee5\u76f4\u63a5\u7c98\u8d34 OCR \u7ed3\u679c\u6216\u590d\u5236\u6587\u672c"}
@@ -128,7 +129,12 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
         {parsed ? (
           <div className="import-preview">
             <div className="import-summary">
-              <span className="ticket-status ticket-status-saved">{parsed.detectedType}</span>
+              <div className="import-summary-top">
+                <span className="ticket-status ticket-status-saved">{parsed.detectedType}</span>
+                <span className="ticket-status ticket-status-confidence">
+                  {`\u7f6e\u4fe1\u5ea6 ${toConfidenceLabel(parsed.confidence)} ${toPercent(parsed.confidence)}`}
+                </span>
+              </div>
               <strong>{parsed.draft.code || "No code detected yet"}</strong>
               <p>{`${parsed.draft.departure.name || "--"} -> ${parsed.draft.arrival.name || "--"}`}</p>
             </div>
@@ -146,6 +152,21 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                 <strong>{parsed.draft.arrivalTimeLocal || "Pending"}</strong>
               </div>
             </div>
+            <div className="import-actions">
+              <button
+                className="ghost-button compact-button"
+                onClick={() => setShowNormalized((current) => !current)}
+                type="button"
+              >
+                {showNormalized ? "\u9690\u85cf\u7ea0\u9519\u6587\u672c" : "\u67e5\u770b\u7ea0\u9519\u540e\u6587\u672c"}
+              </button>
+            </div>
+            {showNormalized ? (
+              <div className="normalized-text-panel">
+                <strong>Normalized OCR text</strong>
+                <pre>{parsed.normalizedText}</pre>
+              </div>
+            ) : null}
             {parsed.warnings.length ? (
               <div className="import-warnings">
                 {parsed.warnings.map((warning) => (
