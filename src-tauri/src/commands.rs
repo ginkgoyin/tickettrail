@@ -20,11 +20,31 @@ pub fn list_tickets(app: AppHandle) -> Result<Vec<TicketRecordPayload>, String> 
 }
 
 #[command]
-pub fn create_ticket(
+pub fn create_ticket(app: AppHandle, draft: TicketDraftPayload) -> Result<TicketRecordPayload, String> {
+    db::create_ticket(&app, draft)
+}
+
+#[command]
+pub fn update_ticket(
     app: AppHandle,
+    ticket_id: String,
     draft: TicketDraftPayload,
 ) -> Result<TicketRecordPayload, String> {
-    db::create_ticket(&app, draft)
+    db::update_ticket(&app, &ticket_id, draft)
+}
+
+#[command]
+pub fn update_ticket_status(
+    app: AppHandle,
+    ticket_id: String,
+    status: String,
+) -> Result<TicketRecordPayload, String> {
+    db::update_ticket_status(&app, &ticket_id, &status)
+}
+
+#[command]
+pub fn delete_ticket(app: AppHandle, ticket_id: String) -> Result<(), String> {
+    db::delete_ticket(&app, &ticket_id)
 }
 
 #[command]

@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { TicketDetailPayload, TicketDraft, TicketRecord } from "../types/ticket";
+import type {
+  TicketDetailPayload,
+  TicketDraft,
+  TicketRecord,
+  TicketStatus,
+} from "../types/ticket";
 
 const STORAGE_KEY = "tickettrail.web-fallback.tickets";
 
@@ -98,6 +103,11 @@ function createFallbackDetail(ticket: TicketRecord): TicketDetailPayload {
   };
 }
 
+function replaceFallbackTicket(ticketId: string, nextTicket: TicketRecord) {
+  const tickets = readFallbackTickets().map((ticket) => (ticket.id === ticketId ? nextTicket : ticket));
+  writeFallbackTickets(tickets);
+}
+
 export async function listTickets(): Promise<TicketRecord[]> {
   if (supportsTauri()) {
     return invoke<TicketRecord[]>("list_tickets");
@@ -115,6 +125,61 @@ export async function createTicket(draft: TicketDraft): Promise<TicketRecord> {
   const current = readFallbackTickets();
   writeFallbackTickets([nextTicket, ...current]);
   return nextTicket;
+}
+
+export async function updateTicket(ticketId: string, draft: TicketDraft): Promise<TicketRecord> {
+  if (supportsTauri()) {
+    return invoke<TicketRecord>("update_ticket", { ticketId, draft });
+  }
+
+  const current = readFallbackTickets().find((item) => item.id === ticketId);
+  if (!current) {
+    throw new Error("Ticket record not found.");
+  }
+
+  const nextTicket: TicketRecord = {
+    ...current,
+    ...draft,
+    id: current.id,
+    routeLabel: buildRouteLabel(draft),
+    updatedAt: new Date().toISOString(),
+  };
+
+  replaceFallbackTicket(ticketId, nextTicket);
+  return nextTicket;
+}
+
+export async function updateTicketStatus(
+  ticketId: string,
+  status: Exclude<TicketStatus, "draft">,
+): Promise<TicketRecord> {
+  if (supportsTauri()) {
+    return invoke<TicketRecord>("update_ticket_status", { ticketId, status });
+  }
+
+  const current = readFallbackTickets().find((item) => item.id === ticketId);
+  if (!current) {
+    throw new Error("Ticket record not found.");
+  }
+
+  const nextTicket: TicketRecord = {
+    ...current,
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+
+  replaceFallbackTicket(ticketId, nextTicket);
+  return nextTicket;
+}
+
+export async function deleteTicket(ticketId: string): Promise<void> {
+  if (supportsTauri()) {
+    await invoke("delete_ticket", { ticketId });
+    return;
+  }
+
+  const tickets = readFallbackTickets().filter((ticket) => ticket.id !== ticketId);
+  writeFallbackTickets(tickets);
 }
 
 export async function getTicketDetail(ticketId: string): Promise<TicketDetailPayload> {

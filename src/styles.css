@@ -265,6 +265,12 @@ textarea {
   width: 100%;
 }
 
+.form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .ticket-list {
   display: grid;
   gap: 14px;
@@ -289,6 +295,61 @@ textarea {
 .ticket-card.selected {
   border-color: rgba(112, 212, 255, 0.5);
   transform: translateY(-1px);
+}
+
+.ticket-card-footer {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ticket-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.compact-button {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+}
+
+.danger-button {
+  border-color: rgba(255, 122, 122, 0.24);
+  color: #ffc0c0;
+}
+
+.ticket-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ticket-status-saved {
+  color: #7ce6ff;
+  background: rgba(112, 212, 255, 0.12);
+}
+
+.ticket-status-used {
+  color: #a6f0bc;
+  background: rgba(86, 187, 120, 0.14);
+}
+
+.ticket-status-archived {
+  color: #d0d5da;
+  background: rgba(125, 138, 148, 0.16);
+}
+
+.ticket-status-draft {
+  color: #ffcf9f;
+  background: rgba(255, 177, 90, 0.16);
 }
 
 .ticket-kind,
@@ -535,6 +596,7 @@ textarea {
   .panel-heading,
   .hero,
   .header-actions,
+  .form-actions,
   .export-row,
   .theme-switcher,
   .stub-preview header,

@@ -1,34 +1,57 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { TicketDraft, TicketType } from "../types/ticket";
 
-const defaultDraft: TicketDraft = {
-  ticketType: "flight",
-  carrierName: "",
-  code: "",
-  departure: {
-    name: "",
+function createDefaultDraft(): TicketDraft {
+  return {
+    ticketType: "flight",
+    carrierName: "",
     code: "",
-    timezone: "Asia/Shanghai",
-  },
-  arrival: {
-    name: "",
-    code: "",
-    timezone: "Australia/Sydney",
-  },
-  departureTimeLocal: "",
-  arrivalTimeLocal: "",
-  classInfo: "",
-  seatInfo: "",
-  notes: "",
-};
+    departure: {
+      name: "",
+      code: "",
+      timezone: "Asia/Shanghai",
+    },
+    arrival: {
+      name: "",
+      code: "",
+      timezone: "Australia/Sydney",
+    },
+    departureTimeLocal: "",
+    arrivalTimeLocal: "",
+    classInfo: "",
+    seatInfo: "",
+    notes: "",
+  };
+}
+
+function cloneDraft(draft: TicketDraft): TicketDraft {
+  return {
+    ...draft,
+    departure: { ...draft.departure },
+    arrival: { ...draft.arrival },
+  };
+}
 
 interface TicketFormProps {
   isSaving: boolean;
-  onCreateTicket: (draft: TicketDraft) => Promise<void>;
+  mode: "create" | "edit";
+  initialDraft?: TicketDraft | null;
+  onSubmitTicket: (draft: TicketDraft) => Promise<void>;
+  onCancelEdit?: () => void;
 }
 
-export function TicketForm({ isSaving, onCreateTicket }: TicketFormProps) {
-  const [draft, setDraft] = useState<TicketDraft>(defaultDraft);
+export function TicketForm({
+  isSaving,
+  mode,
+  initialDraft,
+  onSubmitTicket,
+  onCancelEdit,
+}: TicketFormProps) {
+  const [draft, setDraft] = useState<TicketDraft>(createDefaultDraft());
+
+  useEffect(() => {
+    setDraft(initialDraft ? cloneDraft(initialDraft) : createDefaultDraft());
+  }, [initialDraft, mode]);
 
   const updateField = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -55,8 +78,10 @@ export function TicketForm({ isSaving, onCreateTicket }: TicketFormProps) {
       return;
     }
 
-    void onCreateTicket(draft).then(() => {
-      setDraft(defaultDraft);
+    void onSubmitTicket(draft).then(() => {
+      if (mode === "create") {
+        setDraft(createDefaultDraft());
+      }
     });
   };
 
@@ -65,9 +90,11 @@ export function TicketForm({ isSaving, onCreateTicket }: TicketFormProps) {
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Capture</p>
-          <h3>Create ticket record</h3>
+          <h3>{mode === "edit" ? "Edit ticket record" : "Create ticket record"}</h3>
         </div>
-        <span className="status-pill">{isSaving ? "Saving..." : "SQLite flow"}</span>
+        <span className="status-pill">
+          {isSaving ? "Saving..." : mode === "edit" ? "Update mode" : "SQLite flow"}
+        </span>
       </div>
 
       <form className="ticket-form" onSubmit={handleSubmit}>
@@ -134,6 +161,22 @@ export function TicketForm({ isSaving, onCreateTicket }: TicketFormProps) {
             />
           </label>
           <label>
+            Departure timezone
+            <input
+              value={draft.departure.timezone}
+              onChange={(event) => updateLocationField("departure", "timezone", event.target.value)}
+              placeholder="Asia/Shanghai"
+            />
+          </label>
+          <label>
+            Arrival timezone
+            <input
+              value={draft.arrival.timezone}
+              onChange={(event) => updateLocationField("arrival", "timezone", event.target.value)}
+              placeholder="Australia/Sydney"
+            />
+          </label>
+          <label>
             Departure time
             <input
               type="datetime-local"
@@ -176,9 +219,22 @@ export function TicketForm({ isSaving, onCreateTicket }: TicketFormProps) {
           />
         </label>
 
-        <button className="primary-button wide" type="submit">
-          {isSaving ? "Saving ticket..." : "Save ticket draft"}
-        </button>
+        <div className="form-actions">
+          {mode === "edit" ? (
+            <button className="ghost-button" onClick={onCancelEdit} type="button">
+              Cancel edit
+            </button>
+          ) : null}
+          <button className="primary-button wide" type="submit">
+            {isSaving
+              ? mode === "edit"
+                ? "Updating ticket..."
+                : "Saving ticket..."
+              : mode === "edit"
+                ? "Update ticket"
+                : "Save ticket draft"}
+          </button>
+        </div>
       </form>
     </section>
   );

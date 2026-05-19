@@ -1,4 +1,5 @@
 export type TicketType = "flight" | "train";
+export type TicketStatus = "draft" | "saved" | "used" | "archived";
 
 export interface TicketLocation {
   name: string;
@@ -24,7 +25,7 @@ export interface TicketRecord extends TicketDraft {
   createdAt: string;
   updatedAt: string;
   routeLabel: string;
-  status: "draft" | "saved";
+  status: TicketStatus;
 }
 
 export interface MapPointPayload {

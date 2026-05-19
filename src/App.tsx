@@ -1,23 +1,49 @@
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { TicketForm } from "./components/TicketForm";
 import { TicketList } from "./components/TicketList";
-import { createTicket, getTicketDetail, listTickets } from "./lib/ticketService";
-import type { TicketDetailPayload, TicketDraft, TicketRecord } from "./types/ticket";
+import {
+  createTicket,
+  deleteTicket,
+  getTicketDetail,
+  listTickets,
+  updateTicket,
+  updateTicketStatus,
+} from "./lib/ticketService";
+import type { TicketDetailPayload, TicketDraft, TicketRecord, TicketStatus } from "./types/ticket";
+
+function buildDraftFromTicket(ticket: TicketRecord): TicketDraft {
+  return {
+    ticketType: ticket.ticketType,
+    carrierName: ticket.carrierName,
+    code: ticket.code,
+    departure: { ...ticket.departure },
+    arrival: { ...ticket.arrival },
+    departureTimeLocal: ticket.departureTimeLocal,
+    arrivalTimeLocal: ticket.arrivalTimeLocal,
+    classInfo: ticket.classInfo,
+    seatInfo: ticket.seatInfo,
+    notes: ticket.notes,
+  };
+}
 
 export default function App() {
   const [tickets, setTickets] = useState<TicketRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [editingId, setEditingId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [busyTicketId, setBusyTicketId] = useState("");
   const [detailLoading, setDetailLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedDetail, setSelectedDetail] = useState<TicketDetailPayload | null>(null);
+  const [detailVersion, setDetailVersion] = useState(0);
 
-  const selectedTicket =
-    tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null;
+  const selectedTicket = tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null;
+  const editingTicket = tickets.find((ticket) => ticket.id === editingId) ?? null;
+  const formDraft = useMemo(() => (editingTicket ? buildDraftFromTicket(editingTicket) : null), [editingTicket]);
 
   useEffect(() => {
     let isMounted = true;
@@ -83,22 +109,88 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [selectedId]);
+  }, [selectedId, detailVersion]);
 
-  const handleCreateTicket = async (draft: TicketDraft) => {
+  const handleSubmitTicket = async (draft: TicketDraft) => {
     setIsSaving(true);
     setErrorMessage("");
 
     try {
-      const nextTicket = await createTicket(draft);
-      startTransition(() => {
-        setTickets((current) => [nextTicket, ...current]);
-        setSelectedId(nextTicket.id);
-      });
+      if (editingTicket) {
+        const nextTicket = await updateTicket(editingTicket.id, draft);
+        startTransition(() => {
+          setTickets((current) =>
+            current.map((ticket) => (ticket.id === editingTicket.id ? nextTicket : ticket)),
+          );
+          setSelectedId(nextTicket.id);
+          setEditingId("");
+          setDetailVersion((current) => current + 1);
+        });
+      } else {
+        const nextTicket = await createTicket(draft);
+        startTransition(() => {
+          setTickets((current) => [nextTicket, ...current]);
+          setSelectedId(nextTicket.id);
+          setDetailVersion((current) => current + 1);
+        });
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to save ticket.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleEditTicket = (ticketId: string) => {
+    setEditingId(ticketId);
+    setSelectedId(ticketId);
+    setErrorMessage("");
+  };
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    const ticket = tickets.find((item) => item.id === ticketId);
+    if (!ticket || !window.confirm(`Delete ticket ${ticket.code} (${ticket.routeLabel})?`)) {
+      return;
+    }
+
+    setBusyTicketId(ticketId);
+    setErrorMessage("");
+
+    try {
+      await deleteTicket(ticketId);
+      startTransition(() => {
+        const remainingTickets = tickets.filter((item) => item.id !== ticketId);
+        setTickets(remainingTickets);
+        setSelectedId((current) => (current === ticketId ? remainingTickets[0]?.id ?? "" : current));
+        setEditingId((current) => (current === ticketId ? "" : current));
+        setDetailVersion((current) => current + 1);
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to delete ticket.");
+    } finally {
+      setBusyTicketId("");
+    }
+  };
+
+  const handleUpdateStatus = async (
+    ticketId: string,
+    status: Exclude<TicketStatus, "draft">,
+  ) => {
+    setBusyTicketId(ticketId);
+    setErrorMessage("");
+
+    try {
+      const nextTicket = await updateTicketStatus(ticketId, status);
+      startTransition(() => {
+        setTickets((current) =>
+          current.map((ticket) => (ticket.id === ticketId ? nextTicket : ticket)),
+        );
+        setDetailVersion((current) => current + 1);
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to update ticket status.");
+    } finally {
+      setBusyTicketId("");
     }
   };
 
@@ -144,11 +236,21 @@ export default function App() {
 
         <section className="content-grid">
           <div className="panel-stack">
-            <TicketForm isSaving={isSaving} onCreateTicket={handleCreateTicket} />
+            <TicketForm
+              initialDraft={formDraft}
+              isSaving={isSaving}
+              mode={editingTicket ? "edit" : "create"}
+              onCancelEdit={() => setEditingId("")}
+              onSubmitTicket={handleSubmitTicket}
+            />
             <TicketList
-              tickets={tickets}
-              selectedId={selectedTicket?.id ?? ""}
+              busyTicketId={busyTicketId}
+              onDelete={handleDeleteTicket}
+              onEdit={handleEditTicket}
               onSelect={setSelectedId}
+              onUpdateStatus={handleUpdateStatus}
+              selectedId={selectedTicket?.id ?? ""}
+              tickets={tickets}
             />
           </div>
           <Dashboard detail={selectedDetail} isLoading={detailLoading} ticket={selectedTicket} />

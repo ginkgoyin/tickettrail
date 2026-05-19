@@ -4,63 +4,45 @@ use crate::models::{
 };
 use chrono::{LocalResult, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, Row};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 const SCHEMA_SQL: &str = include_str!("../../database/schema.sql");
 
+struct TicketRowData {
+    id: String,
+    ticket_type: String,
+    carrier_name: String,
+    code: String,
+    raw_payload_json: String,
+    normalized_status: String,
+    journey_id: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
 pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
     let conn = open_connection(app)?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, ticket_type, carrier_name, code, raw_payload_json, normalized_status, created_at_utc, updated_at_utc
+            "SELECT id, ticket_type, carrier_name, code, raw_payload_json, normalized_status, journey_id, created_at_utc, updated_at_utc
              FROM ticket_records
              ORDER BY created_at_utc DESC",
         )
         .map_err(|err| err.to_string())?;
 
     let rows = stmt
-        .query_map([], |row| {
-            let id: String = row.get(0)?;
-            let ticket_type: String = row.get(1)?;
-            let carrier_name: String = row.get(2)?;
-            let code: String = row.get(3)?;
-            let raw_payload_json: String = row.get(4)?;
-            let normalized_status: String = row.get(5)?;
-            let created_at: String = row.get(6)?;
-            let updated_at: String = row.get(7)?;
-
-            let draft: TicketDraftPayload = serde_json::from_str(&raw_payload_json).map_err(|err| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    raw_payload_json.len(),
-                    rusqlite::types::Type::Text,
-                    Box::new(err),
-                )
-            })?;
-
-            Ok(build_ticket_record(
-                id,
-                ticket_type,
-                carrier_name,
-                code,
-                draft,
-                normalized_status,
-                created_at,
-                updated_at,
-            ))
-        })
+        .query_map([], parse_ticket_row)
         .map_err(|err| err.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>()
+    rows.map(|row| row.and_then(ticket_row_to_record))
+        .collect::<Result<Vec<_>, _>>()
         .map_err(|err| err.to_string())
 }
 
-pub fn create_ticket(
-    app: &AppHandle,
-    draft: TicketDraftPayload,
-) -> Result<TicketRecordPayload, String> {
+pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<TicketRecordPayload, String> {
     validate_draft(&draft)?;
 
     let departure_time_utc = normalize_to_utc(&draft.departure_time_local, &draft.departure.timezone)?;
@@ -124,12 +106,7 @@ pub fn create_ticket(
                 &arrival_time_utc,
                 &draft.class_info,
                 &draft.seat_info,
-                serde_json::json!({
-                    "notes": draft.notes,
-                    "departureCode": draft.departure.code,
-                    "arrivalCode": draft.arrival.code
-                })
-                .to_string()
+                build_segment_metadata(&draft)
             ],
         )
         .map_err(|err| err.to_string())?;
@@ -138,7 +115,7 @@ pub fn create_ticket(
             "INSERT INTO ticket_records (
                 id, ticket_type, source_type, carrier_name, code, raw_payload_json,
                 normalized_status, journey_id, created_at_utc, updated_at_utc, version
-             ) VALUES (?1, ?2, 'manual', ?3, ?4, ?5, 'normalized', ?6, ?7, ?8, 1)",
+             ) VALUES (?1, ?2, 'manual', ?3, ?4, ?5, 'saved', ?6, ?7, ?8, 1)",
             params![
                 &ticket_id,
                 &draft.ticket_type,
@@ -173,47 +150,219 @@ pub fn create_ticket(
     result
 }
 
-pub fn get_ticket_detail(app: &AppHandle, ticket_id: &str) -> Result<TicketDetailPayload, String> {
+pub fn update_ticket(
+    app: &AppHandle,
+    ticket_id: &str,
+    draft: TicketDraftPayload,
+) -> Result<TicketRecordPayload, String> {
+    validate_draft(&draft)?;
+
+    let departure_time_utc = normalize_to_utc(&draft.departure_time_local, &draft.departure.timezone)?;
+    let arrival_time_utc = normalize_to_utc(&draft.arrival_time_local, &draft.arrival.timezone)?;
+    let updated_at = Utc::now().to_rfc3339();
+
     let conn = open_connection(app)?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, ticket_type, carrier_name, code, raw_payload_json, normalized_status, created_at_utc, updated_at_utc
-             FROM ticket_records
-             WHERE id = ?1",
+    let existing_row = get_ticket_row(&conn, ticket_id)?;
+    let journey_id = existing_row
+        .journey_id
+        .clone()
+        .ok_or_else(|| "Ticket journey relation is missing.".to_string())?;
+    let raw_payload_json = serde_json::to_string(&draft).map_err(|err| err.to_string())?;
+    let route_label = format!("{} -> {}", draft.departure.name, draft.arrival.name);
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        conn.execute(
+            "UPDATE journeys
+             SET title = ?1,
+                 primary_ticket_type = ?2,
+                 start_time_utc = ?3,
+                 end_time_utc = ?4,
+                 updated_at_utc = ?5
+             WHERE id = ?6",
+            params![
+                &route_label,
+                &draft.ticket_type,
+                &departure_time_utc,
+                &arrival_time_utc,
+                &updated_at,
+                &journey_id
+            ],
         )
         .map_err(|err| err.to_string())?;
 
-    let ticket = stmt
-        .query_row([ticket_id], |row| {
-            let id: String = row.get(0)?;
-            let ticket_type: String = row.get(1)?;
-            let carrier_name: String = row.get(2)?;
-            let code: String = row.get(3)?;
-            let raw_payload_json: String = row.get(4)?;
-            let normalized_status: String = row.get(5)?;
-            let created_at: String = row.get(6)?;
-            let updated_at: String = row.get(7)?;
-            let draft: TicketDraftPayload = serde_json::from_str(&raw_payload_json).map_err(|err| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    raw_payload_json.len(),
-                    rusqlite::types::Type::Text,
-                    Box::new(err),
-                )
-            })?;
-
-            Ok(build_ticket_record(
-                id,
-                ticket_type,
-                carrier_name,
-                code,
-                draft,
-                normalized_status,
-                created_at,
-                updated_at,
-            ))
-        })
+        conn.execute(
+            "UPDATE segments
+             SET transport_type = ?1,
+                 carrier_name = ?2,
+                 code = ?3,
+                 departure_name_raw = ?4,
+                 arrival_name_raw = ?5,
+                 departure_time_local = ?6,
+                 arrival_time_local = ?7,
+                 departure_timezone = ?8,
+                 arrival_timezone = ?9,
+                 departure_time_utc = ?10,
+                 arrival_time_utc = ?11,
+                 class_info = ?12,
+                 seat_info = ?13,
+                 metadata_json = ?14
+             WHERE journey_id = ?15 AND segment_index = 0",
+            params![
+                &draft.ticket_type,
+                &draft.carrier_name,
+                &draft.code,
+                &draft.departure.name,
+                &draft.arrival.name,
+                &draft.departure_time_local,
+                &draft.arrival_time_local,
+                &draft.departure.timezone,
+                &draft.arrival.timezone,
+                &departure_time_utc,
+                &arrival_time_utc,
+                &draft.class_info,
+                &draft.seat_info,
+                build_segment_metadata(&draft),
+                &journey_id
+            ],
+        )
         .map_err(|err| err.to_string())?;
 
+        conn.execute(
+            "UPDATE ticket_records
+             SET ticket_type = ?1,
+                 carrier_name = ?2,
+                 code = ?3,
+                 raw_payload_json = ?4,
+                 updated_at_utc = ?5,
+                 version = version + 1
+             WHERE id = ?6",
+            params![
+                &draft.ticket_type,
+                &draft.carrier_name,
+                &draft.code,
+                &raw_payload_json,
+                &updated_at,
+                &existing_row.id
+            ],
+        )
+        .map_err(|err| err.to_string())?;
+
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+
+        Ok(build_ticket_record(
+            existing_row.id,
+            draft.ticket_type.clone(),
+            draft.carrier_name.clone(),
+            draft.code.clone(),
+            draft,
+            map_status(&existing_row.normalized_status),
+            existing_row.created_at,
+            updated_at,
+        ))
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result
+}
+
+pub fn update_ticket_status(
+    app: &AppHandle,
+    ticket_id: &str,
+    status: &str,
+) -> Result<TicketRecordPayload, String> {
+    validate_status(status)?;
+
+    let conn = open_connection(app)?;
+    let existing_row = get_ticket_row(&conn, ticket_id)?;
+    let journey_id = existing_row
+        .journey_id
+        .clone()
+        .ok_or_else(|| "Ticket journey relation is missing.".to_string())?;
+    let updated_at = Utc::now().to_rfc3339();
+    let draft = deserialize_ticket_draft(&existing_row.raw_payload_json)?;
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        conn.execute(
+            "UPDATE ticket_records
+             SET normalized_status = ?1,
+                 updated_at_utc = ?2,
+                 version = version + 1
+             WHERE id = ?3",
+            params![status, &updated_at, &existing_row.id],
+        )
+        .map_err(|err| err.to_string())?;
+
+        conn.execute(
+            "UPDATE journeys
+             SET status = ?1,
+                 updated_at_utc = ?2
+             WHERE id = ?3",
+            params![journey_status_for_ticket_status(status), &updated_at, &journey_id],
+        )
+        .map_err(|err| err.to_string())?;
+
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+
+        Ok(build_ticket_record(
+            existing_row.id,
+            existing_row.ticket_type,
+            existing_row.carrier_name,
+            existing_row.code,
+            draft,
+            status.to_string(),
+            existing_row.created_at,
+            updated_at,
+        ))
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result
+}
+
+pub fn delete_ticket(app: &AppHandle, ticket_id: &str) -> Result<(), String> {
+    let conn = open_connection(app)?;
+    let existing_row = get_ticket_row(&conn, ticket_id)?;
+    let journey_id = existing_row
+        .journey_id
+        .clone()
+        .ok_or_else(|| "Ticket journey relation is missing.".to_string())?;
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        conn.execute("DELETE FROM ticket_records WHERE id = ?1", [ticket_id])
+            .map_err(|err| err.to_string())?;
+        conn.execute("DELETE FROM segments WHERE journey_id = ?1", [&journey_id])
+            .map_err(|err| err.to_string())?;
+        conn.execute("DELETE FROM journeys WHERE id = ?1", [&journey_id])
+            .map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result
+}
+
+pub fn get_ticket_detail(app: &AppHandle, ticket_id: &str) -> Result<TicketDetailPayload, String> {
+    let conn = open_connection(app)?;
+    let row = get_ticket_row(&conn, ticket_id)?;
+    let ticket = ticket_row_to_record(row).map_err(|err| err.to_string())?;
     Ok(build_ticket_detail(ticket))
 }
 
@@ -299,10 +448,11 @@ fn build_ticket_detail(ticket: TicketRecordPayload) -> TicketDetailPayload {
 }
 
 fn map_status(value: &str) -> String {
-    if value == "normalized" {
-        "saved".to_string()
-    } else {
-        value.to_string()
+    match value {
+        "pending" => "draft".to_string(),
+        "normalized" => "saved".to_string(),
+        "saved" | "used" | "archived" => value.to_string(),
+        _ => "saved".to_string(),
     }
 }
 
@@ -346,6 +496,82 @@ fn validate_draft(draft: &TicketDraftPayload) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_status(status: &str) -> Result<(), String> {
+    match status {
+        "saved" | "used" | "archived" => Ok(()),
+        _ => Err(format!("Unsupported ticket status: {}", status)),
+    }
+}
+
+fn build_segment_metadata(draft: &TicketDraftPayload) -> String {
+    serde_json::json!({
+        "notes": draft.notes,
+        "departureCode": draft.departure.code,
+        "arrivalCode": draft.arrival.code
+    })
+    .to_string()
+}
+
+fn deserialize_ticket_draft(raw_payload_json: &str) -> Result<TicketDraftPayload, String> {
+    serde_json::from_str(raw_payload_json).map_err(|err| err.to_string())
+}
+
+fn parse_ticket_row(row: &Row<'_>) -> rusqlite::Result<TicketRowData> {
+    Ok(TicketRowData {
+        id: row.get(0)?,
+        ticket_type: row.get(1)?,
+        carrier_name: row.get(2)?,
+        code: row.get(3)?,
+        raw_payload_json: row.get(4)?,
+        normalized_status: row.get(5)?,
+        journey_id: row.get(6)?,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+    })
+}
+
+fn ticket_row_to_record(row: TicketRowData) -> rusqlite::Result<TicketRecordPayload> {
+    let draft = serde_json::from_str::<TicketDraftPayload>(&row.raw_payload_json).map_err(|err| {
+        rusqlite::Error::FromSqlConversionFailure(
+            row.raw_payload_json.len(),
+            rusqlite::types::Type::Text,
+            Box::new(err),
+        )
+    })?;
+
+    Ok(build_ticket_record(
+        row.id,
+        row.ticket_type,
+        row.carrier_name,
+        row.code,
+        draft,
+        row.normalized_status,
+        row.created_at,
+        row.updated_at,
+    ))
+}
+
+fn get_ticket_row(conn: &Connection, ticket_id: &str) -> Result<TicketRowData, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, ticket_type, carrier_name, code, raw_payload_json, normalized_status, journey_id, created_at_utc, updated_at_utc
+             FROM ticket_records
+             WHERE id = ?1",
+        )
+        .map_err(|err| err.to_string())?;
+
+    stmt.query_row([ticket_id], parse_ticket_row)
+        .map_err(|err| err.to_string())
+}
+
+fn journey_status_for_ticket_status(status: &str) -> &str {
+    match status {
+        "used" => "completed",
+        "archived" => "archived",
+        _ => "planned",
+    }
+}
+
 fn normalize_to_utc(value: &str, timezone: &str) -> Result<String, String> {
     let naive = NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M")
         .map_err(|_| format!("Invalid datetime format: {}", value))?;
@@ -374,10 +600,7 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
 }
 
 fn database_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|err| err.to_string())?;
+    let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
     Ok(data_dir.join("tickettrail.sqlite3"))
 }
 
