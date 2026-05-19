@@ -22,6 +22,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
   const [lastApplied, setLastApplied] = useState("");
   const [ocrStatus, setOcrStatus] = useState("");
   const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrConfidence, setOcrConfidence] = useState(0);
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [showNormalized, setShowNormalized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -57,6 +58,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
     setLastApplied("");
     setOcrStatus("\u6b63\u5728\u521d\u59cb\u5316 OCR...");
     setOcrProgress(0);
+    setOcrConfidence(0);
 
     try {
       const result = await recognizeTicketImage(file, (progress) => {
@@ -65,6 +67,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
       });
 
       setRawText(result.text);
+      setOcrConfidence(result.confidence);
       setOcrStatus("\u8bc6\u522b\u5b8c\u6210\uff0c\u53ef\u4ee5\u76f4\u63a5\u5957\u7528\u5230\u8868\u5355\u3002");
       setOcrProgress(1);
     } catch (error) {
@@ -111,8 +114,13 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
 
         {ocrStatus ? (
           <div className="ocr-status-card">
-            <strong>{ocrStatus}</strong>
-            <span>{toPercent(ocrProgress)}</span>
+            <div className="ocr-status-main">
+              <strong>{ocrStatus}</strong>
+              <small>{`\u8fdb\u5ea6 ${toPercent(ocrProgress)}`}</small>
+            </div>
+            <span className="ticket-status ticket-status-confidence">
+              {`\u8bc6\u5b57\u7f6e\u4fe1\u5ea6 ${toConfidenceLabel(ocrConfidence)} ${toPercent(ocrConfidence)}`}
+            </span>
           </div>
         ) : null}
 

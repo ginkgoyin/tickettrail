@@ -225,11 +225,21 @@ button {
 .ocr-status-card {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 16px;
   padding: 14px 16px;
   border-radius: 16px;
   border: 1px solid rgba(112, 212, 255, 0.16);
   background: rgba(112, 212, 255, 0.08);
+}
+
+.ocr-status-main {
+  display: grid;
+  gap: 4px;
+}
+
+.ocr-status-main small {
+  color: var(--text-soft);
 }
 
 .import-preview {
