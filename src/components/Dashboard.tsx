@@ -56,7 +56,7 @@ export function Dashboard({
     [activeDetail],
   );
   const stubSvg = useMemo(
-    () => (activeDetail ? buildStubSvg(activeDetail.stub, stubTheme) : ""),
+    () => (activeDetail ? buildStubSvg(activeDetail.stub, stubTheme, activeDetail.segments) : ""),
     [activeDetail, stubTheme],
   );
 

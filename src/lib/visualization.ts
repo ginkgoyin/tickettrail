@@ -3,6 +3,7 @@ import type {
   MapRoutePayload,
   MapSegmentPayload,
   MapViewportPayload,
+  TicketType,
   StubPreviewPayload,
 } from "../types/ticket";
 
@@ -14,6 +15,18 @@ const STUB_WIDTH = 960;
 const STUB_HEIGHT = 520;
 
 export type StubTheme = "boarding" | "ledger" | "night";
+
+interface StubSegmentSummary {
+  segmentIndex: number;
+  transportType: TicketType;
+  carrierName: string;
+  code: string;
+  departureLabel: string;
+  arrivalLabel: string;
+  departureTimeLocal: string;
+  arrivalTimeLocal: string;
+  seatLabel: string;
+}
 
 function escapeXml(value: string) {
   return value
@@ -287,7 +300,38 @@ function formatTrainDepartureTime(value: string) {
   return `${year}\u5e74${month}\u6708${day}\u65e5 ${timePart}\u5f00`;
 }
 
-function buildTrainStubSvg(stub: StubPreviewPayload) {
+function buildSegmentManifest(segments: StubSegmentSummary[], x: number, y: number, width: number, dark = false) {
+  if (segments.length <= 1) {
+    return "";
+  }
+
+  const rows = segments
+    .slice(0, 4)
+    .map((segment, index) => {
+      const rowY = y + 34 + index * 40;
+      const textColor = dark ? "#eef7fb" : "#1f2f36";
+      const subColor = dark ? "#b7d0da" : "#5f7680";
+      const badgeFill = dark ? "rgba(112,212,255,0.18)" : "rgba(12,132,136,0.12)";
+      return `
+        <rect x="${x + 14}" y="${rowY - 22}" width="${width - 28}" height="28" rx="10" fill="rgba(255,255,255,0.04)" />
+        <text x="${x + 28}" y="${rowY - 4}" fill="${subColor}" font-size="12" letter-spacing="1.6" font-family="Segoe UI, Noto Sans SC, sans-serif">SEG ${segment.segmentIndex + 1}</text>
+        <text x="${x + 98}" y="${rowY - 4}" fill="${textColor}" font-size="15" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(segment.departureLabel)} -> ${escapeXml(segment.arrivalLabel)}</text>
+        <rect x="${x + width - 154}" y="${rowY - 18}" width="126" height="20" rx="10" fill="${badgeFill}" />
+        <text x="${x + width - 91}" y="${rowY - 4}" text-anchor="middle" fill="${textColor}" font-size="12" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(segment.code || "--")} ${escapeXml(segment.seatLabel || "")}</text>
+      `;
+    })
+    .join("");
+
+  return `
+    <g>
+      <rect x="${x}" y="${y}" width="${width}" height="${Math.min(segments.length, 4) * 40 + 42}" rx="16" fill="${dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.4)"}" stroke="${dark ? "rgba(255,255,255,0.08)" : "rgba(31,47,54,0.14)"}" />
+      <text x="${x + 18}" y="${y + 22}" fill="${dark ? "#b7d0da" : "#45616d"}" font-size="13" letter-spacing="2" font-family="Segoe UI, Noto Sans SC, sans-serif">ITINERARY SEGMENTS</text>
+      ${rows}
+    </g>
+  `;
+}
+
+function buildTrainStubSvg(stub: StubPreviewPayload, segments: StubSegmentSummary[]) {
   const coachSeat = stub.seatLabel.split("/").map((part) => part.trim());
   const coachInfo = coachSeat[0] || `02\u8f66`;
   const seatInfo = coachSeat[1] || `04F\u53f7`;
@@ -339,17 +383,19 @@ function buildTrainStubSvg(stub: StubPreviewPayload) {
     <text x="364" y="430" text-anchor="middle" fill="#1f2f36" font-size="28" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">\u62a5\u9500\u51ed\u8bc1 \u3000\u9057\u5931\u4e0d\u8865</text>
     <text x="364" y="460" text-anchor="middle" fill="#1f2f36" font-size="22" font-family="Segoe UI, Noto Sans SC, sans-serif">\u9000\u7968\u6539\u7b7e\u65f6\u987b\u4ea4\u56de\u8f66\u7ad9</text>
     <text x="52" y="406" fill="#1f2f36" font-size="20" font-family="Consolas, monospace">${escapeXml(stub.primaryCode)} ${escapeXml(stub.carrierName.slice(0, 10))}</text>
+    ${buildSegmentManifest(segments, 632, 388, 286)}
     <rect x="0" y="${STUB_HEIGHT - 54}" width="${STUB_WIDTH}" height="54" fill="#62c3cf" />
     <text x="36" y="${STUB_HEIGHT - 18}" fill="#1c3440" font-size="26" font-family="Consolas, monospace">${escapeXml(bottomSerial)}</text>
   </svg>`.trim();
 }
 
-function buildFlightStubSvg(stub: StubPreviewPayload, theme: StubTheme) {
+function buildFlightStubSvg(stub: StubPreviewPayload, theme: StubTheme, segments: StubSegmentSummary[]) {
   const tokens = getFlightThemeTokens(theme);
   const departureCode = stub.departureLabel.slice(0, 3).toUpperCase();
   const arrivalCode = stub.arrivalLabel.slice(0, 3).toUpperCase();
   const gate = `G${(stub.primaryCode.length % 9) + 1}${String.fromCharCode(65 + (stub.primaryCode.length % 5))}`;
   const boardingTime = stub.departureTimeLocal.replace("T", " ").slice(5);
+  const manifest = buildSegmentManifest(segments, 52, 404, 654, true);
 
   return `
   <svg xmlns="http://www.w3.org/2000/svg" width="${STUB_WIDTH}" height="${STUB_HEIGHT}" viewBox="0 0 ${STUB_WIDTH} ${STUB_HEIGHT}">
@@ -386,18 +432,57 @@ function buildFlightStubSvg(stub: StubPreviewPayload, theme: StubTheme) {
     <text x="754" y="264" fill="${tokens.primary}" font-size="34" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(gate)}</text>
     <text x="754" y="328" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans SC, sans-serif">BOARDING</text>
     <text x="754" y="368" fill="${tokens.primary}" font-size="30" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(boardingTime)}</text>
-    <text x="52" y="456" fill="${tokens.muted}" font-size="15" letter-spacing="3" font-family="Segoe UI, Noto Sans SC, sans-serif">REMARK</text>
-    <text x="52" y="488" fill="${tokens.ink}" font-size="20" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(stub.notes)}</text>
+    ${manifest}
+    <text x="52" y="${segments.length > 1 ? 392 : 456}" fill="${tokens.muted}" font-size="15" letter-spacing="3" font-family="Segoe UI, Noto Sans SC, sans-serif">REMARK</text>
+    <text x="52" y="${segments.length > 1 ? 424 : 488}" fill="${tokens.ink}" font-size="20" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(stub.notes)}</text>
   </svg>`.trim();
 }
 
-export function buildStubSvg(stub: StubPreviewPayload, theme: StubTheme = "boarding") {
+function buildStubSegmentSummaries(
+  stub: StubPreviewPayload,
+  segments: MapSegmentPayload[] = [],
+): StubSegmentSummary[] {
+  if (!segments.length) {
+    return [
+      {
+        segmentIndex: 0,
+        transportType: stub.transportBadge.toLowerCase().includes("train") ? "train" : "flight",
+        carrierName: stub.carrierName,
+        code: stub.primaryCode,
+        departureLabel: stub.departureLabel,
+        arrivalLabel: stub.arrivalLabel,
+        departureTimeLocal: stub.departureTimeLocal,
+        arrivalTimeLocal: stub.arrivalTimeLocal,
+        seatLabel: stub.seatLabel,
+      },
+    ];
+  }
+
+  return segments.map((segment) => ({
+    segmentIndex: segment.segmentIndex,
+    transportType: segment.transportType,
+    carrierName: segment.carrierName,
+    code: segment.code,
+    departureLabel: segment.origin.label,
+    arrivalLabel: segment.destination.label,
+    departureTimeLocal: "",
+    arrivalTimeLocal: "",
+    seatLabel: "",
+  }));
+}
+
+export function buildStubSvg(
+  stub: StubPreviewPayload,
+  theme: StubTheme = "boarding",
+  segments: MapSegmentPayload[] = [],
+) {
   const isTrain =
     stub.transportBadge.toLowerCase().includes("train") ||
     stub.carrierName.toLowerCase().includes("rail") ||
     stub.carrierName.includes("\u94c1\u8def");
+  const segmentSummaries = buildStubSegmentSummaries(stub, segments);
 
-  return isTrain ? buildTrainStubSvg(stub) : buildFlightStubSvg(stub, theme);
+  return isTrain ? buildTrainStubSvg(stub, segmentSummaries) : buildFlightStubSvg(stub, theme, segmentSummaries);
 }
 
 function downloadBlob(filename: string, blob: Blob) {

@@ -296,6 +296,24 @@ export function TicketForm({
     }));
   };
 
+  const handleMoveSegment = (index: number, direction: -1 | 1) => {
+    setDraft((current) => {
+      const segments = [...(current.segments ?? [])];
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= segments.length) {
+        return current;
+      }
+
+      const [target] = segments.splice(index, 1);
+      segments.splice(nextIndex, 0, target);
+
+      return {
+        ...current,
+        segments,
+      };
+    });
+  };
+
   const applySuggestedValue = (field: ImportFieldKey, value: string) => {
     switch (field) {
       case "carrierName":
@@ -749,13 +767,31 @@ export function TicketForm({
                       <span className="ticket-kind">{`Segment ${index + 2}`}</span>
                       <strong>{buildSegmentRouteLabel(segment)}</strong>
                     </div>
-                    <button
-                      className="ghost-button compact-button danger-button"
-                      onClick={() => handleRemoveSegment(index)}
-                      type="button"
-                    >
-                      Remove
-                    </button>
+                    <div className="segment-card-controls">
+                      <button
+                        className="ghost-button compact-button"
+                        disabled={index === 0}
+                        onClick={() => handleMoveSegment(index, -1)}
+                        type="button"
+                      >
+                        Up
+                      </button>
+                      <button
+                        className="ghost-button compact-button"
+                        disabled={index === (draft.segments?.length ?? 1) - 1}
+                        onClick={() => handleMoveSegment(index, 1)}
+                        type="button"
+                      >
+                        Down
+                      </button>
+                      <button
+                        className="ghost-button compact-button danger-button"
+                        onClick={() => handleRemoveSegment(index)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
 
                   <div className="form-grid">
