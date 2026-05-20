@@ -583,6 +583,12 @@ textarea {
   justify-content: flex-end;
 }
 
+.segment-helper-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .ticket-list {
   display: grid;
   gap: 14px;
@@ -980,6 +986,7 @@ textarea {
   .form-utility-row,
   .segment-card-top,
   .segment-card-controls,
+  .segment-helper-row,
   .form-actions,
   .export-row,
   .theme-switcher,

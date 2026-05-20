@@ -115,6 +115,16 @@ function parseDateTime(value: string) {
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
+function formatDateTimeLocal(timestamp: number) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function TicketForm({
   isSaving,
   mode,
@@ -369,6 +379,60 @@ export function TicketForm({
     });
   };
 
+  const handleInheritPreviousArrival = (index: number) => {
+    setDraft((current) => {
+      const previousSegment =
+        index === 0
+          ? {
+              arrival: current.arrival,
+              arrivalTimeLocal: current.arrivalTimeLocal,
+            }
+          : {
+              arrival: current.segments?.[index - 1]?.arrival ?? current.arrival,
+              arrivalTimeLocal: current.segments?.[index - 1]?.arrivalTimeLocal ?? current.arrivalTimeLocal,
+            };
+
+      return {
+        ...current,
+        segments: (current.segments ?? []).map((segment, segmentIndex) =>
+          segmentIndex === index
+            ? {
+                ...segment,
+                departure: { ...previousSegment.arrival },
+                departureTimeLocal: segment.departureTimeLocal || previousSegment.arrivalTimeLocal,
+              }
+            : segment,
+        ),
+      };
+    });
+  };
+
+  const handleSuggestLayover = (index: number, minutes: number) => {
+    setDraft((current) => {
+      const previousArrivalTime =
+        index === 0
+          ? current.arrivalTimeLocal
+          : (current.segments?.[index - 1]?.arrivalTimeLocal ?? "");
+      const previousTimestamp = parseDateTime(previousArrivalTime);
+
+      if (!previousTimestamp) {
+        return current;
+      }
+
+      return {
+        ...current,
+        segments: (current.segments ?? []).map((segment, segmentIndex) =>
+          segmentIndex === index
+            ? {
+                ...segment,
+                departureTimeLocal: formatDateTimeLocal(previousTimestamp + minutes * 60_000),
+              }
+            : segment,
+        ),
+      };
+    });
+  };
+
   const applySuggestedValue = (field: ImportFieldKey, value: string) => {
     switch (field) {
       case "carrierName":
@@ -572,7 +636,8 @@ export function TicketForm({
       }
 
       if (index > 0) {
-        const previousArrival = parseDateTime(effectiveSegments[index - 1].arrivalTimeLocal);
+        const previousSegment = effectiveSegments[index - 1];
+        const previousArrival = parseDateTime(previousSegment.arrivalTimeLocal);
         if (previousArrival && departure) {
           const layoverMinutes = Math.round((departure - previousArrival) / 60000);
           if (layoverMinutes < 0) {
@@ -588,6 +653,16 @@ export function TicketForm({
               message: `Segment ${index + 1} has a tight layover of ${layoverMinutes} minutes.`,
             });
           }
+        }
+
+        const currentDepartureKey = (segment.departure.code || segment.departure.name).trim().toLowerCase();
+        const previousArrivalKey = (previousSegment.arrival.code || previousSegment.arrival.name).trim().toLowerCase();
+        if (currentDepartureKey && previousArrivalKey && currentDepartureKey !== previousArrivalKey) {
+          messages.push({
+            key: `segment-disconnect-${index}`,
+            severity: "warning",
+            message: `Segment ${index + 1} departs from a different location than segment ${index} arrives.`,
+          });
         }
       }
     });
@@ -922,6 +997,37 @@ export function TicketForm({
                         Remove
                       </button>
                     </div>
+                  </div>
+
+                  <div className="segment-helper-row">
+                    <button
+                      className="ghost-button compact-button"
+                      onClick={() => handleInheritPreviousArrival(index)}
+                      type="button"
+                    >
+                      Inherit previous arrival
+                    </button>
+                    <button
+                      className="ghost-button compact-button"
+                      onClick={() => handleSuggestLayover(index, 45)}
+                      type="button"
+                    >
+                      +45 min
+                    </button>
+                    <button
+                      className="ghost-button compact-button"
+                      onClick={() => handleSuggestLayover(index, 90)}
+                      type="button"
+                    >
+                      +90 min
+                    </button>
+                    <button
+                      className="ghost-button compact-button"
+                      onClick={() => handleSuggestLayover(index, 180)}
+                      type="button"
+                    >
+                      +180 min
+                    </button>
                   </div>
 
                   <div className="form-grid">
