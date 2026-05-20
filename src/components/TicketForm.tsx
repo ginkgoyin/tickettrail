@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { TicketDraft, TicketType } from "../types/ticket";
 import type { ImportFieldKey, ImportFieldReview } from "../lib/importParser";
+import type { TicketDraft, TicketType } from "../types/ticket";
 
 function createDefaultDraft(): TicketDraft {
   return {
@@ -99,6 +99,38 @@ export function TicketForm({
     }));
   };
 
+  const applySuggestedValue = (field: ImportFieldKey, value: string) => {
+    switch (field) {
+      case "carrierName":
+      case "code":
+      case "departureTimeLocal":
+      case "arrivalTimeLocal":
+      case "classInfo":
+      case "seatInfo":
+      case "notes":
+        updateField(field, value);
+        return;
+      case "departure.name":
+        updateLocationField("departure", "name", value);
+        return;
+      case "departure.code":
+        updateLocationField("departure", "code", value);
+        return;
+      case "departure.timezone":
+        updateLocationField("departure", "timezone", value);
+        return;
+      case "arrival.name":
+        updateLocationField("arrival", "name", value);
+        return;
+      case "arrival.code":
+        updateLocationField("arrival", "code", value);
+        return;
+      case "arrival.timezone":
+        updateLocationField("arrival", "timezone", value);
+        return;
+    }
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -125,48 +157,19 @@ export function TicketForm({
     return (
       <small className="field-review-note">
         {review.message}
-        {review.suggestedValue ? (
-          <>
-            {" "}
-            <button
-              className="field-suggestion-button"
-              onClick={() => {
-                const value = review.suggestedValue ?? "";
-                switch (field) {
-                  case "carrierName":
-                  case "code":
-                  case "departureTimeLocal":
-                  case "arrivalTimeLocal":
-                  case "classInfo":
-                  case "seatInfo":
-                  case "notes":
-                    updateField(field, value);
-                    break;
-                  case "departure.name":
-                    updateLocationField("departure", "name", value);
-                    break;
-                  case "departure.code":
-                    updateLocationField("departure", "code", value);
-                    break;
-                  case "departure.timezone":
-                    updateLocationField("departure", "timezone", value);
-                    break;
-                  case "arrival.name":
-                    updateLocationField("arrival", "name", value);
-                    break;
-                  case "arrival.code":
-                    updateLocationField("arrival", "code", value);
-                    break;
-                  case "arrival.timezone":
-                    updateLocationField("arrival", "timezone", value);
-                    break;
-                }
-              }}
-              type="button"
-            >
-              {`套用建议值 ${review.suggestedValue}`}
-            </button>
-          </>
+        {review.suggestedValues?.length ? (
+          <span className="field-suggestion-list">
+            {review.suggestedValues.map((suggestedValue) => (
+              <button
+                className="field-suggestion-button"
+                key={`${field}-${suggestedValue}`}
+                onClick={() => applySuggestedValue(field, suggestedValue)}
+                type="button"
+              >
+                {`套用 ${suggestedValue}`}
+              </button>
+            ))}
+          </span>
         ) : null}
       </small>
     );

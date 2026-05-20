@@ -326,6 +326,13 @@ button {
   border: 1px solid rgba(112, 212, 255, 0.16);
 }
 
+.field-suggestion-chip-list,
+.field-suggestion-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .normalized-text-panel {
   display: grid;
   gap: 10px;
@@ -386,14 +393,13 @@ textarea {
 }
 
 .field-suggestion-button {
-  padding: 0;
-  border: 0;
-  background: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(112, 212, 255, 0.2);
+  background: rgba(112, 212, 255, 0.08);
   color: #9ee1ff;
   cursor: pointer;
   font: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .toggle-group {

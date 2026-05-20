@@ -197,8 +197,14 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                       </span>
                     </div>
                     <p>{review.message}</p>
-                    {review.suggestedValue ? (
-                      <code className="field-suggestion-code">{review.suggestedValue}</code>
+                    {review.suggestedValues?.length ? (
+                      <div className="field-suggestion-chip-list">
+                        {review.suggestedValues.map((suggestedValue) => (
+                          <code className="field-suggestion-code" key={`${review.field}-${suggestedValue}`}>
+                            {suggestedValue}
+                          </code>
+                        ))}
+                      </div>
                     ) : null}
                   </div>
                 ))}
