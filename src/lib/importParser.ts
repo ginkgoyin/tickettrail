@@ -9,6 +9,29 @@ export interface ImportParseResult {
   confidence: number;
 }
 
+export type ImportFieldKey =
+  | "carrierName"
+  | "code"
+  | "departure.name"
+  | "departure.code"
+  | "departure.timezone"
+  | "arrival.name"
+  | "arrival.code"
+  | "arrival.timezone"
+  | "departureTimeLocal"
+  | "arrivalTimeLocal"
+  | "classInfo"
+  | "seatInfo"
+  | "notes";
+
+export interface ImportFieldReview {
+  field: ImportFieldKey;
+  label: string;
+  severity: "warning" | "suggestion";
+  message: string;
+  suggestedValue?: string;
+}
+
 interface LocationAlias {
   matcher: RegExp;
   name: string;
@@ -179,6 +202,24 @@ function hydrateLocation(location: TicketLocation) {
   };
 }
 
+function resolveLocationSuggestion(location: TicketLocation) {
+  const alias = locationAliases.find(
+    (item) =>
+      (location.name && item.matcher.test(location.name)) ||
+      (!!location.code && item.code === location.code.toUpperCase()),
+  );
+
+  if (!alias) {
+    return null;
+  }
+
+  return {
+    name: alias.name,
+    code: alias.code,
+    timezone: alias.timezone,
+  };
+}
+
 function normalizeDateTime(input: string) {
   const compact = input.replace(/\s+/g, " ").trim();
   const fullDateMatch = compact.match(
@@ -233,6 +274,22 @@ function finalizeResult(result: Omit<ImportParseResult, "confidence">): ImportPa
     ...result,
     confidence,
   };
+}
+
+function pushMissingFieldReview(
+  reviews: ImportFieldReview[],
+  field: ImportFieldKey,
+  label: string,
+  message: string,
+  suggestedValue?: string,
+) {
+  reviews.push({
+    field,
+    label,
+    severity: suggestedValue ? "suggestion" : "warning",
+    message,
+    suggestedValue,
+  });
 }
 
 function detectTicketType(text: string): TicketType {
@@ -455,4 +512,102 @@ export function parseImportedText(rawText: string): ImportParseResult | null {
 
   const detectedType = detectTicketType(normalizedText);
   return detectedType === "train" ? parseTrain(normalizedText) : parseFlight(normalizedText);
+}
+
+export function reviewImportedDraft(result: ImportParseResult): ImportFieldReview[] {
+  const { draft, detectedType } = result;
+  const reviews: ImportFieldReview[] = [];
+  const departureSuggestion = resolveLocationSuggestion(draft.departure);
+  const arrivalSuggestion = resolveLocationSuggestion(draft.arrival);
+  const carrierSuggestion = !draft.carrierName ? pickAirlineName(result.normalizedText, draft.code) : "";
+
+  if (!draft.code) {
+    pushMissingFieldReview(reviews, "code", detectedType === "train" ? "车次" : "航班号", "未识别到主编号。");
+  } else if (detectedType === "train" && !/^[GDCKTZ]\d{1,4}$/i.test(draft.code)) {
+    pushMissingFieldReview(reviews, "code", "车次", "当前车次格式看起来不太像标准高铁/列车车次。");
+  } else if (detectedType === "flight" && !/^[A-Z0-9]{2}\d{2,4}$/i.test(draft.code)) {
+    pushMissingFieldReview(reviews, "code", "航班号", "当前航班号格式可能有误，建议检查字母和数字。");
+  }
+
+  if (!draft.carrierName) {
+    pushMissingFieldReview(
+      reviews,
+      "carrierName",
+      "承运方",
+      detectedType === "train" ? "建议补充铁路承运方。" : "未识别到航空公司。",
+      carrierSuggestion || (detectedType === "train" ? "China Railway" : undefined),
+    );
+  }
+
+  if (!draft.departure.name) {
+    pushMissingFieldReview(
+      reviews,
+      "departure.name",
+      "出发地",
+      "未识别到出发地名称。",
+      departureSuggestion?.name,
+    );
+  }
+  if (!draft.arrival.name) {
+    pushMissingFieldReview(
+      reviews,
+      "arrival.name",
+      "到达地",
+      "未识别到到达地名称。",
+      arrivalSuggestion?.name,
+    );
+  }
+  if (!draft.departure.code && departureSuggestion?.code) {
+    pushMissingFieldReview(reviews, "departure.code", "出发代码", "可以补充更标准的地点代码。", departureSuggestion.code);
+  }
+  if (!draft.arrival.code && arrivalSuggestion?.code) {
+    pushMissingFieldReview(reviews, "arrival.code", "到达代码", "可以补充更标准的地点代码。", arrivalSuggestion.code);
+  }
+  if (departureSuggestion?.timezone && draft.departure.timezone !== departureSuggestion.timezone) {
+    pushMissingFieldReview(
+      reviews,
+      "departure.timezone",
+      "出发时区",
+      "当前出发时区和地点不太一致。",
+      departureSuggestion.timezone,
+    );
+  }
+  if (arrivalSuggestion?.timezone && draft.arrival.timezone !== arrivalSuggestion.timezone) {
+    pushMissingFieldReview(
+      reviews,
+      "arrival.timezone",
+      "到达时区",
+      "当前到达时区和地点不太一致。",
+      arrivalSuggestion.timezone,
+    );
+  }
+
+  if (!draft.departureTimeLocal) {
+    pushMissingFieldReview(reviews, "departureTimeLocal", "出发时间", "未识别到出发时间。");
+  } else if (/^\d{4}-01-01T\d{2}:\d{2}$/.test(draft.departureTimeLocal)) {
+    pushMissingFieldReview(
+      reviews,
+      "departureTimeLocal",
+      "出发时间",
+      "当前只识别到了时间，日期可能需要手动修正。",
+    );
+  }
+
+  if (detectedType === "flight" && !draft.arrivalTimeLocal) {
+    pushMissingFieldReview(reviews, "arrivalTimeLocal", "到达时间", "未识别到到达时间。");
+  }
+
+  if (detectedType === "train" && !draft.classInfo) {
+    pushMissingFieldReview(reviews, "classInfo", "座席类型", "未识别到座席类型。");
+  }
+  if (!draft.seatInfo) {
+    pushMissingFieldReview(
+      reviews,
+      "seatInfo",
+      detectedType === "train" ? "车厢/座位" : "座位号",
+      detectedType === "train" ? "未识别到车厢或座位号。" : "未识别到座位号。",
+    );
+  }
+
+  return reviews;
 }

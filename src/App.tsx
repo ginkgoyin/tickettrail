@@ -5,6 +5,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SmartImport } from "./components/SmartImport";
 import { TicketForm } from "./components/TicketForm";
 import { TicketList } from "./components/TicketList";
+import { reviewImportedDraft, type ImportFieldReview, type ImportParseResult } from "./lib/importParser";
 import {
   addTicketAttachment,
   createTicket,
@@ -103,6 +104,7 @@ export default function App() {
   const [detailVersion, setDetailVersion] = useState(0);
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
   const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
+  const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
 
   const deferredQuery = useDeferredValue(filters.query);
 
@@ -227,6 +229,7 @@ export default function App() {
           setTickets((current) => [nextTicket, ...current]);
           setSelectedId(nextTicket.id);
           setImportedDraft(null);
+          setImportReview(null);
           setDetailVersion((current) => current + 1);
         });
       }
@@ -241,6 +244,7 @@ export default function App() {
     setEditingId(ticketId);
     setSelectedId(ticketId);
     setImportedDraft(null);
+    setImportReview(null);
     setErrorMessage("");
   };
 
@@ -327,9 +331,10 @@ export default function App() {
     }
   };
 
-  const handleApplyImport = (draft: TicketDraft) => {
+  const handleApplyImport = (result: ImportParseResult) => {
     setEditingId("");
-    setImportedDraft(draft);
+    setImportedDraft(result.draft);
+    setImportReview(result ? reviewImportedDraft(result) : null);
     setErrorMessage("");
   };
 
@@ -377,6 +382,7 @@ export default function App() {
           <div className="panel-stack">
             <SmartImport onApplyImport={handleApplyImport} />
             <TicketForm
+              importReview={importReview}
               importedDraft={importedDraft}
               initialDraft={formDraft}
               isSaving={isSaving}

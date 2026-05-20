@@ -268,6 +268,16 @@ button {
   background: rgba(255, 177, 90, 0.14);
 }
 
+.ticket-status-warning {
+  color: #ffb6b0;
+  background: rgba(255, 112, 92, 0.14);
+}
+
+.ticket-status-suggestion {
+  color: #b8f4cc;
+  background: rgba(85, 207, 124, 0.14);
+}
+
 .import-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -277,6 +287,43 @@ button {
 .import-warnings {
   display: grid;
   gap: 8px;
+}
+
+.import-review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.import-review-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.import-review-card p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.import-review-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.field-suggestion-code {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: #9ee1ff;
+  background: rgba(112, 212, 255, 0.12);
+  border: 1px solid rgba(112, 212, 255, 0.16);
 }
 
 .normalized-text-panel {
@@ -310,6 +357,13 @@ label {
   font-size: 0.92rem;
 }
 
+.field-with-review {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 166, 87, 0.22);
+  background: rgba(255, 166, 87, 0.05);
+}
+
 input,
 textarea,
 select {
@@ -324,6 +378,22 @@ select {
 textarea {
   min-height: 96px;
   resize: vertical;
+}
+
+.field-review-note {
+  color: #ffd9ab;
+  line-height: 1.45;
+}
+
+.field-suggestion-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #9ee1ff;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .toggle-group {

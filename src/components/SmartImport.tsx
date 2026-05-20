@@ -1,10 +1,14 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
-import { parseImportedText, type ImportParseResult } from "../lib/importParser";
+import {
+  parseImportedText,
+  reviewImportedDraft,
+  type ImportFieldReview,
+  type ImportParseResult,
+} from "../lib/importParser";
 import { recognizeTicketImage } from "../lib/ocrService";
-import type { TicketDraft } from "../types/ticket";
 
 interface SmartImportProps {
-  onApplyImport: (draft: TicketDraft) => void;
+  onApplyImport: (result: ImportParseResult) => void;
 }
 
 function toPercent(value: number) {
@@ -28,13 +32,14 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const parsed = useMemo<ImportParseResult | null>(() => parseImportedText(rawText), [rawText]);
+  const fieldReviews = useMemo<ImportFieldReview[]>(() => (parsed ? reviewImportedDraft(parsed) : []), [parsed]);
 
   const handleApply = () => {
     if (!parsed) {
       return;
     }
 
-    onApplyImport(parsed.draft);
+    onApplyImport(parsed);
     setLastApplied(
       parsed.detectedType === "train"
         ? "\u5df2\u5c06\u706b\u8f66\u7968\u4fe1\u606f\u586b\u5165\u8868\u5355\u3002"
@@ -173,6 +178,30 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
               <div className="normalized-text-panel">
                 <strong>Normalized OCR text</strong>
                 <pre>{parsed.normalizedText}</pre>
+              </div>
+            ) : null}
+            {fieldReviews.length ? (
+              <div className="import-review-list">
+                {fieldReviews.map((review) => (
+                  <div className="import-review-card" key={`${review.field}-${review.message}`}>
+                    <div className="import-review-header">
+                      <strong>{review.label}</strong>
+                      <span
+                        className={
+                          review.severity === "warning"
+                            ? "ticket-status ticket-status-warning"
+                            : "ticket-status ticket-status-suggestion"
+                        }
+                      >
+                        {review.severity === "warning" ? "\u9700\u8981\u68c0\u67e5" : "\u53ef\u76f4\u63a5\u5957\u7528"}
+                      </span>
+                    </div>
+                    <p>{review.message}</p>
+                    {review.suggestedValue ? (
+                      <code className="field-suggestion-code">{review.suggestedValue}</code>
+                    ) : null}
+                  </div>
+                ))}
               </div>
             ) : null}
             {parsed.warnings.length ? (
