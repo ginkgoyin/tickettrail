@@ -371,6 +371,34 @@ label {
   background: rgba(255, 166, 87, 0.05);
 }
 
+.form-utility-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  justify-content: space-between;
+}
+
+.route-summary-card {
+  flex: 1;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(112, 212, 255, 0.14);
+  background: rgba(112, 212, 255, 0.07);
+}
+
+.route-summary-card span,
+.field-directory-note {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+.route-summary-card strong {
+  font-size: 1rem;
+  color: #f6fbff;
+}
+
 .autocomplete-field {
   position: relative;
 }
@@ -427,6 +455,10 @@ label {
   background: rgba(112, 212, 255, 0.08);
   border: 1px solid rgba(112, 212, 255, 0.14);
   font-size: 0.78rem;
+}
+
+.field-directory-note {
+  line-height: 1.45;
 }
 
 input,
@@ -892,6 +924,7 @@ textarea {
   .panel-heading,
   .hero,
   .header-actions,
+  .form-utility-row,
   .form-actions,
   .export-row,
   .theme-switcher,

@@ -69,6 +69,10 @@ function joinLocationMeta(location: LocationDirectoryEntry) {
     .join(" | ");
 }
 
+function buildLocationSummary(location: TicketDraft["departure"]) {
+  return [location.name, location.code || "", location.timezone || ""].filter(Boolean).join(" | ");
+}
+
 export function TicketForm({
   isSaving,
   mode,
@@ -175,6 +179,17 @@ export function TicketForm({
         [key]: value,
       },
     }));
+  };
+
+  const handleSwapRoute = () => {
+    setDraft((current) => ({
+      ...current,
+      departure: { ...current.arrival },
+      arrival: { ...current.departure },
+      departureTimeLocal: current.arrivalTimeLocal,
+      arrivalTimeLocal: current.departureTimeLocal,
+    }));
+    setActiveSuggestField(null);
   };
 
   const applySuggestedValue = (field: ImportFieldKey, value: string) => {
@@ -300,6 +315,29 @@ export function TicketForm({
     () => [draft.arrival.code || "", draft.arrival.timezone || ""].filter(Boolean),
     [draft.arrival.code, draft.arrival.timezone],
   );
+  const matchedAirline = useMemo(() => {
+    const normalized = draft.carrierName.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+
+    return (
+      airlineSuggestions.find((airline) =>
+        [airline.nameEn, airline.nameZh || "", airline.iataCode, airline.icaoCode || ""]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase() === normalized),
+      ) ?? null
+    );
+  }, [airlineSuggestions, draft.carrierName]);
+  const routeSummary = useMemo(() => {
+    if (!draft.departure.name && !draft.arrival.name) {
+      return "Choose departure and arrival to build the route summary.";
+    }
+
+    const left = draft.departure.name || draft.departure.code || "Departure";
+    const right = draft.arrival.name || draft.arrival.code || "Arrival";
+    return `${left} -> ${right}`;
+  }, [draft.arrival.code, draft.arrival.name, draft.departure.code, draft.departure.name]);
 
   return (
     <section className="panel">
@@ -325,6 +363,21 @@ export function TicketForm({
               {type}
             </button>
           ))}
+        </div>
+
+        <div className="form-utility-row">
+          <div className="route-summary-card">
+            <span>Route summary</span>
+            <strong>{routeSummary}</strong>
+            <small>
+              {draft.ticketType === "flight"
+                ? "Directory-backed airport and airline lookup is active."
+                : "Directory-backed station lookup is active."}
+            </small>
+          </div>
+          <button className="ghost-button compact-button" onClick={handleSwapRoute} type="button">
+            Swap route
+          </button>
         </div>
 
         <div className="form-grid">
@@ -354,6 +407,17 @@ export function TicketForm({
                 </div>
               ) : null}
             </div>
+            {matchedAirline ? (
+              <div className="field-meta-list">
+                <span className="field-meta-chip">{matchedAirline.iataCode}</span>
+                {matchedAirline.icaoCode ? (
+                  <span className="field-meta-chip">{matchedAirline.icaoCode}</span>
+                ) : null}
+                {matchedAirline.countryCode ? (
+                  <span className="field-meta-chip">{matchedAirline.countryCode}</span>
+                ) : null}
+              </div>
+            ) : null}
             {renderReviewNote("carrierName")}
           </label>
 
@@ -402,6 +466,9 @@ export function TicketForm({
                 ))}
               </div>
             ) : null}
+            {(draft.departure.name || draft.departure.code) && !visibleDepartureSuggestions.length ? (
+              <small className="field-directory-note">{buildLocationSummary(draft.departure)}</small>
+            ) : null}
             {renderReviewNote("departure.name")}
           </label>
 
@@ -439,6 +506,9 @@ export function TicketForm({
                   </span>
                 ))}
               </div>
+            ) : null}
+            {(draft.arrival.name || draft.arrival.code) && !visibleArrivalSuggestions.length ? (
+              <small className="field-directory-note">{buildLocationSummary(draft.arrival)}</small>
             ) : null}
             {renderReviewNote("arrival.name")}
           </label>
