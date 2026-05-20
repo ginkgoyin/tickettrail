@@ -1,7 +1,7 @@
 use crate::models::{
-    AirlinePayload, MapPointPayload, MapRoutePayload, MapViewportPayload, StubPreviewPayload,
-    TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
-    TicketLocationPayload, TicketRecordPayload,
+    AirlinePayload, LocationDirectoryPayload, MapPointPayload, MapRoutePayload, MapViewportPayload,
+    StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
+    TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
 };
 use chrono::{LocalResult, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 const SCHEMA_SQL: &str = include_str!("../../database/schema.sql");
 const AIRLINES_SEED_JSON: &str = include_str!("../../src/data/airlines.seed.json");
+const LOCATIONS_SEED_JSON: &str = include_str!("../../src/data/locations.seed.json");
 
 #[derive(Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,6 +28,21 @@ struct AirlineSeedEntry {
     aliases: Vec<String>,
     country_code: Option<String>,
     logo_key: Option<String>,
+}
+
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LocationSeedEntry {
+    id: String,
+    location_type: String,
+    code: Option<String>,
+    name_zh: Option<String>,
+    name_en: Option<String>,
+    aliases: Vec<String>,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+    timezone: Option<String>,
+    country_code: Option<String>,
 }
 
 struct TicketRowData {
@@ -87,6 +103,47 @@ pub fn search_airlines(app: &AppHandle, query: &str) -> Result<Vec<AirlinePayloa
         stmt.query_map([], parse_airline_row).map_err(|err| err.to_string())?
     } else {
         stmt.query_map(params![&search_like, trimmed], parse_airline_row)
+            .map_err(|err| err.to_string())?
+    };
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+}
+
+pub fn search_locations(app: &AppHandle, query: &str) -> Result<Vec<LocationDirectoryPayload>, String> {
+    let conn = open_connection(app)?;
+    let trimmed = query.trim();
+
+    let sql = if trimmed.is_empty() {
+        "SELECT id, location_type, code, name_zh, name_en, aliases_json, latitude, longitude, timezone, country_code
+         FROM location_directory
+         ORDER BY name_en ASC
+         LIMIT 8"
+    } else {
+        "SELECT id, location_type, code, name_zh, name_en, aliases_json, latitude, longitude, timezone, country_code
+         FROM location_directory
+         WHERE upper(COALESCE(code, '')) LIKE upper(?1)
+            OR upper(COALESCE(name_en, '')) LIKE upper(?1)
+            OR upper(COALESCE(name_zh, '')) LIKE upper(?1)
+            OR upper(aliases_json) LIKE upper(?1)
+         ORDER BY
+            CASE
+                WHEN upper(COALESCE(code, '')) = upper(?2) THEN 0
+                WHEN upper(COALESCE(name_en, '')) = upper(?2) THEN 1
+                WHEN upper(COALESCE(name_zh, '')) = upper(?2) THEN 2
+                ELSE 3
+            END,
+            name_en ASC
+         LIMIT 8"
+    };
+
+    let mut stmt = conn.prepare(sql).map_err(|err| err.to_string())?;
+    let search_like = format!("%{}%", trimmed);
+
+    let rows = if trimmed.is_empty() {
+        stmt.query_map([], parse_location_directory_row)
+            .map_err(|err| err.to_string())?
+    } else {
+        stmt.query_map(params![&search_like, trimmed], parse_location_directory_row)
             .map_err(|err| err.to_string())?
     };
 
@@ -518,7 +575,7 @@ pub fn get_ticket_detail(app: &AppHandle, ticket_id: &str) -> Result<TicketDetai
     let row = get_ticket_row(&conn, ticket_id)?;
     let attachments = list_ticket_attachments(&conn, ticket_id)?;
     let ticket = ticket_row_to_record(row).map_err(|err| err.to_string())?;
-    Ok(build_ticket_detail(ticket, attachments))
+    Ok(build_ticket_detail(&conn, ticket, attachments))
 }
 
 fn build_ticket_record(
@@ -561,11 +618,12 @@ fn build_ticket_record(
 }
 
 fn build_ticket_detail(
+    conn: &Connection,
     ticket: TicketRecordPayload,
     attachments: Vec<TicketAttachmentPayload>,
 ) -> TicketDetailPayload {
-    let origin = resolve_map_point(&ticket.departure);
-    let destination = resolve_map_point(&ticket.arrival);
+    let origin = resolve_map_point(conn, &ticket.departure);
+    let destination = resolve_map_point(conn, &ticket.arrival);
     let viewport = build_viewport(&origin, &destination);
     let distance_hint_km = estimate_distance_km(&origin, &destination);
 
@@ -858,6 +916,7 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(|err| err.to_string())?;
     conn.execute_batch(SCHEMA_SQL).map_err(|err| err.to_string())?;
     seed_airlines(&conn)?;
+    seed_location_directory(&conn)?;
     Ok(conn)
 }
 
@@ -912,6 +971,62 @@ fn seed_airlines(conn: &Connection) -> Result<(), String> {
     result
 }
 
+fn seed_location_directory(conn: &Connection) -> Result<(), String> {
+    let seeds: Vec<LocationSeedEntry> =
+        serde_json::from_str(LOCATIONS_SEED_JSON).map_err(|err| err.to_string())?;
+    let now = Utc::now().to_rfc3339();
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        for entry in seeds {
+            let aliases_json = serde_json::to_string(&entry.aliases).map_err(|err| err.to_string())?;
+
+            conn.execute(
+                "INSERT INTO location_directory (
+                    id, location_type, code, name_zh, name_en, aliases_json,
+                    latitude, longitude, timezone, country_code, created_at_utc, updated_at_utc
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                 ON CONFLICT(id) DO UPDATE SET
+                    location_type = excluded.location_type,
+                    code = excluded.code,
+                    name_zh = excluded.name_zh,
+                    name_en = excluded.name_en,
+                    aliases_json = excluded.aliases_json,
+                    latitude = excluded.latitude,
+                    longitude = excluded.longitude,
+                    timezone = excluded.timezone,
+                    country_code = excluded.country_code,
+                    updated_at_utc = excluded.updated_at_utc",
+                params![
+                    &entry.id,
+                    &entry.location_type,
+                    &entry.code,
+                    &entry.name_zh,
+                    &entry.name_en,
+                    &aliases_json,
+                    &entry.latitude,
+                    &entry.longitude,
+                    &entry.timezone,
+                    &entry.country_code,
+                    &now,
+                    &now
+                ],
+            )
+            .map_err(|err| err.to_string())?;
+        }
+
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result
+}
+
 fn database_path(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
     Ok(data_dir.join("tickettrail.sqlite3"))
@@ -926,8 +1041,8 @@ fn attachment_ticket_dir(app: &AppHandle, ticket_id: &str) -> Result<PathBuf, St
     Ok(attachment_root_dir(app)?.join(ticket_id))
 }
 
-fn resolve_map_point(location: &TicketLocationPayload) -> MapPointPayload {
-    let (latitude, longitude) = resolve_coordinates(location);
+fn resolve_map_point(conn: &Connection, location: &TicketLocationPayload) -> MapPointPayload {
+    let (latitude, longitude) = resolve_coordinates(conn, location);
 
     MapPointPayload {
         label: location.name.clone(),
@@ -938,7 +1053,11 @@ fn resolve_map_point(location: &TicketLocationPayload) -> MapPointPayload {
     }
 }
 
-fn resolve_coordinates(location: &TicketLocationPayload) -> (f64, f64) {
+fn resolve_coordinates(conn: &Connection, location: &TicketLocationPayload) -> (f64, f64) {
+    if let Some((latitude, longitude)) = lookup_coordinates(conn, location) {
+        return (latitude, longitude);
+    }
+
     let code = location.code.as_deref().unwrap_or("").to_uppercase();
     let name = location.name.to_lowercase();
 
@@ -975,6 +1094,32 @@ fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
     (latitude, longitude)
 }
 
+fn lookup_coordinates(conn: &Connection, location: &TicketLocationPayload) -> Option<(f64, f64)> {
+    let code = location.code.clone().unwrap_or_default();
+    let name = location.name.clone();
+    let search_like = format!("%{}%", name);
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT latitude, longitude
+             FROM location_directory
+             WHERE (
+                    (?1 <> '' AND upper(COALESCE(code, '')) = upper(?1))
+                 OR upper(COALESCE(name_en, '')) = upper(?2)
+                 OR upper(COALESCE(name_zh, '')) = upper(?2)
+                 OR upper(aliases_json) LIKE upper(?3)
+             )
+             AND latitude IS NOT NULL
+             AND longitude IS NOT NULL
+             ORDER BY CASE WHEN (?1 <> '' AND upper(COALESCE(code, '')) = upper(?1)) THEN 0 ELSE 1 END
+             LIMIT 1",
+        )
+        .ok()?;
+
+    stmt.query_row(params![&code, &name, &search_like], |row| Ok((row.get(0)?, row.get(1)?)))
+        .ok()
+}
+
 fn parse_airline_row(row: &Row<'_>) -> rusqlite::Result<AirlinePayload> {
     let aliases_json: String = row.get(5)?;
     let aliases = serde_json::from_str::<Vec<String>>(&aliases_json).unwrap_or_default();
@@ -988,6 +1133,24 @@ fn parse_airline_row(row: &Row<'_>) -> rusqlite::Result<AirlinePayload> {
         aliases,
         country_code: row.get(6)?,
         logo_key: row.get(7)?,
+    })
+}
+
+fn parse_location_directory_row(row: &Row<'_>) -> rusqlite::Result<LocationDirectoryPayload> {
+    let aliases_json: String = row.get(5)?;
+    let aliases = serde_json::from_str::<Vec<String>>(&aliases_json).unwrap_or_default();
+
+    Ok(LocationDirectoryPayload {
+        id: row.get(0)?,
+        location_type: row.get(1)?,
+        code: row.get(2)?,
+        name_zh: row.get(3)?,
+        name_en: row.get(4)?,
+        aliases,
+        latitude: row.get(6)?,
+        longitude: row.get(7)?,
+        timezone: row.get(8)?,
+        country_code: row.get(9)?,
     })
 }
 

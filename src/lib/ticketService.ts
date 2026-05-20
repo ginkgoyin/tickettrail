@@ -1,7 +1,9 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import airlineSeedData from "../data/airlines.seed.json";
+import locationSeedData from "../data/locations.seed.json";
 import type {
   AirlineDirectoryEntry,
+  LocationDirectoryEntry,
   TicketAttachment,
   TicketAttachmentUpload,
   TicketDetailPayload,
@@ -13,6 +15,7 @@ import type {
 const STORAGE_KEY = "tickettrail.web-fallback.tickets";
 const ATTACHMENT_STORAGE_KEY = "tickettrail.web-fallback.attachments";
 const AIRLINE_SEED = airlineSeedData as AirlineDirectoryEntry[];
+const LOCATION_SEED = locationSeedData as LocationDirectoryEntry[];
 
 function buildRouteLabel(ticket: TicketDraft) {
   return `${ticket.departure.name} -> ${ticket.arrival.name}`;
@@ -328,4 +331,29 @@ export async function searchAirlines(query: string): Promise<AirlineDirectoryEnt
   }
 
   return AIRLINE_SEED.filter((entry) => matchesAirlineQuery(entry, query)).slice(0, 8);
+}
+
+function matchesLocationQuery(entry: LocationDirectoryEntry, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  return [
+    entry.code || "",
+    entry.nameEn || "",
+    entry.nameZh || "",
+    ...entry.aliases,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalized);
+}
+
+export async function searchLocations(query: string): Promise<LocationDirectoryEntry[]> {
+  if (supportsTauri()) {
+    return invoke<LocationDirectoryEntry[]>("search_locations", { query });
+  }
+
+  return LOCATION_SEED.filter((entry) => matchesLocationQuery(entry, query)).slice(0, 8);
 }

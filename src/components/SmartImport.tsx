@@ -5,7 +5,7 @@ import {
   type ImportFieldReview,
   type ImportParseResult,
 } from "../lib/importParser";
-import { searchAirlines } from "../lib/ticketService";
+import { searchAirlines, searchLocations } from "../lib/ticketService";
 import { recognizeTicketImage } from "../lib/ocrService";
 
 interface SmartImportProps {
@@ -17,9 +17,21 @@ function toPercent(value: number) {
 }
 
 function toConfidenceLabel(value: number) {
-  if (value >= 0.8) return "\u9ad8";
-  if (value >= 0.55) return "\u4e2d";
-  return "\u4f4e";
+  if (value >= 0.8) return "高";
+  if (value >= 0.55) return "中";
+  return "低";
+}
+
+function upsertReview(reviews: ImportFieldReview[], nextReview: ImportFieldReview) {
+  const next = [...reviews];
+  const index = next.findIndex((review) => review.field === nextReview.field);
+  if (index >= 0) {
+    next[index] = nextReview;
+    return next;
+  }
+
+  next.push(nextReview);
+  return next;
 }
 
 export function SmartImport({ onApplyImport }: SmartImportProps) {
@@ -30,79 +42,156 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
   const [ocrConfidence, setOcrConfidence] = useState(0);
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [showNormalized, setShowNormalized] = useState(false);
-  const [airlineReviews, setAirlineReviews] = useState<ImportFieldReview[]>([]);
+  const [directoryReviews, setDirectoryReviews] = useState<ImportFieldReview[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const parsed = useMemo<ImportParseResult | null>(() => parseImportedText(rawText), [rawText]);
   const fieldReviews = useMemo<ImportFieldReview[]>(() => (parsed ? reviewImportedDraft(parsed) : []), [parsed]);
   const mergedReviews = useMemo(() => {
-    if (!airlineReviews.length) {
+    if (!directoryReviews.length) {
       return fieldReviews;
     }
 
-    const merged = [...fieldReviews];
-    const carrierReviewIndex = merged.findIndex((review) => review.field === "carrierName");
-
-    if (carrierReviewIndex >= 0) {
-      merged[carrierReviewIndex] = airlineReviews[0];
-      return merged;
-    }
-
-    return [...airlineReviews, ...merged];
-  }, [airlineReviews, fieldReviews]);
+    return directoryReviews.reduce((current, nextReview) => upsertReview(current, nextReview), [...fieldReviews]);
+  }, [directoryReviews, fieldReviews]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadAirlineCandidates = async () => {
-      if (!parsed || parsed.detectedType !== "flight") {
-        setAirlineReviews([]);
+    const loadDirectoryReviews = async () => {
+      if (!parsed) {
+        setDirectoryReviews([]);
         return;
       }
 
-      const airlineCode = parsed.draft.code.slice(0, 2).trim();
-      const query = [airlineCode, parsed.draft.carrierName].filter(Boolean).join(" ").trim();
-      if (!query) {
-        setAirlineReviews([]);
-        return;
-      }
+      let nextReviews: ImportFieldReview[] = [];
 
-      try {
-        const candidates = await searchAirlines(query);
-        if (!isMounted || !candidates.length) {
-          if (isMounted) {
-            setAirlineReviews([]);
+      if (parsed.detectedType === "flight") {
+        const airlineCode = parsed.draft.code.slice(0, 2).trim();
+        const airlineQuery = [airlineCode, parsed.draft.carrierName].filter(Boolean).join(" ").trim();
+        if (airlineQuery) {
+          try {
+            const candidates = await searchAirlines(airlineQuery);
+            const candidateNames = candidates.map((candidate) => candidate.nameEn);
+            const existingName = parsed.draft.carrierName.trim();
+
+            if (candidateNames.length && (!existingName || !candidateNames.includes(existingName))) {
+              nextReviews = upsertReview(nextReviews, {
+                field: "carrierName",
+                label: "承运方",
+                severity: "suggestion",
+                message: "本地航空公司主数据提供了更可靠的候选，可直接选择。",
+                suggestedValue: candidateNames[0],
+                suggestedValues: candidateNames,
+              });
+            }
+          } catch {
+            // Ignore directory lookup errors and keep parser-only fallback.
           }
-          return;
+        }
+      }
+
+      const locationLookups: Array<{
+        value: string;
+        nameField: "departure.name" | "arrival.name";
+        codeField: "departure.code" | "arrival.code";
+        timezoneField: "departure.timezone" | "arrival.timezone";
+        nameLabel: string;
+        codeLabel: string;
+        timezoneLabel: string;
+        currentName: string;
+        currentCode?: string;
+        currentTimezone: string;
+      }> = [
+        {
+          value: parsed.draft.departure.code || parsed.draft.departure.name,
+          nameField: "departure.name",
+          codeField: "departure.code",
+          timezoneField: "departure.timezone",
+          nameLabel: "出发地",
+          codeLabel: "出发代码",
+          timezoneLabel: "出发时区",
+          currentName: parsed.draft.departure.name,
+          currentCode: parsed.draft.departure.code,
+          currentTimezone: parsed.draft.departure.timezone,
+        },
+        {
+          value: parsed.draft.arrival.code || parsed.draft.arrival.name,
+          nameField: "arrival.name",
+          codeField: "arrival.code",
+          timezoneField: "arrival.timezone",
+          nameLabel: "到达地",
+          codeLabel: "到达代码",
+          timezoneLabel: "到达时区",
+          currentName: parsed.draft.arrival.name,
+          currentCode: parsed.draft.arrival.code,
+          currentTimezone: parsed.draft.arrival.timezone,
+        },
+      ];
+
+      for (const lookup of locationLookups) {
+        if (!lookup.value.trim()) {
+          continue;
         }
 
-        const candidateNames = candidates.map((candidate) => candidate.nameEn);
-        const existingName = parsed.draft.carrierName.trim();
-        const needsReview = !existingName || !candidateNames.includes(existingName);
+        try {
+          const candidates = await searchLocations(lookup.value);
+          if (!candidates.length) {
+            continue;
+          }
 
-        if (!needsReview) {
-          setAirlineReviews([]);
-          return;
-        }
+          const candidateNames = candidates
+            .map((candidate) => candidate.nameZh || candidate.nameEn || candidate.code || "")
+            .filter(Boolean);
+          const candidateCodes = candidates.map((candidate) => candidate.code || "").filter(Boolean);
+          const candidateTimezones = candidates.map((candidate) => candidate.timezone || "").filter(Boolean);
 
-        setAirlineReviews([
-          {
-            field: "carrierName",
-            label: "承运方",
-            severity: "suggestion",
-            message: "本地航空公司主数据提供了更可靠的候选，可直接选择。",
-            suggestedValue: candidateNames[0],
-            suggestedValues: candidateNames,
-          },
-        ]);
-      } catch {
-        if (isMounted) {
-          setAirlineReviews([]);
+          if (candidateNames.length && (!lookup.currentName || !candidateNames.includes(lookup.currentName))) {
+            nextReviews = upsertReview(nextReviews, {
+              field: lookup.nameField,
+              label: lookup.nameLabel,
+              severity: "suggestion",
+              message: "本地点主数据提供了更可靠的地点候选。",
+              suggestedValue: candidateNames[0],
+              suggestedValues: candidateNames,
+            });
+          }
+
+          if (candidateCodes.length && (!lookup.currentCode || !candidateCodes.includes(lookup.currentCode))) {
+            nextReviews = upsertReview(nextReviews, {
+              field: lookup.codeField,
+              label: lookup.codeLabel,
+              severity: "suggestion",
+              message: "可以补充更标准的地点代码。",
+              suggestedValue: candidateCodes[0],
+              suggestedValues: candidateCodes,
+            });
+          }
+
+          if (
+            candidateTimezones.length &&
+            (!lookup.currentTimezone || !candidateTimezones.includes(lookup.currentTimezone))
+          ) {
+            nextReviews = upsertReview(nextReviews, {
+              field: lookup.timezoneField,
+              label: lookup.timezoneLabel,
+              severity: "suggestion",
+              message: "本地点主数据提供了更匹配的时区候选。",
+              suggestedValue: candidateTimezones[0],
+              suggestedValues: candidateTimezones,
+            });
+          }
+        } catch {
+          // Ignore directory lookup errors and keep parser-only fallback.
         }
+      }
+
+      if (isMounted) {
+        setDirectoryReviews(nextReviews);
       }
     };
 
-    void loadAirlineCandidates();
+    void loadDirectoryReviews();
 
     return () => {
       isMounted = false;
@@ -117,8 +206,8 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
     onApplyImport(parsed);
     setLastApplied(
       parsed.detectedType === "train"
-        ? "\u5df2\u5c06\u706b\u8f66\u7968\u4fe1\u606f\u586b\u5165\u8868\u5355\u3002"
-        : "\u5df2\u5c06\u673a\u7968\u4fe1\u606f\u586b\u5165\u8868\u5355\u3002",
+        ? "已将火车票信息填入表单。"
+        : "已将机票信息填入表单。",
     );
   };
 
@@ -136,7 +225,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
 
     setIsRecognizing(true);
     setLastApplied("");
-    setOcrStatus("\u6b63\u5728\u521d\u59cb\u5316 OCR...");
+    setOcrStatus("正在初始化 OCR...");
     setOcrProgress(0);
     setOcrConfidence(0);
 
@@ -148,10 +237,10 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
 
       setRawText(result.text);
       setOcrConfidence(result.confidence);
-      setOcrStatus("\u8bc6\u522b\u5b8c\u6210\uff0c\u53ef\u4ee5\u76f4\u63a5\u5957\u7528\u5230\u8868\u5355\u3002");
+      setOcrStatus("识别完成，可以直接套用到表单。");
       setOcrProgress(1);
     } catch (error) {
-      setOcrStatus(error instanceof Error ? error.message : "\u56fe\u7247 OCR \u8bc6\u522b\u5931\u8d25\u3002");
+      setOcrStatus(error instanceof Error ? error.message : "图片 OCR 识别失败。");
     } finally {
       setIsRecognizing(false);
     }
@@ -185,21 +274,19 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
             onClick={handleChooseImage}
             type="button"
           >
-            {isRecognizing ? "\u6b63\u5728\u8bc6\u522b\u56fe\u7247..." : "\u4ece\u7968\u636e\u622a\u56fe\u8bc6\u522b"}
+            {isRecognizing ? "正在识别图片..." : "从票据截图识别"}
           </button>
-          <span className="detail-loading">
-            {"\u4e5f\u53ef\u4ee5\u76f4\u63a5\u7c98\u8d34 OCR \u7ed3\u679c\u6216\u590d\u5236\u6587\u672c"}
-          </span>
+          <span className="detail-loading">也可以直接粘贴 OCR 结果或复制文本</span>
         </div>
 
         {ocrStatus ? (
           <div className="ocr-status-card">
             <div className="ocr-status-main">
               <strong>{ocrStatus}</strong>
-              <small>{`\u8fdb\u5ea6 ${toPercent(ocrProgress)}`}</small>
+              <small>{`进度 ${toPercent(ocrProgress)}`}</small>
             </div>
             <span className="ticket-status ticket-status-confidence">
-              {`\u8bc6\u5b57\u7f6e\u4fe1\u5ea6 ${toConfidenceLabel(ocrConfidence)} ${toPercent(ocrConfidence)}`}
+              {`识字置信度 ${toConfidenceLabel(ocrConfidence)} ${toPercent(ocrConfidence)}`}
             </span>
           </div>
         ) : null}
@@ -220,12 +307,13 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
               <div className="import-summary-top">
                 <span className="ticket-status ticket-status-saved">{parsed.detectedType}</span>
                 <span className="ticket-status ticket-status-confidence">
-                  {`\u7f6e\u4fe1\u5ea6 ${toConfidenceLabel(parsed.confidence)} ${toPercent(parsed.confidence)}`}
+                  {`置信度 ${toConfidenceLabel(parsed.confidence)} ${toPercent(parsed.confidence)}`}
                 </span>
               </div>
               <strong>{parsed.draft.code || "No code detected yet"}</strong>
               <p>{`${parsed.draft.departure.name || "--"} -> ${parsed.draft.arrival.name || "--"}`}</p>
             </div>
+
             <div className="import-grid">
               <div className="detail-card">
                 <span>Carrier</span>
@@ -240,21 +328,24 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                 <strong>{parsed.draft.arrivalTimeLocal || "Pending"}</strong>
               </div>
             </div>
+
             <div className="import-actions">
               <button
                 className="ghost-button compact-button"
                 onClick={() => setShowNormalized((current) => !current)}
                 type="button"
               >
-                {showNormalized ? "\u9690\u85cf\u7ea0\u9519\u6587\u672c" : "\u67e5\u770b\u7ea0\u9519\u540e\u6587\u672c"}
+                {showNormalized ? "隐藏纠错文本" : "查看纠错后文本"}
               </button>
             </div>
+
             {showNormalized ? (
               <div className="normalized-text-panel">
                 <strong>Normalized OCR text</strong>
                 <pre>{parsed.normalizedText}</pre>
               </div>
             ) : null}
+
             {mergedReviews.length ? (
               <div className="import-review-list">
                 {mergedReviews.map((review) => (
@@ -268,7 +359,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                             : "ticket-status ticket-status-suggestion"
                         }
                       >
-                        {review.severity === "warning" ? "\u9700\u8981\u68c0\u67e5" : "\u53ef\u76f4\u63a5\u5957\u7528"}
+                        {review.severity === "warning" ? "需要检查" : "可直接套用"}
                       </span>
                     </div>
                     <p>{review.message}</p>
@@ -285,6 +376,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                 ))}
               </div>
             ) : null}
+
             {parsed.warnings.length ? (
               <div className="import-warnings">
                 {parsed.warnings.map((warning) => (
@@ -294,6 +386,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                 ))}
               </div>
             ) : null}
+
             <div className="form-actions">
               <button className="primary-button" onClick={handleApply} type="button">
                 Apply to form

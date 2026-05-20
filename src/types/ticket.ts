@@ -56,6 +56,19 @@ export interface AirlineDirectoryEntry {
   logoKey?: string;
 }
 
+export interface LocationDirectoryEntry {
+  id: string;
+  locationType: string;
+  code?: string;
+  nameZh?: string;
+  nameEn?: string;
+  aliases: string[];
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  countryCode?: string;
+}
+
 export interface MapPointPayload {
   label: string;
   code?: string;

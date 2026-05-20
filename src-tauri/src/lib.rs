@@ -5,7 +5,7 @@ mod models;
 use commands::{
     add_ticket_attachment, create_stub_preview, create_ticket, delete_ticket,
     delete_ticket_attachment, get_bootstrap_summary, get_ticket_detail, list_tickets, search_airlines,
-    update_ticket, update_ticket_status,
+    search_locations, update_ticket, update_ticket_status,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -22,6 +22,7 @@ pub fn run() {
             delete_ticket_attachment,
             get_ticket_detail,
             search_airlines,
+            search_locations,
             create_stub_preview
         ])
         .run(tauri::generate_context!())

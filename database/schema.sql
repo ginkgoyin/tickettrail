@@ -96,6 +96,21 @@ CREATE TABLE IF NOT EXISTS airlines (
     UNIQUE(icao_code)
 );
 
+CREATE TABLE IF NOT EXISTS location_directory (
+    id TEXT PRIMARY KEY,
+    location_type TEXT NOT NULL CHECK (location_type IN ('airport', 'station', 'city', 'country', 'unknown')),
+    code TEXT,
+    name_zh TEXT,
+    name_en TEXT,
+    aliases_json TEXT NOT NULL DEFAULT '[]',
+    latitude REAL,
+    longitude REAL,
+    timezone TEXT,
+    country_code TEXT,
+    created_at_utc TEXT NOT NULL,
+    updated_at_utc TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_ticket_records_type_created
     ON ticket_records(ticket_type, created_at_utc);
 
@@ -119,3 +134,9 @@ CREATE INDEX IF NOT EXISTS idx_airlines_iata
 
 CREATE INDEX IF NOT EXISTS idx_airlines_name_en
     ON airlines(name_en);
+
+CREATE INDEX IF NOT EXISTS idx_location_directory_code
+    ON location_directory(code);
+
+CREATE INDEX IF NOT EXISTS idx_location_directory_name_en
+    ON location_directory(name_en);

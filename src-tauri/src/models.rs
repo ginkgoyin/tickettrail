@@ -132,3 +132,18 @@ pub struct AirlinePayload {
     pub country_code: Option<String>,
     pub logo_key: Option<String>,
 }
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationDirectoryPayload {
+    pub id: String,
+    pub location_type: String,
+    pub code: Option<String>,
+    pub name_zh: Option<String>,
+    pub name_en: Option<String>,
+    pub aliases: Vec<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub timezone: Option<String>,
+    pub country_code: Option<String>,
+}
