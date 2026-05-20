@@ -1,5 +1,7 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import airlineSeedData from "../data/airlines.seed.json";
 import type {
+  AirlineDirectoryEntry,
   TicketAttachment,
   TicketAttachmentUpload,
   TicketDetailPayload,
@@ -10,6 +12,7 @@ import type {
 
 const STORAGE_KEY = "tickettrail.web-fallback.tickets";
 const ATTACHMENT_STORAGE_KEY = "tickettrail.web-fallback.attachments";
+const AIRLINE_SEED = airlineSeedData as AirlineDirectoryEntry[];
 
 function buildRouteLabel(ticket: TicketDraft) {
   return `${ticket.departure.name} -> ${ticket.arrival.name}`;
@@ -299,4 +302,30 @@ export async function getTicketDetail(ticketId: string): Promise<TicketDetailPay
   }
 
   return createFallbackDetail(ticket);
+}
+
+function matchesAirlineQuery(entry: AirlineDirectoryEntry, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  return [
+    entry.iataCode,
+    entry.icaoCode || "",
+    entry.nameEn,
+    entry.nameZh || "",
+    ...entry.aliases,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalized);
+}
+
+export async function searchAirlines(query: string): Promise<AirlineDirectoryEntry[]> {
+  if (supportsTauri()) {
+    return invoke<AirlineDirectoryEntry[]>("search_airlines", { query });
+  }
+
+  return AIRLINE_SEED.filter((entry) => matchesAirlineQuery(entry, query)).slice(0, 8);
 }

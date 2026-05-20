@@ -1,7 +1,7 @@
 use crate::models::{
-    MapPointPayload, MapRoutePayload, MapViewportPayload, StubPreviewPayload, TicketAttachmentPayload,
-    TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketLocationPayload,
-    TicketRecordPayload,
+    AirlinePayload, MapPointPayload, MapRoutePayload, MapViewportPayload, StubPreviewPayload,
+    TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
+    TicketLocationPayload, TicketRecordPayload,
 };
 use chrono::{LocalResult, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -15,6 +15,19 @@ use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 const SCHEMA_SQL: &str = include_str!("../../database/schema.sql");
+const AIRLINES_SEED_JSON: &str = include_str!("../../src/data/airlines.seed.json");
+
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AirlineSeedEntry {
+    iata_code: String,
+    icao_code: Option<String>,
+    name_en: String,
+    name_zh: Option<String>,
+    aliases: Vec<String>,
+    country_code: Option<String>,
+    logo_key: Option<String>,
+}
 
 struct TicketRowData {
     id: String,
@@ -36,6 +49,48 @@ struct AttachmentRowData {
     file_size: i64,
     file_path: String,
     created_at: String,
+}
+
+pub fn search_airlines(app: &AppHandle, query: &str) -> Result<Vec<AirlinePayload>, String> {
+    let conn = open_connection(app)?;
+    let trimmed = query.trim();
+
+    let sql = if trimmed.is_empty() {
+        "SELECT id, iata_code, icao_code, name_en, name_zh, aliases_json, country_code, logo_key
+         FROM airlines
+         ORDER BY name_en ASC
+         LIMIT 8"
+    } else {
+        "SELECT id, iata_code, icao_code, name_en, name_zh, aliases_json, country_code, logo_key
+         FROM airlines
+         WHERE upper(iata_code) LIKE upper(?1)
+            OR upper(COALESCE(icao_code, '')) LIKE upper(?1)
+            OR upper(name_en) LIKE upper(?1)
+            OR upper(COALESCE(name_zh, '')) LIKE upper(?1)
+            OR upper(aliases_json) LIKE upper(?1)
+         ORDER BY
+            CASE
+                WHEN upper(iata_code) = upper(?2) THEN 0
+                WHEN upper(COALESCE(icao_code, '')) = upper(?2) THEN 1
+                WHEN upper(name_en) = upper(?2) THEN 2
+                WHEN upper(COALESCE(name_zh, '')) = upper(?2) THEN 3
+                ELSE 4
+            END,
+            name_en ASC
+         LIMIT 8"
+    };
+
+    let mut stmt = conn.prepare(sql).map_err(|err| err.to_string())?;
+    let search_like = format!("%{}%", trimmed);
+
+    let rows = if trimmed.is_empty() {
+        stmt.query_map([], parse_airline_row).map_err(|err| err.to_string())?
+    } else {
+        stmt.query_map(params![&search_like, trimmed], parse_airline_row)
+            .map_err(|err| err.to_string())?
+    };
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
 }
 
 pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
@@ -802,7 +857,59 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
 
     let conn = Connection::open(path).map_err(|err| err.to_string())?;
     conn.execute_batch(SCHEMA_SQL).map_err(|err| err.to_string())?;
+    seed_airlines(&conn)?;
     Ok(conn)
+}
+
+fn seed_airlines(conn: &Connection) -> Result<(), String> {
+    let seeds: Vec<AirlineSeedEntry> = serde_json::from_str(AIRLINES_SEED_JSON).map_err(|err| err.to_string())?;
+    let now = Utc::now().to_rfc3339();
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        for entry in seeds {
+            let aliases_json = serde_json::to_string(&entry.aliases).map_err(|err| err.to_string())?;
+            let id = format!("airline-{}", entry.iata_code.to_lowercase());
+
+            conn.execute(
+                "INSERT INTO airlines (
+                    id, iata_code, icao_code, name_en, name_zh, aliases_json,
+                    country_code, logo_key, created_at_utc, updated_at_utc
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 ON CONFLICT(iata_code) DO UPDATE SET
+                    icao_code = excluded.icao_code,
+                    name_en = excluded.name_en,
+                    name_zh = excluded.name_zh,
+                    aliases_json = excluded.aliases_json,
+                    country_code = excluded.country_code,
+                    logo_key = excluded.logo_key,
+                    updated_at_utc = excluded.updated_at_utc",
+                params![
+                    &id,
+                    &entry.iata_code,
+                    &entry.icao_code,
+                    &entry.name_en,
+                    &entry.name_zh,
+                    &aliases_json,
+                    &entry.country_code,
+                    &entry.logo_key,
+                    &now,
+                    &now
+                ],
+            )
+            .map_err(|err| err.to_string())?;
+        }
+
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result
 }
 
 fn database_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -866,6 +973,22 @@ fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
     let latitude = ((seed % 12000) as f64 / 100.0) - 60.0;
     let longitude = (((seed / 97) % 34000) as f64 / 100.0) - 170.0;
     (latitude, longitude)
+}
+
+fn parse_airline_row(row: &Row<'_>) -> rusqlite::Result<AirlinePayload> {
+    let aliases_json: String = row.get(5)?;
+    let aliases = serde_json::from_str::<Vec<String>>(&aliases_json).unwrap_or_default();
+
+    Ok(AirlinePayload {
+        id: row.get(0)?,
+        iata_code: row.get(1)?,
+        icao_code: row.get(2)?,
+        name_en: row.get(3)?,
+        name_zh: row.get(4)?,
+        aliases,
+        country_code: row.get(6)?,
+        logo_key: row.get(7)?,
+    })
 }
 
 fn build_viewport(origin: &MapPointPayload, destination: &MapPointPayload) -> MapViewportPayload {

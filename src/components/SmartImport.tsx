@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   parseImportedText,
   reviewImportedDraft,
   type ImportFieldReview,
   type ImportParseResult,
 } from "../lib/importParser";
+import { searchAirlines } from "../lib/ticketService";
 import { recognizeTicketImage } from "../lib/ocrService";
 
 interface SmartImportProps {
@@ -29,10 +30,84 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
   const [ocrConfidence, setOcrConfidence] = useState(0);
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [showNormalized, setShowNormalized] = useState(false);
+  const [airlineReviews, setAirlineReviews] = useState<ImportFieldReview[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const parsed = useMemo<ImportParseResult | null>(() => parseImportedText(rawText), [rawText]);
   const fieldReviews = useMemo<ImportFieldReview[]>(() => (parsed ? reviewImportedDraft(parsed) : []), [parsed]);
+  const mergedReviews = useMemo(() => {
+    if (!airlineReviews.length) {
+      return fieldReviews;
+    }
+
+    const merged = [...fieldReviews];
+    const carrierReviewIndex = merged.findIndex((review) => review.field === "carrierName");
+
+    if (carrierReviewIndex >= 0) {
+      merged[carrierReviewIndex] = airlineReviews[0];
+      return merged;
+    }
+
+    return [...airlineReviews, ...merged];
+  }, [airlineReviews, fieldReviews]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAirlineCandidates = async () => {
+      if (!parsed || parsed.detectedType !== "flight") {
+        setAirlineReviews([]);
+        return;
+      }
+
+      const airlineCode = parsed.draft.code.slice(0, 2).trim();
+      const query = [airlineCode, parsed.draft.carrierName].filter(Boolean).join(" ").trim();
+      if (!query) {
+        setAirlineReviews([]);
+        return;
+      }
+
+      try {
+        const candidates = await searchAirlines(query);
+        if (!isMounted || !candidates.length) {
+          if (isMounted) {
+            setAirlineReviews([]);
+          }
+          return;
+        }
+
+        const candidateNames = candidates.map((candidate) => candidate.nameEn);
+        const existingName = parsed.draft.carrierName.trim();
+        const needsReview = !existingName || !candidateNames.includes(existingName);
+
+        if (!needsReview) {
+          setAirlineReviews([]);
+          return;
+        }
+
+        setAirlineReviews([
+          {
+            field: "carrierName",
+            label: "承运方",
+            severity: "suggestion",
+            message: "本地航空公司主数据提供了更可靠的候选，可直接选择。",
+            suggestedValue: candidateNames[0],
+            suggestedValues: candidateNames,
+          },
+        ]);
+      } catch {
+        if (isMounted) {
+          setAirlineReviews([]);
+        }
+      }
+    };
+
+    void loadAirlineCandidates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [parsed]);
 
   const handleApply = () => {
     if (!parsed) {
@@ -180,9 +255,9 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                 <pre>{parsed.normalizedText}</pre>
               </div>
             ) : null}
-            {fieldReviews.length ? (
+            {mergedReviews.length ? (
               <div className="import-review-list">
-                {fieldReviews.map((review) => (
+                {mergedReviews.map((review) => (
                   <div className="import-review-card" key={`${review.field}-${review.message}`}>
                     <div className="import-review-header">
                       <strong>{review.label}</strong>

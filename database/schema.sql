@@ -81,6 +81,21 @@ CREATE TABLE IF NOT EXISTS ticket_attachments (
     created_at_utc TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS airlines (
+    id TEXT PRIMARY KEY,
+    iata_code TEXT NOT NULL,
+    icao_code TEXT,
+    name_en TEXT NOT NULL,
+    name_zh TEXT,
+    aliases_json TEXT NOT NULL DEFAULT '[]',
+    country_code TEXT,
+    logo_key TEXT,
+    created_at_utc TEXT NOT NULL,
+    updated_at_utc TEXT NOT NULL,
+    UNIQUE(iata_code),
+    UNIQUE(icao_code)
+);
+
 CREATE INDEX IF NOT EXISTS idx_ticket_records_type_created
     ON ticket_records(ticket_type, created_at_utc);
 
@@ -98,3 +113,9 @@ CREATE INDEX IF NOT EXISTS idx_rendered_artifacts_owner
 
 CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_created
     ON ticket_attachments(ticket_id, created_at_utc DESC);
+
+CREATE INDEX IF NOT EXISTS idx_airlines_iata
+    ON airlines(iata_code);
+
+CREATE INDEX IF NOT EXISTS idx_airlines_name_en
+    ON airlines(name_en);

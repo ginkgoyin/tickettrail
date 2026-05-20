@@ -1,8 +1,8 @@
 use crate::{
     db,
     models::{
-        StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
-        TicketDraftPayload, TicketRecordPayload,
+        AirlinePayload, StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
+        TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
     },
 };
 use tauri::command;
@@ -67,6 +67,11 @@ pub fn delete_ticket_attachment(app: AppHandle, attachment_id: String) -> Result
 #[command]
 pub fn get_ticket_detail(app: AppHandle, ticket_id: String) -> Result<TicketDetailPayload, String> {
     db::get_ticket_detail(&app, &ticket_id)
+}
+
+#[command]
+pub fn search_airlines(app: AppHandle, query: String) -> Result<Vec<AirlinePayload>, String> {
+    db::search_airlines(&app, &query)
 }
 
 #[command]

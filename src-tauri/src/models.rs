@@ -119,3 +119,16 @@ pub struct TicketDetailPayload {
     pub stub: StubPreviewPayload,
     pub attachments: Vec<TicketAttachmentPayload>,
 }
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AirlinePayload {
+    pub id: String,
+    pub iata_code: String,
+    pub icao_code: Option<String>,
+    pub name_en: String,
+    pub name_zh: Option<String>,
+    pub aliases: Vec<String>,
+    pub country_code: Option<String>,
+    pub logo_key: Option<String>,
+}

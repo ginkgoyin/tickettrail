@@ -45,6 +45,17 @@ export interface TicketAttachmentUpload {
   bytes: number[];
 }
 
+export interface AirlineDirectoryEntry {
+  id: string;
+  iataCode: string;
+  icaoCode?: string;
+  nameEn: string;
+  nameZh?: string;
+  aliases: string[];
+  countryCode?: string;
+  logoKey?: string;
+}
+
 export interface MapPointPayload {
   label: string;
   code?: string;
