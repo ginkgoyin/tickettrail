@@ -606,6 +606,28 @@ textarea {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.analytics-toolbar,
+.analytics-toggle-group,
+.analytics-bar-meta {
+  display: flex;
+  gap: 12px;
+}
+
+.analytics-toolbar {
+  justify-content: space-between;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.analytics-toggle-group {
+  flex-wrap: wrap;
+}
+
+.analytics-year-picker {
+  width: auto;
+  min-width: 160px;
+}
+
 .analytics-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -630,6 +652,40 @@ textarea {
 
 .analytics-list-item strong {
   margin: 0;
+}
+
+.analytics-chart {
+  display: grid;
+  gap: 12px;
+}
+
+.analytics-bar-row {
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-bar-meta {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.analytics-bar-meta strong {
+  margin: 0;
+}
+
+.analytics-bar-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.analytics-bar-fill {
+  height: 100%;
+  min-width: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1ca4da, #ff9854);
 }
 
 .ticket-toolbar,
@@ -1063,6 +1119,7 @@ textarea {
   .panel-heading,
   .hero,
   .header-actions,
+  .analytics-toolbar,
   .ticket-toolbar,
   .timeline-marker,
   .form-utility-row,

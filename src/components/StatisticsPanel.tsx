@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import type { TicketRecord, TicketSegmentDraft } from "../types/ticket";
+import { useMemo, useState } from "react";
+import type { TicketRecord, TicketSegmentDraft, TicketType } from "../types/ticket";
 
 interface StatisticsPanelProps {
   tickets: TicketRecord[];
@@ -10,6 +10,8 @@ interface RankedItem {
   label: string;
   count: number;
 }
+
+type AnalyticsMode = "all" | TicketType;
 
 function collectSegments(ticket: TicketRecord): TicketSegmentDraft[] {
   return [
@@ -45,10 +47,18 @@ function tally(items: string[]) {
 
 function inferRegionLabel(name: string, timezone: string) {
   const lowerName = name.toLowerCase();
-  if (timezone === "Asia/Shanghai" || /shanghai|beijing|guangzhou|shenzhen|nanjing|chongqing|zhangjiajie/.test(lowerName)) {
+
+  if (
+    timezone === "Asia/Shanghai" ||
+    /shanghai|beijing|guangzhou|shenzhen|nanjing|chongqing|zhangjiajie/.test(lowerName)
+  ) {
     return "China";
   }
-  if (timezone === "Australia/Sydney" || timezone === "Australia/Melbourne" || /sydney|melbourne/.test(lowerName)) {
+  if (
+    timezone === "Australia/Sydney" ||
+    timezone === "Australia/Melbourne" ||
+    /sydney|melbourne/.test(lowerName)
+  ) {
     return "Australia";
   }
   if (timezone === "Asia/Tokyo" || /tokyo|narita|haneda/.test(lowerName)) {
@@ -80,7 +90,12 @@ function buildMonthlyCounts(tickets: TicketRecord[]) {
 
   return Array.from(buckets.entries())
     .sort(([left], [right]) => left.localeCompare(right))
-    .slice(-6);
+    .slice(-6)
+    .map(([label, count]) => ({ label, count }));
+}
+
+function formatYearLabel(value: string) {
+  return value === "all" ? "All years" : value;
 }
 
 function RankedList({ title, items }: { title: string; items: RankedItem[] }) {
@@ -104,8 +119,40 @@ function RankedList({ title, items }: { title: string; items: RankedItem[] }) {
 }
 
 export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
+  const [mode, setMode] = useState<AnalyticsMode>("all");
+  const [selectedYear, setSelectedYear] = useState<string>("all");
+
+  const yearOptions = useMemo(() => {
+    const years = Array.from(
+      new Set(
+        tickets
+          .map((ticket) => ticket.departureTimeLocal.slice(0, 4) || ticket.createdAt.slice(0, 4))
+          .filter(Boolean),
+      ),
+    ).sort((left, right) => right.localeCompare(left));
+
+    return ["all", ...years];
+  }, [tickets]);
+
+  const scopedTickets = useMemo(() => {
+    return tickets.filter((ticket) => {
+      if (mode !== "all" && ticket.ticketType !== mode) {
+        return false;
+      }
+
+      if (selectedYear !== "all") {
+        const ticketYear = ticket.departureTimeLocal.slice(0, 4) || ticket.createdAt.slice(0, 4);
+        if (ticketYear !== selectedYear) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [mode, selectedYear, tickets]);
+
   const analytics = useMemo(() => {
-    const allSegments = tickets.flatMap(collectSegments);
+    const allSegments = scopedTickets.flatMap(collectSegments);
     const carrierCounts = tally(allSegments.map((segment) => segment.carrierName));
     const cityCounts = tally(
       allSegments.flatMap((segment) => [segment.departure.name, segment.arrival.name]),
@@ -116,8 +163,11 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
         inferRegionLabel(segment.arrival.name, segment.arrival.timezone),
       ]),
     );
-    const monthlyCounts = buildMonthlyCounts(tickets);
+    const monthlyCounts = buildMonthlyCounts(scopedTickets);
     const totalSegments = allSegments.length;
+    const flightCount = scopedTickets.filter((ticket) => ticket.ticketType === "flight").length;
+    const trainCount = scopedTickets.filter((ticket) => ticket.ticketType === "train").length;
+    const chartMax = Math.max(...monthlyCounts.map((item) => item.count), 1);
 
     return {
       carrierCounts,
@@ -125,10 +175,13 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
       regionCounts,
       monthlyCounts,
       totalSegments,
+      chartMax,
+      flightCount,
+      trainCount,
       averageSegments:
-        tickets.length > 0 ? (totalSegments / tickets.length).toFixed(1) : "0.0",
+        scopedTickets.length > 0 ? (totalSegments / scopedTickets.length).toFixed(1) : "0.0",
     };
-  }, [tickets]);
+  }, [scopedTickets]);
 
   return (
     <section className="panel analytics-panel">
@@ -138,8 +191,48 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
           <h3>Travel insights</h3>
         </div>
         <span className="status-pill">
-          {tickets.length} filtered / {totalCount} total
+          {scopedTickets.length} in view / {totalCount} total
         </span>
+      </div>
+
+      <div className="analytics-toolbar">
+        <div className="analytics-toggle-group">
+          <button
+            className={`theme-chip ${mode === "all" ? "active" : ""}`}
+            onClick={() => setMode("all")}
+            type="button"
+          >
+            All
+          </button>
+          <button
+            className={`theme-chip ${mode === "flight" ? "active" : ""}`}
+            onClick={() => setMode("flight")}
+            type="button"
+          >
+            Flights
+          </button>
+          <button
+            className={`theme-chip ${mode === "train" ? "active" : ""}`}
+            onClick={() => setMode("train")}
+            type="button"
+          >
+            Rail
+          </button>
+        </div>
+
+        <label className="analytics-year-picker">
+          <span>Scope</span>
+          <select
+            onChange={(event) => setSelectedYear(event.target.value)}
+            value={selectedYear}
+          >
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {formatYearLabel(year)}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="analytics-summary-grid">
@@ -152,12 +245,12 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
           <strong>{analytics.averageSegments}</strong>
         </article>
         <article className="detail-card analytics-card">
-          <span>Top carrier</span>
-          <strong>{analytics.carrierCounts[0]?.label || "N/A"}</strong>
+          <span>Flights / rail</span>
+          <strong>{`${analytics.flightCount} / ${analytics.trainCount}`}</strong>
         </article>
         <article className="detail-card analytics-card">
-          <span>Top region</span>
-          <strong>{analytics.regionCounts[0]?.label || "N/A"}</strong>
+          <span>Top carrier</span>
+          <strong>{analytics.carrierCounts[0]?.label || "N/A"}</strong>
         </article>
       </div>
 
@@ -165,14 +258,23 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
         <RankedList items={analytics.carrierCounts} title="Top carriers" />
         <RankedList items={analytics.cityCounts} title="Top cities / stations" />
         <RankedList items={analytics.regionCounts} title="Top countries / regions" />
+
         <article className="detail-card analytics-card">
           <span>Recent months</span>
           {analytics.monthlyCounts.length ? (
-            <div className="analytics-list">
-              {analytics.monthlyCounts.map(([label, count]) => (
-                <div className="analytics-list-item" key={label}>
-                  <strong>{label}</strong>
-                  <span>{count}</span>
+            <div className="analytics-chart">
+              {analytics.monthlyCounts.map((item) => (
+                <div className="analytics-bar-row" key={item.label}>
+                  <div className="analytics-bar-meta">
+                    <strong>{item.label}</strong>
+                    <span>{item.count}</span>
+                  </div>
+                  <div className="analytics-bar-track">
+                    <div
+                      className="analytics-bar-fill"
+                      style={{ width: `${(item.count / analytics.chartMax) * 100}%` }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
