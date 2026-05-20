@@ -113,6 +113,7 @@ function createDefaultDraft(ticketType: TicketType): TicketDraft {
     classInfo: "",
     seatInfo: "",
     notes: "",
+    segments: [],
   };
 }
 

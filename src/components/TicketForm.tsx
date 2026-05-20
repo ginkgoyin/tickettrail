@@ -5,6 +5,7 @@ import type {
   AirlineDirectoryEntry,
   LocationDirectoryEntry,
   TicketDraft,
+  TicketSegmentDraft,
   TicketType,
 } from "../types/ticket";
 
@@ -28,6 +29,29 @@ function createDefaultDraft(): TicketDraft {
     classInfo: "",
     seatInfo: "",
     notes: "",
+    segments: [],
+  };
+}
+
+function createEmptySegment(seed?: Partial<TicketSegmentDraft>): TicketSegmentDraft {
+  return {
+    carrierName: seed?.carrierName ?? "",
+    code: seed?.code ?? "",
+    departure: {
+      name: seed?.departure?.name ?? "",
+      code: seed?.departure?.code ?? "",
+      timezone: seed?.departure?.timezone ?? "Asia/Shanghai",
+    },
+    arrival: {
+      name: seed?.arrival?.name ?? "",
+      code: seed?.arrival?.code ?? "",
+      timezone: seed?.arrival?.timezone ?? "Asia/Shanghai",
+    },
+    departureTimeLocal: seed?.departureTimeLocal ?? "",
+    arrivalTimeLocal: seed?.arrivalTimeLocal ?? "",
+    classInfo: seed?.classInfo ?? "",
+    seatInfo: seed?.seatInfo ?? "",
+    notes: seed?.notes ?? "",
   };
 }
 
@@ -36,6 +60,11 @@ function cloneDraft(draft: TicketDraft): TicketDraft {
     ...draft,
     departure: { ...draft.departure },
     arrival: { ...draft.arrival },
+    segments: (draft.segments ?? []).map((segment) => ({
+      ...segment,
+      departure: { ...segment.departure },
+      arrival: { ...segment.arrival },
+    })),
   };
 }
 
@@ -71,6 +100,10 @@ function joinLocationMeta(location: LocationDirectoryEntry) {
 
 function buildLocationSummary(location: TicketDraft["departure"]) {
   return [location.name, location.code || "", location.timezone || ""].filter(Boolean).join(" | ");
+}
+
+function buildSegmentRouteLabel(segment: TicketSegmentDraft) {
+  return `${segment.departure.name || "Departure"} -> ${segment.arrival.name || "Arrival"}`;
 }
 
 export function TicketForm({
@@ -181,6 +214,44 @@ export function TicketForm({
     }));
   };
 
+  const updateExtraSegment = (
+    index: number,
+    updater: (segment: TicketSegmentDraft) => TicketSegmentDraft,
+  ) => {
+    setDraft((current) => ({
+      ...current,
+      segments: (current.segments ?? []).map((segment, segmentIndex) =>
+        segmentIndex === index ? updater(segment) : segment,
+      ),
+    }));
+  };
+
+  const updateExtraSegmentField = <K extends keyof TicketSegmentDraft>(
+    index: number,
+    key: K,
+    value: TicketSegmentDraft[K],
+  ) => {
+    updateExtraSegment(index, (segment) => ({
+      ...segment,
+      [key]: value,
+    }));
+  };
+
+  const updateExtraSegmentLocationField = (
+    index: number,
+    side: "departure" | "arrival",
+    key: "name" | "code" | "timezone",
+    value: string,
+  ) => {
+    updateExtraSegment(index, (segment) => ({
+      ...segment,
+      [side]: {
+        ...segment[side],
+        [key]: value,
+      },
+    }));
+  };
+
   const handleSwapRoute = () => {
     setDraft((current) => ({
       ...current,
@@ -190,6 +261,39 @@ export function TicketForm({
       arrivalTimeLocal: current.departureTimeLocal,
     }));
     setActiveSuggestField(null);
+  };
+
+  const handleAddSegment = () => {
+    setDraft((current) => {
+      const existingSegments = current.segments ?? [];
+      const lastSegment = existingSegments[existingSegments.length - 1];
+      const seedSource = lastSegment
+        ? {
+            carrierName: lastSegment.carrierName,
+            classInfo: lastSegment.classInfo,
+            departure: { ...lastSegment.arrival },
+          }
+        : {
+            carrierName: current.carrierName,
+            classInfo: current.classInfo,
+            departure: { ...current.arrival },
+          };
+
+      return {
+        ...current,
+        segments: [
+          ...existingSegments,
+          createEmptySegment(seedSource),
+        ],
+      };
+    });
+  };
+
+  const handleRemoveSegment = (index: number) => {
+    setDraft((current) => ({
+      ...current,
+      segments: (current.segments ?? []).filter((_, segmentIndex) => segmentIndex !== index),
+    }));
   };
 
   const applySuggestedValue = (field: ImportFieldKey, value: string) => {
@@ -329,15 +433,35 @@ export function TicketForm({
       ) ?? null
     );
   }, [airlineSuggestions, draft.carrierName]);
+  const effectiveSegments = useMemo(
+    () => [
+      {
+        carrierName: draft.carrierName,
+        code: draft.code,
+        departure: draft.departure,
+        arrival: draft.arrival,
+        departureTimeLocal: draft.departureTimeLocal,
+        arrivalTimeLocal: draft.arrivalTimeLocal,
+        classInfo: draft.classInfo,
+        seatInfo: draft.seatInfo,
+        notes: draft.notes,
+      },
+      ...(draft.segments ?? []),
+    ],
+    [draft],
+  );
   const routeSummary = useMemo(() => {
-    if (!draft.departure.name && !draft.arrival.name) {
+    const firstSegment = effectiveSegments[0];
+    const lastSegment = effectiveSegments[effectiveSegments.length - 1];
+
+    if (!firstSegment?.departure.name && !lastSegment?.arrival.name) {
       return "Choose departure and arrival to build the route summary.";
     }
 
-    const left = draft.departure.name || draft.departure.code || "Departure";
-    const right = draft.arrival.name || draft.arrival.code || "Arrival";
+    const left = firstSegment.departure.name || firstSegment.departure.code || "Departure";
+    const right = lastSegment.arrival.name || lastSegment.arrival.code || "Arrival";
     return `${left} -> ${right}`;
-  }, [draft.arrival.code, draft.arrival.name, draft.departure.code, draft.departure.name]);
+  }, [effectiveSegments]);
 
   return (
     <section className="panel">
@@ -374,6 +498,7 @@ export function TicketForm({
                 ? "Directory-backed airport and airline lookup is active."
                 : "Directory-backed station lookup is active."}
             </small>
+            <small>{`${effectiveSegments.length} segment(s) planned in this itinerary.`}</small>
           </div>
           <button className="ghost-button compact-button" onClick={handleSwapRoute} type="button">
             Swap route
@@ -603,6 +728,178 @@ export function TicketForm({
           />
           {renderReviewNote("notes")}
         </label>
+
+        <section className="segment-planner">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Itinerary</p>
+              <h3>Onward segments</h3>
+            </div>
+            <button className="ghost-button compact-button" onClick={handleAddSegment} type="button">
+              Add segment
+            </button>
+          </div>
+
+          {draft.segments?.length ? (
+            <div className="segment-stack">
+              {draft.segments.map((segment, index) => (
+                <article className="segment-card" key={`segment-${index}`}>
+                  <div className="segment-card-top">
+                    <div>
+                      <span className="ticket-kind">{`Segment ${index + 2}`}</span>
+                      <strong>{buildSegmentRouteLabel(segment)}</strong>
+                    </div>
+                    <button
+                      className="ghost-button compact-button danger-button"
+                      onClick={() => handleRemoveSegment(index)}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="form-grid">
+                    <label>
+                      Carrier
+                      <input
+                        onChange={(event) => updateExtraSegmentField(index, "carrierName", event.target.value)}
+                        placeholder="Carrier"
+                        value={segment.carrierName}
+                      />
+                    </label>
+
+                    <label>
+                      Flight / Train No.
+                      <input
+                        onChange={(event) => updateExtraSegmentField(index, "code", event.target.value)}
+                        placeholder="MU561"
+                        value={segment.code}
+                      />
+                    </label>
+
+                    <label>
+                      Departure
+                      <input
+                        onChange={(event) =>
+                          updateExtraSegmentLocationField(index, "departure", "name", event.target.value)
+                        }
+                        placeholder="Departure"
+                        value={segment.departure.name}
+                      />
+                    </label>
+
+                    <label>
+                      Arrival
+                      <input
+                        onChange={(event) =>
+                          updateExtraSegmentLocationField(index, "arrival", "name", event.target.value)
+                        }
+                        placeholder="Arrival"
+                        value={segment.arrival.name}
+                      />
+                    </label>
+
+                    <label>
+                      Departure code
+                      <input
+                        onChange={(event) =>
+                          updateExtraSegmentLocationField(index, "departure", "code", event.target.value)
+                        }
+                        placeholder="PVG"
+                        value={segment.departure.code}
+                      />
+                    </label>
+
+                    <label>
+                      Arrival code
+                      <input
+                        onChange={(event) =>
+                          updateExtraSegmentLocationField(index, "arrival", "code", event.target.value)
+                        }
+                        placeholder="SYD"
+                        value={segment.arrival.code}
+                      />
+                    </label>
+
+                    <label>
+                      Departure timezone
+                      <input
+                        onChange={(event) =>
+                          updateExtraSegmentLocationField(index, "departure", "timezone", event.target.value)
+                        }
+                        placeholder="Asia/Shanghai"
+                        value={segment.departure.timezone}
+                      />
+                    </label>
+
+                    <label>
+                      Arrival timezone
+                      <input
+                        onChange={(event) =>
+                          updateExtraSegmentLocationField(index, "arrival", "timezone", event.target.value)
+                        }
+                        placeholder="Australia/Sydney"
+                        value={segment.arrival.timezone}
+                      />
+                    </label>
+
+                    <label>
+                      Departure time
+                      <input
+                        onChange={(event) =>
+                          updateExtraSegmentField(index, "departureTimeLocal", event.target.value)
+                        }
+                        type="datetime-local"
+                        value={segment.departureTimeLocal}
+                      />
+                    </label>
+
+                    <label>
+                      Arrival time
+                      <input
+                        onChange={(event) => updateExtraSegmentField(index, "arrivalTimeLocal", event.target.value)}
+                        type="datetime-local"
+                        value={segment.arrivalTimeLocal}
+                      />
+                    </label>
+
+                    <label>
+                      Cabin / Class
+                      <input
+                        onChange={(event) => updateExtraSegmentField(index, "classInfo", event.target.value)}
+                        placeholder="Economy"
+                        value={segment.classInfo}
+                      />
+                    </label>
+
+                    <label>
+                      Seat
+                      <input
+                        onChange={(event) => updateExtraSegmentField(index, "seatInfo", event.target.value)}
+                        placeholder="12A"
+                        value={segment.seatInfo}
+                      />
+                    </label>
+                  </div>
+
+                  <label>
+                    Segment notes
+                    <textarea
+                      onChange={(event) => updateExtraSegmentField(index, "notes", event.target.value)}
+                      placeholder="Transfer notes, baggage rules, onward remarks..."
+                      value={segment.notes}
+                    />
+                  </label>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <strong>No onward segments yet</strong>
+              <p>Add another leg here for transfers, open-jaw plans, or return segments.</p>
+            </div>
+          )}
+        </section>
 
         <div className="form-actions">
           {mode === "edit" ? (

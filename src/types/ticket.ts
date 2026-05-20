@@ -7,8 +7,7 @@ export interface TicketLocation {
   timezone: string;
 }
 
-export interface TicketDraft {
-  ticketType: TicketType;
+export interface TicketSegmentDraft {
   carrierName: string;
   code: string;
   departure: TicketLocation;
@@ -20,12 +19,27 @@ export interface TicketDraft {
   notes: string;
 }
 
+export interface TicketDraft {
+  ticketType: TicketType;
+  carrierName: string;
+  code: string;
+  departure: TicketLocation;
+  arrival: TicketLocation;
+  departureTimeLocal: string;
+  arrivalTimeLocal: string;
+  classInfo: string;
+  seatInfo: string;
+  notes: string;
+  segments?: TicketSegmentDraft[];
+}
+
 export interface TicketRecord extends TicketDraft {
   id: string;
   createdAt: string;
   updatedAt: string;
   routeLabel: string;
   status: TicketStatus;
+  segmentCount: number;
 }
 
 export interface TicketAttachment {

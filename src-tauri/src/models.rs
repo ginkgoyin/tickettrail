@@ -21,6 +21,21 @@ pub struct TicketDraftPayload {
     pub class_info: String,
     pub seat_info: String,
     pub notes: String,
+    pub segments: Option<Vec<TicketSegmentPayload>>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TicketSegmentPayload {
+    pub carrier_name: String,
+    pub code: String,
+    pub departure: TicketLocationPayload,
+    pub arrival: TicketLocationPayload,
+    pub departure_time_local: String,
+    pub arrival_time_local: String,
+    pub class_info: String,
+    pub seat_info: String,
+    pub notes: String,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -41,6 +56,8 @@ pub struct TicketRecordPayload {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
+    pub segments: Option<Vec<TicketSegmentPayload>>,
+    pub segment_count: usize,
 }
 
 #[derive(Clone, Deserialize, Serialize)]

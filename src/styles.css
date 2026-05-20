@@ -530,6 +530,28 @@ textarea {
   align-items: center;
 }
 
+.segment-planner,
+.segment-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.segment-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.segment-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
 .ticket-list {
   display: grid;
   gap: 14px;
@@ -925,6 +947,7 @@ textarea {
   .hero,
   .header-actions,
   .form-utility-row,
+  .segment-card-top,
   .form-actions,
   .export-row,
   .theme-switcher,

@@ -9,6 +9,7 @@ import type {
   TicketDetailPayload,
   TicketDraft,
   TicketRecord,
+  TicketSegmentDraft,
   TicketStatus,
 } from "../types/ticket";
 
@@ -18,7 +19,34 @@ const AIRLINE_SEED = airlineSeedData as AirlineDirectoryEntry[];
 const LOCATION_SEED = locationSeedData as LocationDirectoryEntry[];
 
 function buildRouteLabel(ticket: TicketDraft) {
-  return `${ticket.departure.name} -> ${ticket.arrival.name}`;
+  const segments = getEffectiveSegments(ticket);
+  const firstSegment = segments[0];
+  const lastSegment = segments[segments.length - 1];
+  return `${firstSegment.departure.name} -> ${lastSegment.arrival.name}`;
+}
+
+function getEffectiveSegments(ticket: TicketDraft): TicketSegmentDraft[] {
+  const primarySegment: TicketSegmentDraft = {
+    carrierName: ticket.carrierName,
+    code: ticket.code,
+    departure: { ...ticket.departure },
+    arrival: { ...ticket.arrival },
+    departureTimeLocal: ticket.departureTimeLocal,
+    arrivalTimeLocal: ticket.arrivalTimeLocal,
+    classInfo: ticket.classInfo,
+    seatInfo: ticket.seatInfo,
+    notes: ticket.notes,
+  };
+
+  return [primarySegment, ...(ticket.segments ?? []).map((segment) => ({
+    ...segment,
+    departure: { ...segment.departure },
+    arrival: { ...segment.arrival },
+  }))];
+}
+
+function buildSegmentCount(ticket: TicketDraft) {
+  return getEffectiveSegments(ticket).length;
 }
 
 function supportsTauri() {
@@ -73,14 +101,21 @@ function writeFallbackAttachments(attachments: Record<string, TicketAttachment[]
 
 function createFallbackTicket(draft: TicketDraft): TicketRecord {
   const now = new Date().toISOString();
+  const segments = draft.segments?.map((segment) => ({
+    ...segment,
+    departure: { ...segment.departure },
+    arrival: { ...segment.arrival },
+  }));
 
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `ticket-${Date.now()}`,
     createdAt: now,
     updatedAt: now,
     routeLabel: buildRouteLabel(draft),
+    segmentCount: buildSegmentCount(draft),
     status: "saved",
     ...draft,
+    ...(segments ? { segments } : {}),
   };
 }
 
@@ -212,6 +247,7 @@ export async function updateTicket(ticketId: string, draft: TicketDraft): Promis
     ...draft,
     id: current.id,
     routeLabel: buildRouteLabel(draft),
+    segmentCount: buildSegmentCount(draft),
     updatedAt: new Date().toISOString(),
   };
 

@@ -142,6 +142,7 @@ export function TicketList({
                 <p>{ticket.carrierName}</p>
                 <div className="ticket-meta">
                   <span>{ticket.departureTimeLocal.replace("T", " ")}</span>
+                  <span>{`${ticket.segmentCount} segment(s)`}</span>
                   <span>{ticket.classInfo || "Unassigned class"}</span>
                 </div>
                 <div className="ticket-card-footer">

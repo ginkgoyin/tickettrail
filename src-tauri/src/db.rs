@@ -1,7 +1,7 @@
 use crate::models::{
     AirlinePayload, LocationDirectoryPayload, MapPointPayload, MapRoutePayload, MapViewportPayload,
     StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
-    TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
+    TicketDraftPayload, TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
 };
 use chrono::{LocalResult, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -170,17 +170,33 @@ pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String>
 pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<TicketRecordPayload, String> {
     validate_draft(&draft)?;
 
-    let departure_time_utc = normalize_to_utc(&draft.departure_time_local, &draft.departure.timezone)?;
-    let arrival_time_utc = normalize_to_utc(&draft.arrival_time_local, &draft.arrival.timezone)?;
+    let effective_segments = build_effective_segments(&draft);
+    let first_segment = effective_segments
+        .first()
+        .ok_or_else(|| "At least one segment is required.".to_string())?;
+    let last_segment = effective_segments
+        .last()
+        .ok_or_else(|| "At least one segment is required.".to_string())?;
+    let departure_time_utc =
+        normalize_to_utc(&first_segment.departure_time_local, &first_segment.departure.timezone)?;
+    let arrival_time_utc =
+        normalize_to_utc(&last_segment.arrival_time_local, &last_segment.arrival.timezone)?;
     let created_at = Utc::now().to_rfc3339();
 
     let ticket_id = Uuid::new_v4().to_string();
     let journey_id = Uuid::new_v4().to_string();
-    let segment_id = Uuid::new_v4().to_string();
 
     let conn = open_connection(app)?;
     let raw_payload_json = serde_json::to_string(&draft).map_err(|err| err.to_string())?;
-    let route_label = format!("{} -> {}", draft.departure.name, draft.arrival.name);
+    let route_label = format!(
+        "{} -> {}",
+        first_segment.departure.name, last_segment.arrival.name
+    );
+    let journey_type = if effective_segments.len() > 1 {
+        "multi_leg"
+    } else {
+        "single_leg"
+    };
 
     conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
         .map_err(|err| err.to_string())?;
@@ -190,10 +206,11 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
             "INSERT INTO journeys (
                 id, title, journey_type, primary_ticket_type, status,
                 start_time_utc, end_time_utc, created_at_utc, updated_at_utc
-             ) VALUES (?1, ?2, 'single_leg', ?3, 'planned', ?4, ?5, ?6, ?7)",
+             ) VALUES (?1, ?2, ?3, ?4, 'planned', ?5, ?6, ?7, ?8)",
             params![
                 &journey_id,
                 &route_label,
+                &journey_type,
                 &draft.ticket_type,
                 &departure_time_utc,
                 &arrival_time_utc,
@@ -203,38 +220,7 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
         )
         .map_err(|err| err.to_string())?;
 
-        conn.execute(
-            "INSERT INTO segments (
-                id, journey_id, segment_index, transport_type, carrier_name, code,
-                departure_location_id, arrival_location_id, departure_name_raw, arrival_name_raw,
-                departure_time_local, arrival_time_local, departure_timezone, arrival_timezone,
-                departure_time_utc, arrival_time_utc, class_info, seat_info, metadata_json
-             ) VALUES (
-                ?1, ?2, 0, ?3, ?4, ?5,
-                NULL, NULL, ?6, ?7,
-                ?8, ?9, ?10, ?11,
-                ?12, ?13, ?14, ?15, ?16
-             )",
-            params![
-                &segment_id,
-                &journey_id,
-                &draft.ticket_type,
-                &draft.carrier_name,
-                &draft.code,
-                &draft.departure.name,
-                &draft.arrival.name,
-                &draft.departure_time_local,
-                &draft.arrival_time_local,
-                &draft.departure.timezone,
-                &draft.arrival.timezone,
-                &departure_time_utc,
-                &arrival_time_utc,
-                &draft.class_info,
-                &draft.seat_info,
-                build_segment_metadata(&draft)
-            ],
-        )
-        .map_err(|err| err.to_string())?;
+        insert_segments(&conn, &journey_id, &draft.ticket_type, &effective_segments)?;
 
         conn.execute(
             "INSERT INTO ticket_records (
@@ -282,8 +268,17 @@ pub fn update_ticket(
 ) -> Result<TicketRecordPayload, String> {
     validate_draft(&draft)?;
 
-    let departure_time_utc = normalize_to_utc(&draft.departure_time_local, &draft.departure.timezone)?;
-    let arrival_time_utc = normalize_to_utc(&draft.arrival_time_local, &draft.arrival.timezone)?;
+    let effective_segments = build_effective_segments(&draft);
+    let first_segment = effective_segments
+        .first()
+        .ok_or_else(|| "At least one segment is required.".to_string())?;
+    let last_segment = effective_segments
+        .last()
+        .ok_or_else(|| "At least one segment is required.".to_string())?;
+    let departure_time_utc =
+        normalize_to_utc(&first_segment.departure_time_local, &first_segment.departure.timezone)?;
+    let arrival_time_utc =
+        normalize_to_utc(&last_segment.arrival_time_local, &last_segment.arrival.timezone)?;
     let updated_at = Utc::now().to_rfc3339();
 
     let conn = open_connection(app)?;
@@ -293,7 +288,15 @@ pub fn update_ticket(
         .clone()
         .ok_or_else(|| "Ticket journey relation is missing.".to_string())?;
     let raw_payload_json = serde_json::to_string(&draft).map_err(|err| err.to_string())?;
-    let route_label = format!("{} -> {}", draft.departure.name, draft.arrival.name);
+    let route_label = format!(
+        "{} -> {}",
+        first_segment.departure.name, last_segment.arrival.name
+    );
+    let journey_type = if effective_segments.len() > 1 {
+        "multi_leg"
+    } else {
+        "single_leg"
+    };
 
     conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
         .map_err(|err| err.to_string())?;
@@ -302,13 +305,15 @@ pub fn update_ticket(
         conn.execute(
             "UPDATE journeys
              SET title = ?1,
-                 primary_ticket_type = ?2,
-                 start_time_utc = ?3,
-                 end_time_utc = ?4,
-                 updated_at_utc = ?5
-             WHERE id = ?6",
+                 journey_type = ?2,
+                 primary_ticket_type = ?3,
+                 start_time_utc = ?4,
+                 end_time_utc = ?5,
+                 updated_at_utc = ?6
+             WHERE id = ?7",
             params![
                 &route_label,
+                &journey_type,
                 &draft.ticket_type,
                 &departure_time_utc,
                 &arrival_time_utc,
@@ -318,42 +323,9 @@ pub fn update_ticket(
         )
         .map_err(|err| err.to_string())?;
 
-        conn.execute(
-            "UPDATE segments
-             SET transport_type = ?1,
-                 carrier_name = ?2,
-                 code = ?3,
-                 departure_name_raw = ?4,
-                 arrival_name_raw = ?5,
-                 departure_time_local = ?6,
-                 arrival_time_local = ?7,
-                 departure_timezone = ?8,
-                 arrival_timezone = ?9,
-                 departure_time_utc = ?10,
-                 arrival_time_utc = ?11,
-                 class_info = ?12,
-                 seat_info = ?13,
-                 metadata_json = ?14
-             WHERE journey_id = ?15 AND segment_index = 0",
-            params![
-                &draft.ticket_type,
-                &draft.carrier_name,
-                &draft.code,
-                &draft.departure.name,
-                &draft.arrival.name,
-                &draft.departure_time_local,
-                &draft.arrival_time_local,
-                &draft.departure.timezone,
-                &draft.arrival.timezone,
-                &departure_time_utc,
-                &arrival_time_utc,
-                &draft.class_info,
-                &draft.seat_info,
-                build_segment_metadata(&draft),
-                &journey_id
-            ],
-        )
-        .map_err(|err| err.to_string())?;
+        conn.execute("DELETE FROM segments WHERE journey_id = ?1", [&journey_id])
+            .map_err(|err| err.to_string())?;
+        insert_segments(&conn, &journey_id, &draft.ticket_type, &effective_segments)?;
 
         conn.execute(
             "UPDATE ticket_records
@@ -588,7 +560,20 @@ fn build_ticket_record(
     created_at: String,
     updated_at: String,
 ) -> TicketRecordPayload {
-    let route_label = format!("{} -> {}", draft.departure.name, draft.arrival.name);
+    let effective_segments = build_effective_segments(&draft);
+    let first_segment = effective_segments.first().cloned().unwrap_or_else(|| TicketSegmentPayload {
+        carrier_name: carrier_name.clone(),
+        code: code.clone(),
+        departure: draft.departure.clone(),
+        arrival: draft.arrival.clone(),
+        departure_time_local: draft.departure_time_local.clone(),
+        arrival_time_local: draft.arrival_time_local.clone(),
+        class_info: draft.class_info.clone(),
+        seat_info: draft.seat_info.clone(),
+        notes: draft.notes.clone(),
+    });
+    let last_segment = effective_segments.last().cloned().unwrap_or_else(|| first_segment.clone());
+    let route_label = format!("{} -> {}", first_segment.departure.name, last_segment.arrival.name);
 
     TicketRecordPayload {
         id,
@@ -596,24 +581,26 @@ fn build_ticket_record(
         carrier_name,
         code,
         departure: TicketLocationPayload {
-            name: draft.departure.name,
-            code: normalize_optional_string(draft.departure.code),
-            timezone: draft.departure.timezone,
+            name: first_segment.departure.name,
+            code: normalize_optional_string(first_segment.departure.code),
+            timezone: first_segment.departure.timezone,
         },
         arrival: TicketLocationPayload {
-            name: draft.arrival.name,
-            code: normalize_optional_string(draft.arrival.code),
-            timezone: draft.arrival.timezone,
+            name: last_segment.arrival.name,
+            code: normalize_optional_string(last_segment.arrival.code),
+            timezone: last_segment.arrival.timezone,
         },
-        departure_time_local: draft.departure_time_local,
-        arrival_time_local: draft.arrival_time_local,
-        class_info: draft.class_info,
-        seat_info: draft.seat_info,
+        departure_time_local: first_segment.departure_time_local,
+        arrival_time_local: last_segment.arrival_time_local,
+        class_info: first_segment.class_info,
+        seat_info: first_segment.seat_info,
         notes: draft.notes,
         route_label,
         status: map_status(&normalized_status),
         created_at,
         updated_at,
+        segments: draft.segments,
+        segment_count: effective_segments.len(),
     }
 }
 
@@ -677,6 +664,77 @@ fn map_status(value: &str) -> String {
     }
 }
 
+fn build_effective_segments(draft: &TicketDraftPayload) -> Vec<TicketSegmentPayload> {
+    let primary_segment = TicketSegmentPayload {
+        carrier_name: draft.carrier_name.clone(),
+        code: draft.code.clone(),
+        departure: draft.departure.clone(),
+        arrival: draft.arrival.clone(),
+        departure_time_local: draft.departure_time_local.clone(),
+        arrival_time_local: draft.arrival_time_local.clone(),
+        class_info: draft.class_info.clone(),
+        seat_info: draft.seat_info.clone(),
+        notes: draft.notes.clone(),
+    };
+
+    let mut segments = vec![primary_segment];
+    if let Some(extra_segments) = &draft.segments {
+        segments.extend(extra_segments.iter().cloned());
+    }
+    segments
+}
+
+fn insert_segments(
+    conn: &Connection,
+    journey_id: &str,
+    ticket_type: &str,
+    segments: &[TicketSegmentPayload],
+) -> Result<(), String> {
+    for (index, segment) in segments.iter().enumerate() {
+        let segment_id = Uuid::new_v4().to_string();
+        let departure_time_utc =
+            normalize_to_utc(&segment.departure_time_local, &segment.departure.timezone)?;
+        let arrival_time_utc =
+            normalize_to_utc(&segment.arrival_time_local, &segment.arrival.timezone)?;
+
+        conn.execute(
+            "INSERT INTO segments (
+                id, journey_id, segment_index, transport_type, carrier_name, code,
+                departure_location_id, arrival_location_id, departure_name_raw, arrival_name_raw,
+                departure_time_local, arrival_time_local, departure_timezone, arrival_timezone,
+                departure_time_utc, arrival_time_utc, class_info, seat_info, metadata_json
+             ) VALUES (
+                ?1, ?2, ?3, ?4, ?5, ?6,
+                NULL, NULL, ?7, ?8,
+                ?9, ?10, ?11, ?12,
+                ?13, ?14, ?15, ?16, ?17
+             )",
+            params![
+                &segment_id,
+                journey_id,
+                index as i64,
+                ticket_type,
+                &segment.carrier_name,
+                &segment.code,
+                &segment.departure.name,
+                &segment.arrival.name,
+                &segment.departure_time_local,
+                &segment.arrival_time_local,
+                &segment.departure.timezone,
+                &segment.arrival.timezone,
+                &departure_time_utc,
+                &arrival_time_utc,
+                &segment.class_info,
+                &segment.seat_info,
+                build_segment_metadata(segment)
+            ],
+        )
+        .map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
+}
+
 fn normalize_optional_string(value: Option<String>) -> Option<String> {
     value.and_then(|item| {
         let trimmed = item.trim().to_string();
@@ -697,22 +755,51 @@ fn display_or_tbd(value: &str) -> String {
     }
 }
 
-fn validate_draft(draft: &TicketDraftPayload) -> Result<(), String> {
-    if draft.carrier_name.trim().is_empty() {
-        return Err("Carrier name is required.".to_string());
+fn validate_segment(segment: &TicketSegmentPayload, index: usize) -> Result<(), String> {
+    let label = if index == 0 {
+        "primary segment".to_string()
+    } else {
+        format!("segment {}", index + 1)
+    };
+
+    if segment.carrier_name.trim().is_empty() {
+        return Err(format!("Carrier name is required for {}.", label));
     }
-    if draft.code.trim().is_empty() {
-        return Err("Flight or train number is required.".to_string());
+    if segment.code.trim().is_empty() {
+        return Err(format!("Flight or train number is required for {}.", label));
     }
-    if draft.departure.name.trim().is_empty() || draft.arrival.name.trim().is_empty() {
-        return Err("Departure and arrival names are required.".to_string());
+    if segment.departure.name.trim().is_empty() || segment.arrival.name.trim().is_empty() {
+        return Err(format!("Departure and arrival names are required for {}.", label));
     }
-    if draft.departure.timezone.trim().is_empty() || draft.arrival.timezone.trim().is_empty() {
-        return Err("Departure and arrival timezones are required.".to_string());
+    if segment.departure.timezone.trim().is_empty() || segment.arrival.timezone.trim().is_empty() {
+        return Err(format!("Departure and arrival timezones are required for {}.", label));
     }
 
-    normalize_to_utc(&draft.departure_time_local, &draft.departure.timezone)?;
-    normalize_to_utc(&draft.arrival_time_local, &draft.arrival.timezone)?;
+    normalize_to_utc(&segment.departure_time_local, &segment.departure.timezone)?;
+    normalize_to_utc(&segment.arrival_time_local, &segment.arrival.timezone)?;
+
+    Ok(())
+}
+
+fn validate_draft(draft: &TicketDraftPayload) -> Result<(), String> {
+    validate_segment(
+        &TicketSegmentPayload {
+            carrier_name: draft.carrier_name.clone(),
+            code: draft.code.clone(),
+            departure: draft.departure.clone(),
+            arrival: draft.arrival.clone(),
+            departure_time_local: draft.departure_time_local.clone(),
+            arrival_time_local: draft.arrival_time_local.clone(),
+            class_info: draft.class_info.clone(),
+            seat_info: draft.seat_info.clone(),
+            notes: draft.notes.clone(),
+        },
+        0,
+    )?;
+
+    for (index, segment) in (draft.segments.as_ref().map(|items| items.iter()).into_iter().flatten()).enumerate() {
+        validate_segment(segment, index + 1)?;
+    }
 
     Ok(())
 }
@@ -724,11 +811,11 @@ fn validate_status(status: &str) -> Result<(), String> {
     }
 }
 
-fn build_segment_metadata(draft: &TicketDraftPayload) -> String {
+fn build_segment_metadata(segment: &TicketSegmentPayload) -> String {
     serde_json::json!({
-        "notes": draft.notes,
-        "departureCode": draft.departure.code,
-        "arrivalCode": draft.arrival.code
+        "notes": segment.notes,
+        "departureCode": segment.departure.code,
+        "arrivalCode": segment.arrival.code
     })
     .to_string()
 }

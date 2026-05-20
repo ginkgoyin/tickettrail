@@ -46,6 +46,11 @@ function buildDraftFromTicket(ticket: TicketRecord): TicketDraft {
     classInfo: ticket.classInfo,
     seatInfo: ticket.seatInfo,
     notes: ticket.notes,
+    segments: ticket.segments?.map((segment) => ({
+      ...segment,
+      departure: { ...segment.departure },
+      arrival: { ...segment.arrival },
+    })),
   };
 }
 
@@ -64,6 +69,14 @@ function matchesQuery(ticket: TicketRecord, query: string) {
     ticket.arrival.name,
     ticket.departure.code || "",
     ticket.arrival.code || "",
+    ...(ticket.segments ?? []).flatMap((segment) => [
+      segment.code,
+      segment.carrierName,
+      segment.departure.name,
+      segment.arrival.name,
+      segment.departure.code || "",
+      segment.arrival.code || "",
+    ]),
   ]
     .join(" ")
     .toLowerCase()

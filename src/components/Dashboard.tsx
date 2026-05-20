@@ -116,7 +116,7 @@ export function Dashboard({
           <p className="eyebrow">Preview</p>
           <h3>{ticket.routeLabel}</h3>
         </div>
-        <span className="status-pill">{ticket.status}</span>
+        <span className="status-pill">{`${ticket.status} | ${ticket.segmentCount} segment(s)`}</span>
       </div>
 
       {isLoading ? (
@@ -299,6 +299,20 @@ export function Dashboard({
       </article>
 
       {exportMessage ? <p className="detail-loading">{exportMessage}</p> : null}
+
+      {ticket.segments?.length ? (
+        <article className="detail-card">
+          <span>Onward itinerary</span>
+          <strong>{`${ticket.segments.length} saved onward segment(s)`}</strong>
+          <p className="map-summary">
+            {ticket.segments.map((segment, index) => (
+              <span key={`${segment.code}-${index}`}>
+                {`${index + 2}. ${segment.departure.name} -> ${segment.arrival.name} (${segment.code || "--"})`}
+              </span>
+            ))}
+          </p>
+        </article>
+      ) : null}
 
       <article className="detail-grid">
         <div className="detail-card">
