@@ -501,6 +501,11 @@ export function exportSvg(filename: string, svgMarkup: string) {
   downloadBlob(filename, blob);
 }
 
+export function exportTextFile(filename: string, content: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  downloadBlob(filename, blob);
+}
+
 export async function exportPng(
   filename: string,
   svgMarkup: string,

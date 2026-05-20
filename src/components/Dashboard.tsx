@@ -4,6 +4,7 @@ import {
   buildStubSvg,
   exportPng,
   exportSvg,
+  exportTextFile,
   type StubTheme,
   visualizationSizes,
 } from "../lib/visualization";
@@ -22,6 +23,58 @@ interface DashboardProps {
 
 function isImageAttachment(attachment: TicketAttachment) {
   return attachment.mimeType.startsWith("image/");
+}
+
+function formatDateTime(value: string) {
+  return value.replace("T", " ").slice(0, 16);
+}
+
+function buildTicketExportJson(detail: TicketDetailPayload) {
+  return JSON.stringify(detail, null, 2);
+}
+
+function escapeCsvCell(value: string | number) {
+  const text = String(value ?? "");
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+  return text;
+}
+
+function buildTicketExportCsv(detail: TicketDetailPayload) {
+  const header = [
+    "segmentIndex",
+    "transportType",
+    "carrierName",
+    "code",
+    "departureLabel",
+    "departureCode",
+    "departureTimezone",
+    "arrivalLabel",
+    "arrivalCode",
+    "arrivalTimezone",
+    "distanceHintKm",
+  ];
+
+  const rows = detail.segments.map((segment) =>
+    [
+      segment.segmentIndex + 1,
+      segment.transportType,
+      segment.carrierName,
+      segment.code,
+      segment.origin.label,
+      segment.origin.code || "",
+      segment.origin.timezone,
+      segment.destination.label,
+      segment.destination.code || "",
+      segment.destination.timezone,
+      segment.distanceHintKm,
+    ]
+      .map(escapeCsvCell)
+      .join(","),
+  );
+
+  return [header.join(","), ...rows].join("\n");
 }
 
 export function Dashboard({
@@ -59,6 +112,32 @@ export function Dashboard({
     () => (activeDetail ? buildStubSvg(activeDetail.stub, stubTheme, activeDetail.segments) : ""),
     [activeDetail, stubTheme],
   );
+  const itinerarySummary = useMemo(() => {
+    if (!activeDetail) {
+      return null;
+    }
+
+    const segmentCount = activeDetail.segments.length;
+    const totalDistanceKm = activeDetail.segments.reduce(
+      (sum, segment) => sum + segment.distanceHintKm,
+      0,
+    );
+    const firstSegment = activeDetail.segments[0];
+    const lastSegment = activeDetail.segments[segmentCount - 1];
+
+    return {
+      segmentCount,
+      totalDistanceKm,
+      startLabel: firstSegment?.origin.label || activeDetail.ticket.departure.name,
+      endLabel: lastSegment?.destination.label || activeDetail.ticket.arrival.name,
+      firstDeparture: firstSegment
+        ? formatDateTime(activeDetail.ticket.departureTimeLocal)
+        : formatDateTime(activeDetail.ticket.departureTimeLocal),
+      lastArrival: lastSegment
+        ? formatDateTime(activeDetail.ticket.arrivalTimeLocal)
+        : formatDateTime(activeDetail.ticket.arrivalTimeLocal),
+    };
+  }, [activeDetail]);
 
   const handleExportSvg = (kind: "map" | "stub") => {
     if (!activeDetail) {
@@ -91,6 +170,29 @@ export function Dashboard({
     } catch (error) {
       setExportMessage(error instanceof Error ? error.message : "PNG \u5bfc\u51fa\u5931\u8d25\u3002");
     }
+  };
+
+  const handleExportStructured = (kind: "json" | "csv") => {
+    if (!activeDetail) {
+      return;
+    }
+
+    if (kind === "json") {
+      exportTextFile(
+        `${activeDetail.ticket.code}-itinerary.json`,
+        buildTicketExportJson(activeDetail),
+        "application/json;charset=utf-8",
+      );
+      setExportMessage("行程 JSON 已导出。");
+      return;
+    }
+
+    exportTextFile(
+      `${activeDetail.ticket.code}-itinerary.csv`,
+      buildTicketExportCsv(activeDetail),
+      "text/csv;charset=utf-8",
+    );
+    setExportMessage("行程 CSV 已导出。");
   };
 
   const handleChooseAttachment = () => {
@@ -126,6 +228,39 @@ export function Dashboard({
         <p className="detail-loading">
           {"\u6b63\u5728\u52a0\u8f7d\u8def\u7ebf\u3001\u7968\u6839\u548c\u9644\u4ef6\u6570\u636e..."}
         </p>
+      ) : null}
+
+      {itinerarySummary ? (
+        <article className="detail-card itinerary-overview-card">
+          <span>Itinerary overview</span>
+          <strong>{`${itinerarySummary.startLabel} -> ${itinerarySummary.endLabel}`}</strong>
+          <div className="detail-grid itinerary-overview-grid">
+            <div>
+              <span>Segments</span>
+              <strong>{itinerarySummary.segmentCount}</strong>
+            </div>
+            <div>
+              <span>Total distance</span>
+              <strong>{`${itinerarySummary.totalDistanceKm} km`}</strong>
+            </div>
+            <div>
+              <span>First departure</span>
+              <strong>{itinerarySummary.firstDeparture}</strong>
+            </div>
+            <div>
+              <span>Last arrival</span>
+              <strong>{itinerarySummary.lastArrival}</strong>
+            </div>
+          </div>
+          <div className="export-row">
+            <button className="ghost-button" onClick={() => handleExportStructured("json")} type="button">
+              导出 JSON
+            </button>
+            <button className="ghost-button" onClick={() => handleExportStructured("csv")} type="button">
+              导出 CSV
+            </button>
+          </div>
+        </article>
       ) : null}
 
       <article className="map-preview">
