@@ -371,6 +371,47 @@ label {
   background: rgba(255, 166, 87, 0.05);
 }
 
+.autocomplete-field {
+  position: relative;
+}
+
+.autocomplete-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 19, 28, 0.96);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+}
+
+.autocomplete-option {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  text-align: left;
+}
+
+.autocomplete-option:hover {
+  border-color: rgba(112, 212, 255, 0.22);
+  background: rgba(112, 212, 255, 0.08);
+}
+
+.autocomplete-option span {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
 input,
 textarea,
 select {

@@ -1,6 +1,12 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { ImportFieldKey, ImportFieldReview } from "../lib/importParser";
-import type { TicketDraft, TicketType } from "../types/ticket";
+import { searchAirlines, searchLocations } from "../lib/ticketService";
+import type {
+  AirlineDirectoryEntry,
+  LocationDirectoryEntry,
+  TicketDraft,
+  TicketType,
+} from "../types/ticket";
 
 function createDefaultDraft(): TicketDraft {
   return {
@@ -32,6 +38,8 @@ function cloneDraft(draft: TicketDraft): TicketDraft {
     arrival: { ...draft.arrival },
   };
 }
+
+type SuggestField = "carrierName" | "departure.name" | "arrival.name" | null;
 
 interface TicketFormProps {
   isSaving: boolean;
@@ -65,6 +73,10 @@ export function TicketForm({
   onCancelEdit,
 }: TicketFormProps) {
   const [draft, setDraft] = useState<TicketDraft>(createDefaultDraft());
+  const [activeSuggestField, setActiveSuggestField] = useState<SuggestField>(null);
+  const [airlineSuggestions, setAirlineSuggestions] = useState<AirlineDirectoryEntry[]>([]);
+  const [departureSuggestions, setDepartureSuggestions] = useState<LocationDirectoryEntry[]>([]);
+  const [arrivalSuggestions, setArrivalSuggestions] = useState<LocationDirectoryEntry[]>([]);
   const reviewMap = buildReviewMap(mode === "edit" ? null : importReview);
 
   useEffect(() => {
@@ -80,6 +92,66 @@ export function TicketForm({
 
     setDraft(createDefaultDraft());
   }, [importedDraft, initialDraft, mode]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAirlineSuggestions = async () => {
+      if (draft.ticketType !== "flight" || draft.carrierName.trim().length < 1) {
+        setAirlineSuggestions([]);
+        return;
+      }
+
+      try {
+        const results = await searchAirlines(draft.carrierName.trim());
+        if (isMounted) {
+          setAirlineSuggestions(results);
+        }
+      } catch {
+        if (isMounted) {
+          setAirlineSuggestions([]);
+        }
+      }
+    };
+
+    void loadAirlineSuggestions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [draft.carrierName, draft.ticketType]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLocationSuggestions = async (
+      query: string,
+      setResults: (results: LocationDirectoryEntry[]) => void,
+    ) => {
+      if (query.trim().length < 1) {
+        setResults([]);
+        return;
+      }
+
+      try {
+        const results = await searchLocations(query.trim());
+        if (isMounted) {
+          setResults(results);
+        }
+      } catch {
+        if (isMounted) {
+          setResults([]);
+        }
+      }
+    };
+
+    void loadLocationSuggestions(draft.departure.name || draft.departure.code || "", setDepartureSuggestions);
+    void loadLocationSuggestions(draft.arrival.name || draft.arrival.code || "", setArrivalSuggestions);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [draft.arrival.code, draft.arrival.name, draft.departure.code, draft.departure.name]);
 
   const updateField = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -131,6 +203,29 @@ export function TicketForm({
     }
   };
 
+  const applyAirlineSuggestion = (airline: AirlineDirectoryEntry) => {
+    setDraft((current) => ({
+      ...current,
+      carrierName: airline.nameEn,
+    }));
+    setActiveSuggestField(null);
+  };
+
+  const applyLocationSuggestion = (
+    side: "departure" | "arrival",
+    location: LocationDirectoryEntry,
+  ) => {
+    setDraft((current) => ({
+      ...current,
+      [side]: {
+        name: location.nameZh || location.nameEn || current[side].name,
+        code: location.code || current[side].code,
+        timezone: location.timezone || current[side].timezone,
+      },
+    }));
+    setActiveSuggestField(null);
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -141,6 +236,9 @@ export function TicketForm({
     void onSubmitTicket(draft).then(() => {
       if (mode === "create") {
         setDraft(createDefaultDraft());
+        setAirlineSuggestions([]);
+        setDepartureSuggestions([]);
+        setArrivalSuggestions([]);
       }
     });
   };
@@ -175,6 +273,19 @@ export function TicketForm({
     );
   };
 
+  const visibleAirlineSuggestions = useMemo(
+    () => (activeSuggestField === "carrierName" ? airlineSuggestions.slice(0, 6) : []),
+    [activeSuggestField, airlineSuggestions],
+  );
+  const visibleDepartureSuggestions = useMemo(
+    () => (activeSuggestField === "departure.name" ? departureSuggestions.slice(0, 6) : []),
+    [activeSuggestField, departureSuggestions],
+  );
+  const visibleArrivalSuggestions = useMemo(
+    () => (activeSuggestField === "arrival.name" ? arrivalSuggestions.slice(0, 6) : []),
+    [activeSuggestField, arrivalSuggestions],
+  );
+
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -204,109 +315,193 @@ export function TicketForm({
         <div className="form-grid">
           <label className={getLabelClassName("carrierName")}>
             Carrier
-            <input
-              value={draft.carrierName}
-              onChange={(event) => updateField("carrierName", event.target.value)}
-              placeholder="China Eastern"
-            />
+            <div className="autocomplete-field">
+              <input
+                onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
+                onChange={(event) => updateField("carrierName", event.target.value)}
+                onFocus={() => setActiveSuggestField("carrierName")}
+                placeholder="China Eastern"
+                value={draft.carrierName}
+              />
+              {visibleAirlineSuggestions.length ? (
+                <div className="autocomplete-panel">
+                  {visibleAirlineSuggestions.map((airline) => (
+                    <button
+                      className="autocomplete-option"
+                      key={airline.id}
+                      onMouseDown={() => applyAirlineSuggestion(airline)}
+                      type="button"
+                    >
+                      <strong>{airline.nameEn}</strong>
+                      <span>{`${airline.nameZh || "Airline"} · ${airline.iataCode}`}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             {renderReviewNote("carrierName")}
           </label>
+
           <label className={getLabelClassName("code")}>
             Flight / Train No.
             <input
-              value={draft.code}
               onChange={(event) => updateField("code", event.target.value)}
               placeholder="MU561"
+              value={draft.code}
             />
             {renderReviewNote("code")}
           </label>
+
           <label className={getLabelClassName("departure.name")}>
             Departure
-            <input
-              value={draft.departure.name}
-              onChange={(event) => updateLocationField("departure", "name", event.target.value)}
-              placeholder="Shanghai Pudong"
-            />
+            <div className="autocomplete-field">
+              <input
+                onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
+                onChange={(event) => updateLocationField("departure", "name", event.target.value)}
+                onFocus={() => setActiveSuggestField("departure.name")}
+                placeholder="Shanghai Pudong"
+                value={draft.departure.name}
+              />
+              {visibleDepartureSuggestions.length ? (
+                <div className="autocomplete-panel">
+                  {visibleDepartureSuggestions.map((location) => (
+                    <button
+                      className="autocomplete-option"
+                      key={location.id}
+                      onMouseDown={() => applyLocationSuggestion("departure", location)}
+                      type="button"
+                    >
+                      <strong>{location.nameZh || location.nameEn || location.code || "Location"}</strong>
+                      <span>
+                        {[
+                          location.code || "",
+                          location.nameEn || "",
+                          location.timezone || "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             {renderReviewNote("departure.name")}
           </label>
+
           <label className={getLabelClassName("arrival.name")}>
             Arrival
-            <input
-              value={draft.arrival.name}
-              onChange={(event) => updateLocationField("arrival", "name", event.target.value)}
-              placeholder="Sydney Airport"
-            />
+            <div className="autocomplete-field">
+              <input
+                onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
+                onChange={(event) => updateLocationField("arrival", "name", event.target.value)}
+                onFocus={() => setActiveSuggestField("arrival.name")}
+                placeholder="Sydney Airport"
+                value={draft.arrival.name}
+              />
+              {visibleArrivalSuggestions.length ? (
+                <div className="autocomplete-panel">
+                  {visibleArrivalSuggestions.map((location) => (
+                    <button
+                      className="autocomplete-option"
+                      key={location.id}
+                      onMouseDown={() => applyLocationSuggestion("arrival", location)}
+                      type="button"
+                    >
+                      <strong>{location.nameZh || location.nameEn || location.code || "Location"}</strong>
+                      <span>
+                        {[
+                          location.code || "",
+                          location.nameEn || "",
+                          location.timezone || "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             {renderReviewNote("arrival.name")}
           </label>
+
           <label className={getLabelClassName("departure.code")}>
             Departure code
             <input
-              value={draft.departure.code}
               onChange={(event) => updateLocationField("departure", "code", event.target.value)}
               placeholder="PVG"
+              value={draft.departure.code}
             />
             {renderReviewNote("departure.code")}
           </label>
+
           <label className={getLabelClassName("arrival.code")}>
             Arrival code
             <input
-              value={draft.arrival.code}
               onChange={(event) => updateLocationField("arrival", "code", event.target.value)}
               placeholder="SYD"
+              value={draft.arrival.code}
             />
             {renderReviewNote("arrival.code")}
           </label>
+
           <label className={getLabelClassName("departure.timezone")}>
             Departure timezone
             <input
-              value={draft.departure.timezone}
               onChange={(event) => updateLocationField("departure", "timezone", event.target.value)}
               placeholder="Asia/Shanghai"
+              value={draft.departure.timezone}
             />
             {renderReviewNote("departure.timezone")}
           </label>
+
           <label className={getLabelClassName("arrival.timezone")}>
             Arrival timezone
             <input
-              value={draft.arrival.timezone}
               onChange={(event) => updateLocationField("arrival", "timezone", event.target.value)}
               placeholder="Australia/Sydney"
+              value={draft.arrival.timezone}
             />
             {renderReviewNote("arrival.timezone")}
           </label>
+
           <label className={getLabelClassName("departureTimeLocal")}>
             Departure time
             <input
+              onChange={(event) => updateField("departureTimeLocal", event.target.value)}
               type="datetime-local"
               value={draft.departureTimeLocal}
-              onChange={(event) => updateField("departureTimeLocal", event.target.value)}
             />
             {renderReviewNote("departureTimeLocal")}
           </label>
+
           <label className={getLabelClassName("arrivalTimeLocal")}>
             Arrival time
             <input
+              onChange={(event) => updateField("arrivalTimeLocal", event.target.value)}
               type="datetime-local"
               value={draft.arrivalTimeLocal}
-              onChange={(event) => updateField("arrivalTimeLocal", event.target.value)}
             />
             {renderReviewNote("arrivalTimeLocal")}
           </label>
+
           <label className={getLabelClassName("classInfo")}>
             Cabin / Class
             <input
-              value={draft.classInfo}
               onChange={(event) => updateField("classInfo", event.target.value)}
               placeholder="Economy"
+              value={draft.classInfo}
             />
             {renderReviewNote("classInfo")}
           </label>
+
           <label className={getLabelClassName("seatInfo")}>
             Seat
             <input
-              value={draft.seatInfo}
               onChange={(event) => updateField("seatInfo", event.target.value)}
               placeholder="12A"
+              value={draft.seatInfo}
             />
             {renderReviewNote("seatInfo")}
           </label>
@@ -315,9 +510,9 @@ export function TicketForm({
         <label className={getLabelClassName("notes")}>
           Notes
           <textarea
-            value={draft.notes}
             onChange={(event) => updateField("notes", event.target.value)}
             placeholder="Special handling, baggage, transfer comments..."
+            value={draft.notes}
           />
           {renderReviewNote("notes")}
         </label>
