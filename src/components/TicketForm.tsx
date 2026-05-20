@@ -63,6 +63,12 @@ function buildReviewMap(reviews: ImportFieldReview[] | null | undefined) {
   return reviewMap;
 }
 
+function joinLocationMeta(location: LocationDirectoryEntry) {
+  return [location.code || "", location.nameEn || "", location.timezone || ""]
+    .filter(Boolean)
+    .join(" | ");
+}
+
 export function TicketForm({
   isSaving,
   mode,
@@ -286,6 +292,15 @@ export function TicketForm({
     [activeSuggestField, arrivalSuggestions],
   );
 
+  const departureMeta = useMemo(
+    () => [draft.departure.code || "", draft.departure.timezone || ""].filter(Boolean),
+    [draft.departure.code, draft.departure.timezone],
+  );
+  const arrivalMeta = useMemo(
+    () => [draft.arrival.code || "", draft.arrival.timezone || ""].filter(Boolean),
+    [draft.arrival.code, draft.arrival.timezone],
+  );
+
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -333,7 +348,7 @@ export function TicketForm({
                       type="button"
                     >
                       <strong>{airline.nameEn}</strong>
-                      <span>{`${airline.nameZh || "Airline"} · ${airline.iataCode}`}</span>
+                      <span>{`${airline.nameZh || "Airline"} | ${airline.iataCode}`}</span>
                     </button>
                   ))}
                 </div>
@@ -372,20 +387,21 @@ export function TicketForm({
                       type="button"
                     >
                       <strong>{location.nameZh || location.nameEn || location.code || "Location"}</strong>
-                      <span>
-                        {[
-                          location.code || "",
-                          location.nameEn || "",
-                          location.timezone || "",
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
+                      <span>{joinLocationMeta(location)}</span>
                     </button>
                   ))}
                 </div>
               ) : null}
             </div>
+            {departureMeta.length ? (
+              <div className="field-meta-list">
+                {departureMeta.map((item) => (
+                  <span className="field-meta-chip" key={`departure-${item}`}>
+                    {item}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {renderReviewNote("departure.name")}
           </label>
 
@@ -409,20 +425,21 @@ export function TicketForm({
                       type="button"
                     >
                       <strong>{location.nameZh || location.nameEn || location.code || "Location"}</strong>
-                      <span>
-                        {[
-                          location.code || "",
-                          location.nameEn || "",
-                          location.timezone || "",
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
+                      <span>{joinLocationMeta(location)}</span>
                     </button>
                   ))}
                 </div>
               ) : null}
             </div>
+            {arrivalMeta.length ? (
+              <div className="field-meta-list">
+                {arrivalMeta.map((item) => (
+                  <span className="field-meta-chip" key={`arrival-${item}`}>
+                    {item}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {renderReviewNote("arrival.name")}
           </label>
 

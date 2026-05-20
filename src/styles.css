@@ -412,6 +412,23 @@ label {
   font-size: 0.82rem;
 }
 
+.field-meta-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.field-meta-chip {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #b9eaff;
+  background: rgba(112, 212, 255, 0.08);
+  border: 1px solid rgba(112, 212, 255, 0.14);
+  font-size: 0.78rem;
+}
+
 input,
 textarea,
 select {
