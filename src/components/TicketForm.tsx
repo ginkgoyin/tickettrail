@@ -68,7 +68,7 @@ function cloneDraft(draft: TicketDraft): TicketDraft {
   };
 }
 
-type SuggestField = "carrierName" | "departure.name" | "arrival.name" | null;
+type SuggestField = string | null;
 
 interface TicketFormProps {
   isSaving: boolean;
@@ -106,6 +106,15 @@ function buildSegmentRouteLabel(segment: TicketSegmentDraft) {
   return `${segment.departure.name || "Departure"} -> ${segment.arrival.name || "Arrival"}`;
 }
 
+function parseDateTime(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
 export function TicketForm({
   isSaving,
   mode,
@@ -120,6 +129,9 @@ export function TicketForm({
   const [airlineSuggestions, setAirlineSuggestions] = useState<AirlineDirectoryEntry[]>([]);
   const [departureSuggestions, setDepartureSuggestions] = useState<LocationDirectoryEntry[]>([]);
   const [arrivalSuggestions, setArrivalSuggestions] = useState<LocationDirectoryEntry[]>([]);
+  const [segmentAirlineSuggestions, setSegmentAirlineSuggestions] = useState<Record<number, AirlineDirectoryEntry[]>>({});
+  const [segmentDepartureSuggestions, setSegmentDepartureSuggestions] = useState<Record<number, LocationDirectoryEntry[]>>({});
+  const [segmentArrivalSuggestions, setSegmentArrivalSuggestions] = useState<Record<number, LocationDirectoryEntry[]>>({});
   const reviewMap = buildReviewMap(mode === "edit" ? null : importReview);
 
   useEffect(() => {
@@ -142,18 +154,41 @@ export function TicketForm({
     const loadAirlineSuggestions = async () => {
       if (draft.ticketType !== "flight" || draft.carrierName.trim().length < 1) {
         setAirlineSuggestions([]);
+      } else {
+        try {
+          const results = await searchAirlines(draft.carrierName.trim());
+          if (isMounted) {
+            setAirlineSuggestions(results);
+          }
+        } catch {
+          if (isMounted) {
+            setAirlineSuggestions([]);
+          }
+        }
+      }
+
+      if (!draft.segments?.length) {
+        setSegmentAirlineSuggestions({});
         return;
       }
 
-      try {
-        const results = await searchAirlines(draft.carrierName.trim());
-        if (isMounted) {
-          setAirlineSuggestions(results);
-        }
-      } catch {
-        if (isMounted) {
-          setAirlineSuggestions([]);
-        }
+      const entries = await Promise.all(
+        draft.segments.map(async (segment, index) => {
+          if (draft.ticketType !== "flight" || segment.carrierName.trim().length < 1) {
+            return [index, []] as const;
+          }
+
+          try {
+            const results = await searchAirlines(segment.carrierName.trim());
+            return [index, results] as const;
+          } catch {
+            return [index, []] as const;
+          }
+        }),
+      );
+
+      if (isMounted) {
+        setSegmentAirlineSuggestions(Object.fromEntries(entries));
       }
     };
 
@@ -167,34 +202,54 @@ export function TicketForm({
   useEffect(() => {
     let isMounted = true;
 
-    const loadLocationSuggestions = async (
-      query: string,
-      setResults: (results: LocationDirectoryEntry[]) => void,
-    ) => {
+    const loadLocationSuggestions = async (query: string) => {
       if (query.trim().length < 1) {
-        setResults([]);
-        return;
+        return [];
       }
 
       try {
-        const results = await searchLocations(query.trim());
-        if (isMounted) {
-          setResults(results);
-        }
+        return await searchLocations(query.trim());
       } catch {
-        if (isMounted) {
-          setResults([]);
-        }
+        return [];
       }
     };
 
-    void loadLocationSuggestions(draft.departure.name || draft.departure.code || "", setDepartureSuggestions);
-    void loadLocationSuggestions(draft.arrival.name || draft.arrival.code || "", setArrivalSuggestions);
+    const loadAllSuggestions = async () => {
+      const [mainDeparture, mainArrival, segmentEntries] = await Promise.all([
+        loadLocationSuggestions(draft.departure.name || draft.departure.code || ""),
+        loadLocationSuggestions(draft.arrival.name || draft.arrival.code || ""),
+        Promise.all(
+          (draft.segments ?? []).map(async (segment, index) => {
+            const [departure, arrival] = await Promise.all([
+              loadLocationSuggestions(segment.departure.name || segment.departure.code || ""),
+              loadLocationSuggestions(segment.arrival.name || segment.arrival.code || ""),
+            ]);
+
+            return [index, { departure, arrival }] as const;
+          }),
+        ),
+      ]);
+
+      if (!isMounted) {
+        return;
+      }
+
+      setDepartureSuggestions(mainDeparture);
+      setArrivalSuggestions(mainArrival);
+      setSegmentDepartureSuggestions(
+        Object.fromEntries(segmentEntries.map(([index, result]) => [index, result.departure])),
+      );
+      setSegmentArrivalSuggestions(
+        Object.fromEntries(segmentEntries.map(([index, result]) => [index, result.arrival])),
+      );
+    };
+
+    void loadAllSuggestions();
 
     return () => {
       isMounted = false;
     };
-  }, [draft.arrival.code, draft.arrival.name, draft.departure.code, draft.departure.name]);
+  }, [draft]);
 
   const updateField = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -354,6 +409,11 @@ export function TicketForm({
     setActiveSuggestField(null);
   };
 
+  const applyExtraSegmentAirlineSuggestion = (index: number, airline: AirlineDirectoryEntry) => {
+    updateExtraSegmentField(index, "carrierName", airline.nameEn);
+    setActiveSuggestField(null);
+  };
+
   const applyLocationSuggestion = (
     side: "departure" | "arrival",
     location: LocationDirectoryEntry,
@@ -364,6 +424,22 @@ export function TicketForm({
         name: location.nameZh || location.nameEn || current[side].name,
         code: location.code || current[side].code,
         timezone: location.timezone || current[side].timezone,
+      },
+    }));
+    setActiveSuggestField(null);
+  };
+
+  const applyExtraSegmentLocationSuggestion = (
+    index: number,
+    side: "departure" | "arrival",
+    location: LocationDirectoryEntry,
+  ) => {
+    updateExtraSegment(index, (segment) => ({
+      ...segment,
+      [side]: {
+        name: location.nameZh || location.nameEn || segment[side].name,
+        code: location.code || segment[side].code,
+        timezone: location.timezone || segment[side].timezone,
       },
     }));
     setActiveSuggestField(null);
@@ -480,6 +556,44 @@ export function TicketForm({
     const right = lastSegment.arrival.name || lastSegment.arrival.code || "Arrival";
     return `${left} -> ${right}`;
   }, [effectiveSegments]);
+  const segmentValidationMessages = useMemo(() => {
+    const messages: Array<{ key: string; severity: "warning" | "suggestion"; message: string }> = [];
+
+    effectiveSegments.forEach((segment, index) => {
+      const departure = parseDateTime(segment.departureTimeLocal);
+      const arrival = parseDateTime(segment.arrivalTimeLocal);
+
+      if (departure && arrival && arrival <= departure) {
+        messages.push({
+          key: `segment-order-${index}`,
+          severity: "warning",
+          message: `Segment ${index + 1} arrival time should be after departure time.`,
+        });
+      }
+
+      if (index > 0) {
+        const previousArrival = parseDateTime(effectiveSegments[index - 1].arrivalTimeLocal);
+        if (previousArrival && departure) {
+          const layoverMinutes = Math.round((departure - previousArrival) / 60000);
+          if (layoverMinutes < 0) {
+            messages.push({
+              key: `segment-overlap-${index}`,
+              severity: "warning",
+              message: `Segment ${index + 1} starts before segment ${index} arrives.`,
+            });
+          } else if (layoverMinutes < 30) {
+            messages.push({
+              key: `segment-tight-${index}`,
+              severity: "suggestion",
+              message: `Segment ${index + 1} has a tight layover of ${layoverMinutes} minutes.`,
+            });
+          }
+        }
+      }
+    });
+
+    return messages;
+  }, [effectiveSegments]);
 
   return (
     <section className="panel">
@@ -517,6 +631,22 @@ export function TicketForm({
                 : "Directory-backed station lookup is active."}
             </small>
             <small>{`${effectiveSegments.length} segment(s) planned in this itinerary.`}</small>
+            {segmentValidationMessages.length ? (
+              <div className="segment-warning-list">
+                {segmentValidationMessages.map((item) => (
+                  <span
+                    className={
+                      item.severity === "warning"
+                        ? "segment-warning-chip segment-warning-chip-danger"
+                        : "segment-warning-chip"
+                    }
+                    key={item.key}
+                  >
+                    {item.message}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
           <button className="ghost-button compact-button" onClick={handleSwapRoute} type="button">
             Swap route
@@ -797,11 +927,31 @@ export function TicketForm({
                   <div className="form-grid">
                     <label>
                       Carrier
-                      <input
-                        onChange={(event) => updateExtraSegmentField(index, "carrierName", event.target.value)}
-                        placeholder="Carrier"
-                        value={segment.carrierName}
-                      />
+                      <div className="autocomplete-field">
+                        <input
+                          onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
+                          onChange={(event) => updateExtraSegmentField(index, "carrierName", event.target.value)}
+                          onFocus={() => setActiveSuggestField(`segment:${index}:carrier` as SuggestField)}
+                          placeholder="Carrier"
+                          value={segment.carrierName}
+                        />
+                        {activeSuggestField === (`segment:${index}:carrier` as SuggestField) &&
+                        (segmentAirlineSuggestions[index] ?? []).length ? (
+                          <div className="autocomplete-panel">
+                            {(segmentAirlineSuggestions[index] ?? []).slice(0, 6).map((airline) => (
+                              <button
+                                className="autocomplete-option"
+                                key={airline.id}
+                                onMouseDown={() => applyExtraSegmentAirlineSuggestion(index, airline)}
+                                type="button"
+                              >
+                                <strong>{airline.nameEn}</strong>
+                                <span>{`${airline.nameZh || "Airline"} | ${airline.iataCode}`}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </label>
 
                     <label>
@@ -815,24 +965,70 @@ export function TicketForm({
 
                     <label>
                       Departure
-                      <input
-                        onChange={(event) =>
-                          updateExtraSegmentLocationField(index, "departure", "name", event.target.value)
-                        }
-                        placeholder="Departure"
-                        value={segment.departure.name}
-                      />
+                      <div className="autocomplete-field">
+                        <input
+                          onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
+                          onChange={(event) =>
+                            updateExtraSegmentLocationField(index, "departure", "name", event.target.value)
+                          }
+                          onFocus={() => setActiveSuggestField(`segment:${index}:departure` as SuggestField)}
+                          placeholder="Departure"
+                          value={segment.departure.name}
+                        />
+                        {activeSuggestField === (`segment:${index}:departure` as SuggestField) &&
+                        (segmentDepartureSuggestions[index] ?? []).length ? (
+                          <div className="autocomplete-panel">
+                            {(segmentDepartureSuggestions[index] ?? []).slice(0, 6).map((location) => (
+                              <button
+                                className="autocomplete-option"
+                                key={location.id}
+                                onMouseDown={() => applyExtraSegmentLocationSuggestion(index, "departure", location)}
+                                type="button"
+                              >
+                                <strong>{location.nameZh || location.nameEn || location.code || "Location"}</strong>
+                                <span>{joinLocationMeta(location)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                      {(segment.departure.name || segment.departure.code) ? (
+                        <small className="field-directory-note">{buildLocationSummary(segment.departure)}</small>
+                      ) : null}
                     </label>
 
                     <label>
                       Arrival
-                      <input
-                        onChange={(event) =>
-                          updateExtraSegmentLocationField(index, "arrival", "name", event.target.value)
-                        }
-                        placeholder="Arrival"
-                        value={segment.arrival.name}
-                      />
+                      <div className="autocomplete-field">
+                        <input
+                          onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
+                          onChange={(event) =>
+                            updateExtraSegmentLocationField(index, "arrival", "name", event.target.value)
+                          }
+                          onFocus={() => setActiveSuggestField(`segment:${index}:arrival` as SuggestField)}
+                          placeholder="Arrival"
+                          value={segment.arrival.name}
+                        />
+                        {activeSuggestField === (`segment:${index}:arrival` as SuggestField) &&
+                        (segmentArrivalSuggestions[index] ?? []).length ? (
+                          <div className="autocomplete-panel">
+                            {(segmentArrivalSuggestions[index] ?? []).slice(0, 6).map((location) => (
+                              <button
+                                className="autocomplete-option"
+                                key={location.id}
+                                onMouseDown={() => applyExtraSegmentLocationSuggestion(index, "arrival", location)}
+                                type="button"
+                              >
+                                <strong>{location.nameZh || location.nameEn || location.code || "Location"}</strong>
+                                <span>{joinLocationMeta(location)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                      {(segment.arrival.name || segment.arrival.code) ? (
+                        <small className="field-directory-note">{buildLocationSummary(segment.arrival)}</small>
+                      ) : null}
                     </label>
 
                     <label>

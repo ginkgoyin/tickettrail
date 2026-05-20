@@ -399,6 +399,30 @@ label {
   color: #f6fbff;
 }
 
+.segment-warning-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.segment-warning-chip {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 177, 90, 0.12);
+  border: 1px solid rgba(255, 177, 90, 0.18);
+  color: #ffd79e;
+  font-size: 0.76rem;
+}
+
+.segment-warning-chip-danger {
+  background: rgba(255, 112, 92, 0.14);
+  border-color: rgba(255, 112, 92, 0.2);
+  color: #ffbeb5;
+}
+
 .autocomplete-field {
   position: relative;
 }
