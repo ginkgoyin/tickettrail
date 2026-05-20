@@ -70,6 +70,12 @@ function matchesQuery(ticket: TicketRecord, query: string) {
     ticket.arrival.name,
     ticket.departure.code || "",
     ticket.arrival.code || "",
+    ticket.departure.timezone,
+    ticket.arrival.timezone,
+    ticket.departureTimeLocal,
+    ticket.arrivalTimeLocal,
+    ticket.ticketType,
+    ticket.status,
     ...(ticket.segments ?? []).flatMap((segment) => [
       segment.code,
       segment.carrierName,
@@ -77,6 +83,10 @@ function matchesQuery(ticket: TicketRecord, query: string) {
       segment.arrival.name,
       segment.departure.code || "",
       segment.arrival.code || "",
+      segment.departure.timezone,
+      segment.arrival.timezone,
+      segment.departureTimeLocal,
+      segment.arrivalTimeLocal,
     ]),
   ]
     .join(" ")
@@ -352,6 +362,15 @@ export default function App() {
     setErrorMessage("");
   };
 
+  const handleApplyAnalyticsFilter = (patch: Partial<TicketFilters>) => {
+    startTransition(() => {
+      setFilters((current) => ({
+        ...current,
+        ...patch,
+      }));
+    });
+  };
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -395,7 +414,11 @@ export default function App() {
         <section className="content-grid">
           <div className="panel-stack">
             <SmartImport onApplyImport={handleApplyImport} />
-            <StatisticsPanel tickets={visibleTickets} totalCount={tickets.length} />
+            <StatisticsPanel
+              onApplyArchiveFilter={handleApplyAnalyticsFilter}
+              tickets={visibleTickets}
+              totalCount={tickets.length}
+            />
             <TicketForm
               importReview={importReview}
               importedDraft={importedDraft}

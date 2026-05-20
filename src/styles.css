@@ -654,6 +654,26 @@ textarea {
   margin: 0;
 }
 
+.analytics-list-button,
+.analytics-bar-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.analytics-list-button {
+  border-radius: 14px;
+}
+
+.analytics-list-button:hover .analytics-list-item,
+.analytics-bar-button:hover .analytics-bar-row {
+  background: rgba(112, 212, 255, 0.08);
+  border-color: rgba(112, 212, 255, 0.18);
+}
+
 .analytics-chart {
   display: grid;
   gap: 12px;
@@ -662,6 +682,10 @@ textarea {
 .analytics-bar-row {
   display: grid;
   gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  transition: background 140ms ease, border-color 140ms ease;
 }
 
 .analytics-bar-meta {

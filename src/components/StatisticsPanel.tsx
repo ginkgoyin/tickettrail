@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import type { TicketRecord, TicketSegmentDraft, TicketType } from "../types/ticket";
 
+type ArchiveFilterPatch = {
+  query?: string;
+  ticketType?: "all" | TicketType;
+};
+
 interface StatisticsPanelProps {
+  onApplyArchiveFilter: (patch: ArchiveFilterPatch) => void;
   tickets: TicketRecord[];
   totalCount: number;
 }
@@ -98,17 +104,39 @@ function formatYearLabel(value: string) {
   return value === "all" ? "All years" : value;
 }
 
-function RankedList({ title, items }: { title: string; items: RankedItem[] }) {
+function RankedList({
+  items,
+  onPickItem,
+  title,
+}: {
+  title: string;
+  items: RankedItem[];
+  onPickItem?: (item: RankedItem) => void;
+}) {
   return (
     <article className="detail-card analytics-card">
       <span>{title}</span>
       {items.length ? (
         <div className="analytics-list">
           {items.slice(0, 5).map((item, index) => (
-            <div className="analytics-list-item" key={`${title}-${item.label}`}>
-              <strong>{`${index + 1}. ${item.label}`}</strong>
-              <span>{item.count}</span>
-            </div>
+            onPickItem ? (
+              <button
+                className="analytics-list-button"
+                key={`${title}-${item.label}`}
+                onClick={() => onPickItem(item)}
+                type="button"
+              >
+                <span className="analytics-list-item">
+                  <strong>{`${index + 1}. ${item.label}`}</strong>
+                  <span>{item.count}</span>
+                </span>
+              </button>
+            ) : (
+              <div className="analytics-list-item" key={`${title}-${item.label}`}>
+                <strong>{`${index + 1}. ${item.label}`}</strong>
+                <span>{item.count}</span>
+              </div>
+            )
           ))}
         </div>
       ) : (
@@ -118,7 +146,11 @@ function RankedList({ title, items }: { title: string; items: RankedItem[] }) {
   );
 }
 
-export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
+export function StatisticsPanel({
+  onApplyArchiveFilter,
+  tickets,
+  totalCount,
+}: StatisticsPanelProps) {
   const [mode, setMode] = useState<AnalyticsMode>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
 
@@ -183,6 +215,15 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
     };
   }, [scopedTickets]);
 
+  const archiveScopeQuery = selectedYear === "all" ? "" : selectedYear;
+
+  const handleApplyScopeToArchive = () => {
+    onApplyArchiveFilter({
+      query: archiveScopeQuery,
+      ticketType: mode,
+    });
+  };
+
   return (
     <section className="panel analytics-panel">
       <div className="panel-heading">
@@ -233,6 +274,10 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
             ))}
           </select>
         </label>
+
+        <button className="ghost-button compact-button" onClick={handleApplyScopeToArchive} type="button">
+          Apply scope to archive
+        </button>
       </div>
 
       <div className="analytics-summary-grid">
@@ -255,8 +300,16 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
       </div>
 
       <div className="analytics-grid">
-        <RankedList items={analytics.carrierCounts} title="Top carriers" />
-        <RankedList items={analytics.cityCounts} title="Top cities / stations" />
+        <RankedList
+          items={analytics.carrierCounts}
+          onPickItem={(item) => onApplyArchiveFilter({ query: item.label, ticketType: mode })}
+          title="Top carriers"
+        />
+        <RankedList
+          items={analytics.cityCounts}
+          onPickItem={(item) => onApplyArchiveFilter({ query: item.label, ticketType: mode })}
+          title="Top cities / stations"
+        />
         <RankedList items={analytics.regionCounts} title="Top countries / regions" />
 
         <article className="detail-card analytics-card">
@@ -264,18 +317,25 @@ export function StatisticsPanel({ tickets, totalCount }: StatisticsPanelProps) {
           {analytics.monthlyCounts.length ? (
             <div className="analytics-chart">
               {analytics.monthlyCounts.map((item) => (
-                <div className="analytics-bar-row" key={item.label}>
-                  <div className="analytics-bar-meta">
-                    <strong>{item.label}</strong>
-                    <span>{item.count}</span>
-                  </div>
-                  <div className="analytics-bar-track">
-                    <div
-                      className="analytics-bar-fill"
-                      style={{ width: `${(item.count / analytics.chartMax) * 100}%` }}
-                    />
-                  </div>
-                </div>
+                <button
+                  className="analytics-bar-button"
+                  key={item.label}
+                  onClick={() => onApplyArchiveFilter({ query: item.label, ticketType: mode })}
+                  type="button"
+                >
+                  <span className="analytics-bar-row">
+                    <span className="analytics-bar-meta">
+                      <strong>{item.label}</strong>
+                      <span>{item.count}</span>
+                    </span>
+                    <span className="analytics-bar-track">
+                      <span
+                        className="analytics-bar-fill"
+                        style={{ width: `${(item.count / analytics.chartMax) * 100}%` }}
+                      />
+                    </span>
+                  </span>
+                </button>
               ))}
             </div>
           ) : (
