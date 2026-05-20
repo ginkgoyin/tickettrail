@@ -1,6 +1,7 @@
 import type {
   MapPointPayload,
   MapRoutePayload,
+  MapSegmentPayload,
   MapViewportPayload,
   StubPreviewPayload,
 } from "../types/ticket";
@@ -57,17 +58,74 @@ function createGridLines() {
 }
 
 export function buildMapSvg(route: MapRoutePayload) {
+  return buildMapSvgFromSegments(route, []);
+}
+
+function buildSegmentPath(pointA: { x: number; y: number }, pointB: { x: number; y: number }, index: number) {
+  const controlX = (pointA.x + pointB.x) / 2;
+  const controlY = Math.min(pointA.y, pointB.y) - 40 - index * 8;
+  return `M ${pointA.x} ${pointA.y} Q ${controlX} ${controlY} ${pointB.x} ${pointB.y}`;
+}
+
+export function buildMapSvgFromSegments(route: MapRoutePayload, segments: MapSegmentPayload[]) {
+  const activeSegments = segments.length
+    ? segments
+    : [
+        {
+          segmentIndex: 0,
+          transportType: "flight",
+          carrierName: route.lineLabel,
+          code: route.origin.code || route.destination.code || "",
+          lineLabel: route.lineLabel,
+          directionHint: route.directionHint,
+          distanceHintKm: route.distanceHintKm,
+          origin: route.origin,
+          destination: route.destination,
+        },
+      ];
   const origin = projectPoint(route.origin, route.viewport);
   const destination = projectPoint(route.destination, route.viewport);
-  const controlX = (origin.x + destination.x) / 2;
-  const controlY = Math.min(origin.y, destination.y) - 48;
+  const segmentPaths = activeSegments
+    .map((segment, index) => {
+      const from = projectPoint(segment.origin, route.viewport);
+      const to = projectPoint(segment.destination, route.viewport);
+      const color = index % 3 === 0 ? "url(#routeGradientA)" : index % 3 === 1 ? "url(#routeGradientB)" : "url(#routeGradientC)";
+      return `
+        <path
+          d="${buildSegmentPath(from, to, index)}"
+          fill="none"
+          stroke="${color}"
+          stroke-width="5"
+          stroke-linecap="round"
+          filter="url(#routeGlow)"
+        />
+      `;
+    })
+    .join("");
+  const segmentLabels = activeSegments
+    .map((segment, index) => {
+      const from = projectPoint(segment.origin, route.viewport);
+      const to = projectPoint(segment.destination, route.viewport);
+      const labelX = (from.x + to.x) / 2;
+      const labelY = Math.min(from.y, to.y) - 24 - index * 6;
+      return `<text x="${labelX}" y="${labelY}" fill="#d8edf6" font-size="12" text-anchor="middle" font-family="Segoe UI, Noto Sans, sans-serif">${escapeXml(segment.code || `SEG ${index + 1}`)}</text>`;
+    })
+    .join("");
 
   return `
   <svg xmlns="http://www.w3.org/2000/svg" width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">
     <defs>
-      <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <linearGradient id="routeGradientA" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="#70d4ff" />
         <stop offset="100%" stop-color="#ffb15a" />
+      </linearGradient>
+      <linearGradient id="routeGradientB" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#ffb15a" />
+        <stop offset="100%" stop-color="#76df95" />
+      </linearGradient>
+      <linearGradient id="routeGradientC" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#76df95" />
+        <stop offset="100%" stop-color="#70d4ff" />
       </linearGradient>
       <filter id="routeGlow">
         <feGaussianBlur stdDeviation="6" result="blur" />
@@ -80,14 +138,8 @@ export function buildMapSvg(route: MapRoutePayload) {
     <rect width="${MAP_WIDTH}" height="${MAP_HEIGHT}" rx="28" fill="#061824" />
     <rect x="18" y="18" width="${MAP_WIDTH - 36}" height="${MAP_HEIGHT - 36}" rx="22" fill="rgba(15,41,58,0.82)" stroke="rgba(255,255,255,0.08)" />
     ${createGridLines()}
-    <path
-      d="M ${origin.x} ${origin.y} Q ${controlX} ${controlY} ${destination.x} ${destination.y}"
-      fill="none"
-      stroke="url(#routeGradient)"
-      stroke-width="5"
-      stroke-linecap="round"
-      filter="url(#routeGlow)"
-    />
+    ${segmentPaths}
+    ${segmentLabels}
     <path
       d="M ${destination.x - 18} ${destination.y - 10} L ${destination.x} ${destination.y} L ${destination.x - 18} ${destination.y + 10}"
       fill="none"

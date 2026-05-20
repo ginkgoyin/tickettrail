@@ -1,7 +1,8 @@
 use crate::models::{
     AirlinePayload, LocationDirectoryPayload, MapPointPayload, MapRoutePayload, MapViewportPayload,
-    StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
-    TicketDraftPayload, TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
+    MapSegmentPayload, StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
+    TicketDetailPayload, TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
+    TicketSegmentPayload,
 };
 use chrono::{LocalResult, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -609,10 +610,67 @@ fn build_ticket_detail(
     ticket: TicketRecordPayload,
     attachments: Vec<TicketAttachmentPayload>,
 ) -> TicketDetailPayload {
-    let origin = resolve_map_point(conn, &ticket.departure);
-    let destination = resolve_map_point(conn, &ticket.arrival);
-    let viewport = build_viewport(&origin, &destination);
-    let distance_hint_km = estimate_distance_km(&origin, &destination);
+    let effective_segments = build_effective_segments(&TicketDraftPayload {
+        ticket_type: ticket.ticket_type.clone(),
+        carrier_name: ticket.carrier_name.clone(),
+        code: ticket.code.clone(),
+        departure: ticket.departure.clone(),
+        arrival: ticket.arrival.clone(),
+        departure_time_local: ticket.departure_time_local.clone(),
+        arrival_time_local: ticket.arrival_time_local.clone(),
+        class_info: ticket.class_info.clone(),
+        seat_info: ticket.seat_info.clone(),
+        notes: ticket.notes.clone(),
+        segments: ticket.segments.clone(),
+    });
+    let segment_maps = effective_segments
+        .iter()
+        .enumerate()
+        .map(|(index, segment)| {
+            let origin = resolve_map_point(conn, &segment.departure);
+            let destination = resolve_map_point(conn, &segment.arrival);
+
+            MapSegmentPayload {
+                segment_index: index,
+                transport_type: ticket.ticket_type.clone(),
+                carrier_name: segment.carrier_name.clone(),
+                code: segment.code.clone(),
+                line_label: format!("{} -> {}", segment.departure.name, segment.arrival.name),
+                direction_hint: format!(
+                    "{} to {}",
+                    segment
+                        .departure
+                        .code
+                        .clone()
+                        .unwrap_or_else(|| segment.departure.name.clone()),
+                    segment
+                        .arrival
+                        .code
+                        .clone()
+                        .unwrap_or_else(|| segment.arrival.name.clone())
+                ),
+                distance_hint_km: estimate_distance_km(&origin, &destination),
+                origin,
+                destination,
+            }
+        })
+        .collect::<Vec<_>>();
+    let origin = segment_maps
+        .first()
+        .map(|segment| segment.origin.clone())
+        .unwrap_or_else(|| resolve_map_point(conn, &ticket.departure));
+    let destination = segment_maps
+        .last()
+        .map(|segment| segment.destination.clone())
+        .unwrap_or_else(|| resolve_map_point(conn, &ticket.arrival));
+    let viewport = if segment_maps.is_empty() {
+        build_viewport(&origin, &destination)
+    } else {
+        build_segments_viewport(&segment_maps)
+    };
+    let distance_hint_km = segment_maps
+        .iter()
+        .fold(0_u32, |sum, segment| sum.saturating_add(segment.distance_hint_km));
 
     let map = MapRoutePayload {
         line_label: ticket.route_label.clone(),
@@ -650,6 +708,7 @@ fn build_ticket_detail(
     TicketDetailPayload {
         ticket,
         map,
+        segments: segment_maps,
         stub,
         attachments,
     }
@@ -682,6 +741,32 @@ fn build_effective_segments(draft: &TicketDraftPayload) -> Vec<TicketSegmentPayl
         segments.extend(extra_segments.iter().cloned());
     }
     segments
+}
+
+fn build_segments_viewport(segments: &[MapSegmentPayload]) -> MapViewportPayload {
+    let min_latitude = segments
+        .iter()
+        .flat_map(|segment| [segment.origin.latitude, segment.destination.latitude])
+        .fold(f64::INFINITY, f64::min);
+    let max_latitude = segments
+        .iter()
+        .flat_map(|segment| [segment.origin.latitude, segment.destination.latitude])
+        .fold(f64::NEG_INFINITY, f64::max);
+    let min_longitude = segments
+        .iter()
+        .flat_map(|segment| [segment.origin.longitude, segment.destination.longitude])
+        .fold(f64::INFINITY, f64::min);
+    let max_longitude = segments
+        .iter()
+        .flat_map(|segment| [segment.origin.longitude, segment.destination.longitude])
+        .fold(f64::NEG_INFINITY, f64::max);
+
+    MapViewportPayload {
+        min_latitude,
+        max_latitude,
+        min_longitude,
+        max_longitude,
+    }
 }
 
 fn insert_segments(

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl, { LngLatBounds } from "maplibre-gl";
-import type { MapRoutePayload } from "../types/ticket";
+import type { MapRoutePayload, MapSegmentPayload } from "../types/ticket";
 
 interface RouteMapProps {
   route: MapRoutePayload;
+  segments?: MapSegmentPayload[];
 }
 
 function createMarkerElement(kind: "origin" | "destination", label: string, code?: string) {
@@ -19,12 +20,32 @@ function createMarkerElement(kind: "origin" | "destination", label: string, code
   return marker;
 }
 
-export function RouteMap({ route }: RouteMapProps) {
+function buildActiveSegments(route: MapRoutePayload, segments: MapSegmentPayload[]) {
+  if (segments.length) {
+    return segments;
+  }
+
+  return [
+    {
+      segmentIndex: 0,
+      transportType: "flight",
+      carrierName: route.lineLabel,
+      code: route.origin.code || route.destination.code || "",
+      lineLabel: route.lineLabel,
+      directionHint: route.directionHint,
+      distanceHintKm: route.distanceHintKm,
+      origin: route.origin,
+      destination: route.destination,
+    },
+  ] satisfies MapSegmentPayload[];
+}
+
+export function RouteMap({ route, segments = [] }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const originMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destinationMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const [loadMessage, setLoadMessage] = useState("正在加载真实地图...");
+  const [loadMessage, setLoadMessage] = useState("正在加载真实地图组件...");
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -73,27 +94,10 @@ export function RouteMap({ route }: RouteMapProps) {
           },
         });
       }
-
-      if (!map.getLayer("route-line-layer")) {
-        map.addLayer({
-          id: "route-line-layer",
-          type: "line",
-          source: "route-line",
-          layout: {
-            "line-cap": "round",
-            "line-join": "round",
-          },
-          paint: {
-            "line-color": "#1ca4da",
-            "line-width": 4,
-            "line-opacity": 0.9,
-          },
-        });
-      }
     });
 
     map.on("error", () => {
-      setLoadMessage("地图底图加载失败，但路线数据仍然可导出。");
+      setLoadMessage("地图加载失败，请稍后重试。");
     });
 
     mapRef.current = map;
@@ -113,25 +117,69 @@ export function RouteMap({ route }: RouteMapProps) {
     }
 
     const syncRoute = () => {
+      const activeSegments = buildActiveSegments(route, segments);
       const source = map.getSource("route-line") as maplibregl.GeoJSONSource | undefined;
+
       if (source) {
         source.setData({
           type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              geometry: {
-                type: "LineString",
-                coordinates: [
-                  [route.origin.longitude, route.origin.latitude],
-                  [route.destination.longitude, route.destination.latitude],
-                ],
-              },
-              properties: {},
+          features: activeSegments.map((segment) => ({
+            type: "Feature",
+            properties: {
+              segmentIndex: segment.segmentIndex,
             },
-          ],
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [segment.origin.longitude, segment.origin.latitude],
+                [segment.destination.longitude, segment.destination.latitude],
+              ],
+            },
+          })),
         });
       }
+
+      if (map.getLayer("route-line-layer")) {
+        map.removeLayer("route-line-layer");
+      }
+      if (map.getLayer("route-line-glow-layer")) {
+        map.removeLayer("route-line-glow-layer");
+      }
+
+      map.addLayer({
+        id: "route-line-glow-layer",
+        type: "line",
+        source: "route-line",
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": "rgba(112, 212, 255, 0.28)",
+          "line-width": 10,
+          "line-opacity": 0.4,
+        },
+      });
+
+      map.addLayer({
+        id: "route-line-layer",
+        type: "line",
+        source: "route-line",
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": [
+            "case",
+            ["==", ["get", "segmentIndex"], 0], "#1ca4da",
+            ["==", ["%", ["get", "segmentIndex"], 2], 1], "#ff9854",
+            "#76df95",
+          ],
+          "line-width": 4,
+          "line-opacity": 0.92,
+        },
+      });
 
       originMarkerRef.current?.remove();
       destinationMarkerRef.current?.remove();
@@ -170,7 +218,7 @@ export function RouteMap({ route }: RouteMapProps) {
     return () => {
       map.off("load", syncRoute);
     };
-  }, [route]);
+  }, [route, segments]);
 
   return (
     <div className="route-map-shell">

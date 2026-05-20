@@ -112,6 +112,20 @@ pub struct MapRoutePayload {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MapSegmentPayload {
+    pub segment_index: usize,
+    pub transport_type: String,
+    pub carrier_name: String,
+    pub code: String,
+    pub line_label: String,
+    pub direction_hint: String,
+    pub distance_hint_km: u32,
+    pub origin: MapPointPayload,
+    pub destination: MapPointPayload,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StubPreviewPayload {
     pub title: String,
     pub subtitle: String,
@@ -133,6 +147,7 @@ pub struct StubPreviewPayload {
 pub struct TicketDetailPayload {
     pub ticket: TicketRecordPayload,
     pub map: MapRoutePayload,
+    pub segments: Vec<MapSegmentPayload>,
     pub stub: StubPreviewPayload,
     pub attachments: Vec<TicketAttachmentPayload>,
 }

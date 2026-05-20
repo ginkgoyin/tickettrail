@@ -107,6 +107,18 @@ export interface MapRoutePayload {
   viewport: MapViewportPayload;
 }
 
+export interface MapSegmentPayload {
+  segmentIndex: number;
+  transportType: TicketType;
+  carrierName: string;
+  code: string;
+  lineLabel: string;
+  directionHint: string;
+  distanceHintKm: number;
+  origin: MapPointPayload;
+  destination: MapPointPayload;
+}
+
 export interface StubPreviewPayload {
   title: string;
   subtitle: string;
@@ -126,6 +138,7 @@ export interface StubPreviewPayload {
 export interface TicketDetailPayload {
   ticket: TicketRecord;
   map: MapRoutePayload;
+  segments: MapSegmentPayload[];
   stub: StubPreviewPayload;
   attachments: TicketAttachment[];
 }

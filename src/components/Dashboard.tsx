@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
-  buildMapSvg,
+  buildMapSvgFromSegments,
   buildStubSvg,
   exportPng,
   exportSvg,
@@ -51,7 +51,10 @@ export function Dashboard({
     setStubTheme(isTrainTicket ? "ledger" : "boarding");
   }, [isTrainTicket, ticket.id]);
 
-  const mapSvg = useMemo(() => (activeDetail ? buildMapSvg(activeDetail.map) : ""), [activeDetail]);
+  const mapSvg = useMemo(
+    () => (activeDetail ? buildMapSvgFromSegments(activeDetail.map, activeDetail.segments) : ""),
+    [activeDetail],
+  );
   const stubSvg = useMemo(
     () => (activeDetail ? buildStubSvg(activeDetail.stub, stubTheme) : ""),
     [activeDetail, stubTheme],
@@ -135,13 +138,33 @@ export function Dashboard({
                 </p>
               }
             >
-              <RouteMap route={activeDetail.map} />
+              <RouteMap route={activeDetail.map} segments={activeDetail.segments} />
             </Suspense>
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("map")} type="button">
                 {"\u5bfc\u51fa\u8def\u7ebf SVG"}
               </button>
             </div>
+            {activeDetail.segments.length > 1 ? (
+              <div className="segment-stack">
+                {activeDetail.segments.map((segment) => (
+                  <article className="segment-card" key={`${segment.code}-${segment.segmentIndex}`}>
+                    <div className="segment-card-top">
+                      <div>
+                        <span className="ticket-kind">{`Segment ${segment.segmentIndex + 1}`}</span>
+                        <strong>{segment.lineLabel}</strong>
+                      </div>
+                      <span className="status-pill">{segment.distanceHintKm} km</span>
+                    </div>
+                    <div className="ticket-meta">
+                      <span>{segment.code || "--"}</span>
+                      <span>{segment.carrierName}</span>
+                      <span>{segment.directionHint}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="map-grid">
