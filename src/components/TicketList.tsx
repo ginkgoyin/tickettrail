@@ -1,6 +1,9 @@
+import { useMemo, useState } from "react";
+import { exportTextFile } from "../lib/visualization";
 import type { TicketRecord, TicketStatus, TicketType } from "../types/ticket";
 
 type TicketSort = "created_desc" | "created_asc" | "departure_asc" | "departure_desc";
+type TicketListView = "cards" | "timeline";
 
 interface TicketFilters {
   query: string;
@@ -28,6 +31,143 @@ function nextStatusOptions(status: TicketStatus): Exclude<TicketStatus, "draft">
   return statuses.filter((item) => item !== status);
 }
 
+function formatDateTime(value: string) {
+  return value.replace("T", " ").slice(0, 16);
+}
+
+function buildTimelineLabel(ticket: TicketRecord) {
+  const [datePart] = ticket.departureTimeLocal.split("T");
+  return datePart || ticket.createdAt.slice(0, 10);
+}
+
+function buildBatchExportJson(tickets: TicketRecord[]) {
+  return JSON.stringify(tickets, null, 2);
+}
+
+function escapeCsvCell(value: string | number) {
+  const text = String(value ?? "");
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+  return text;
+}
+
+function buildBatchExportCsv(tickets: TicketRecord[]) {
+  const header = [
+    "id",
+    "ticketType",
+    "status",
+    "code",
+    "carrierName",
+    "routeLabel",
+    "segmentCount",
+    "departureName",
+    "departureCode",
+    "departureTimeLocal",
+    "arrivalName",
+    "arrivalCode",
+    "arrivalTimeLocal",
+    "notes",
+  ];
+
+  const rows = tickets.map((ticket) =>
+    [
+      ticket.id,
+      ticket.ticketType,
+      ticket.status,
+      ticket.code,
+      ticket.carrierName,
+      ticket.routeLabel,
+      ticket.segmentCount,
+      ticket.departure.name,
+      ticket.departure.code || "",
+      ticket.departureTimeLocal,
+      ticket.arrival.name,
+      ticket.arrival.code || "",
+      ticket.arrivalTimeLocal,
+      ticket.notes,
+    ]
+      .map(escapeCsvCell)
+      .join(","),
+  );
+
+  return [header.join(","), ...rows].join("\n");
+}
+
+function renderTicketCard(
+  ticket: TicketRecord,
+  selectedId: string,
+  busyTicketId: string | undefined,
+  onSelect: (id: string) => void,
+  onEdit: (id: string) => void,
+  onDelete: (id: string) => void,
+  onUpdateStatus: (id: string, status: Exclude<TicketStatus, "draft">) => void,
+) {
+  const isBusy = busyTicketId === ticket.id;
+
+  return (
+    <button
+      className={ticket.id === selectedId ? "ticket-card selected" : "ticket-card"}
+      key={ticket.id}
+      onClick={() => onSelect(ticket.id)}
+      type="button"
+    >
+      <div className="ticket-card-top">
+        <span className="ticket-kind">{ticket.ticketType}</span>
+        <span className="ticket-code">{ticket.code}</span>
+      </div>
+      <strong>{ticket.routeLabel}</strong>
+      <p>{ticket.carrierName}</p>
+      <div className="ticket-meta">
+        <span>{formatDateTime(ticket.departureTimeLocal)}</span>
+        <span>{`${ticket.segmentCount} segment(s)`}</span>
+        <span>{ticket.classInfo || "Unassigned class"}</span>
+      </div>
+      <div className="ticket-card-footer">
+        <span className={`ticket-status ticket-status-${ticket.status}`}>{ticket.status}</span>
+        <div className="ticket-card-actions">
+          <button
+            className="ghost-button compact-button"
+            disabled={isBusy}
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit(ticket.id);
+            }}
+            type="button"
+          >
+            Edit
+          </button>
+          {nextStatusOptions(ticket.status).map((status) => (
+            <button
+              className="ghost-button compact-button"
+              disabled={isBusy}
+              key={status}
+              onClick={(event) => {
+                event.stopPropagation();
+                onUpdateStatus(ticket.id, status);
+              }}
+              type="button"
+            >
+              {status}
+            </button>
+          ))}
+          <button
+            className="ghost-button compact-button danger-button"
+            disabled={isBusy}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete(ticket.id);
+            }}
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export function TicketList({
   tickets,
   totalCount,
@@ -41,6 +181,39 @@ export function TicketList({
   onDelete,
   onUpdateStatus,
 }: TicketListProps) {
+  const [viewMode, setViewMode] = useState<TicketListView>("cards");
+  const timelineGroups = useMemo(() => {
+    const groups = new Map<string, TicketRecord[]>();
+
+    tickets.forEach((ticket) => {
+      const key = buildTimelineLabel(ticket);
+      groups.set(key, [...(groups.get(key) ?? []), ticket]);
+    });
+
+    return Array.from(groups.entries());
+  }, [tickets]);
+
+  const handleBatchExport = (kind: "json" | "csv") => {
+    if (!tickets.length) {
+      return;
+    }
+
+    if (kind === "json") {
+      exportTextFile(
+        `tickettrail-batch-${tickets.length}.json`,
+        buildBatchExportJson(tickets),
+        "application/json;charset=utf-8",
+      );
+      return;
+    }
+
+    exportTextFile(
+      `tickettrail-batch-${tickets.length}.csv`,
+      buildBatchExportCsv(tickets),
+      "text/csv;charset=utf-8",
+    );
+  };
+
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -51,6 +224,33 @@ export function TicketList({
         <span className="status-pill">
           {tickets.length} shown / {totalCount} total
         </span>
+      </div>
+
+      <div className="ticket-toolbar">
+        <div className="theme-switcher">
+          <button
+            className={viewMode === "cards" ? "theme-chip active" : "theme-chip"}
+            onClick={() => setViewMode("cards")}
+            type="button"
+          >
+            Card view
+          </button>
+          <button
+            className={viewMode === "timeline" ? "theme-chip active" : "theme-chip"}
+            onClick={() => setViewMode("timeline")}
+            type="button"
+          >
+            Timeline
+          </button>
+        </div>
+        <div className="export-row">
+          <button className="ghost-button compact-button" onClick={() => handleBatchExport("json")} type="button">
+            导出当前 JSON
+          </button>
+          <button className="ghost-button compact-button" onClick={() => handleBatchExport("csv")} type="button">
+            导出当前 CSV
+          </button>
+        </div>
       </div>
 
       <div className="ticket-filters">
@@ -123,72 +323,43 @@ export function TicketList({
             <strong>No matching tickets</strong>
             <p>Try clearing filters or create a new flight or train record.</p>
           </div>
+        ) : viewMode === "cards" ? (
+          tickets.map((ticket) =>
+            renderTicketCard(
+              ticket,
+              selectedId,
+              busyTicketId,
+              onSelect,
+              onEdit,
+              onDelete,
+              onUpdateStatus,
+            ),
+          )
         ) : (
-          tickets.map((ticket) => {
-            const isBusy = busyTicketId === ticket.id;
-
-            return (
-              <button
-                className={ticket.id === selectedId ? "ticket-card selected" : "ticket-card"}
-                key={ticket.id}
-                onClick={() => onSelect(ticket.id)}
-                type="button"
-              >
-                <div className="ticket-card-top">
-                  <span className="ticket-kind">{ticket.ticketType}</span>
-                  <span className="ticket-code">{ticket.code}</span>
+          <div className="timeline-list">
+            {timelineGroups.map(([timelineKey, groupedTickets]) => (
+              <section className="timeline-group" key={timelineKey}>
+                <div className="timeline-marker">
+                  <span className="timeline-dot" />
+                  <strong>{timelineKey}</strong>
+                  <small>{`${groupedTickets.length} ticket(s)`}</small>
                 </div>
-                <strong>{ticket.routeLabel}</strong>
-                <p>{ticket.carrierName}</p>
-                <div className="ticket-meta">
-                  <span>{ticket.departureTimeLocal.replace("T", " ")}</span>
-                  <span>{`${ticket.segmentCount} segment(s)`}</span>
-                  <span>{ticket.classInfo || "Unassigned class"}</span>
+                <div className="timeline-cards">
+                  {groupedTickets.map((ticket) =>
+                    renderTicketCard(
+                      ticket,
+                      selectedId,
+                      busyTicketId,
+                      onSelect,
+                      onEdit,
+                      onDelete,
+                      onUpdateStatus,
+                    ),
+                  )}
                 </div>
-                <div className="ticket-card-footer">
-                  <span className={`ticket-status ticket-status-${ticket.status}`}>{ticket.status}</span>
-                  <div className="ticket-card-actions">
-                    <button
-                      className="ghost-button compact-button"
-                      disabled={isBusy}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onEdit(ticket.id);
-                      }}
-                      type="button"
-                    >
-                      Edit
-                    </button>
-                    {nextStatusOptions(ticket.status).map((status) => (
-                      <button
-                        className="ghost-button compact-button"
-                        disabled={isBusy}
-                        key={status}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onUpdateStatus(ticket.id, status);
-                        }}
-                        type="button"
-                      >
-                        {status}
-                      </button>
-                    ))}
-                    <button
-                      className="ghost-button compact-button danger-button"
-                      disabled={isBusy}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDelete(ticket.id);
-                      }}
-                      type="button"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </button>
-            );
-          })
+              </section>
+            ))}
+          </div>
         )}
       </div>
     </section>

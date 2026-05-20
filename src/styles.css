@@ -594,6 +594,14 @@ textarea {
   gap: 14px;
 }
 
+.ticket-toolbar,
+.timeline-marker {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
 .ticket-filters {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 0.8fr)) auto;
@@ -625,6 +633,31 @@ textarea {
 .ticket-card.selected {
   border-color: rgba(112, 212, 255, 0.5);
   transform: translateY(-1px);
+}
+
+.timeline-list,
+.timeline-cards {
+  display: grid;
+  gap: 16px;
+}
+
+.timeline-group {
+  display: grid;
+  gap: 14px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(112, 212, 255, 0.18);
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(112, 212, 255, 0.12);
+}
+
+.timeline-marker small {
+  color: var(--text-soft);
 }
 
 .ticket-card-footer {
@@ -992,6 +1025,8 @@ textarea {
   .panel-heading,
   .hero,
   .header-actions,
+  .ticket-toolbar,
+  .timeline-marker,
   .form-utility-row,
   .segment-card-top,
   .segment-card-controls,
