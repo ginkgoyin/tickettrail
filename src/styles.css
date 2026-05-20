@@ -594,6 +594,44 @@ textarea {
   gap: 14px;
 }
 
+.analytics-panel,
+.analytics-summary-grid,
+.analytics-grid,
+.analytics-list {
+  display: grid;
+  gap: 14px;
+}
+
+.analytics-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.analytics-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.analytics-card {
+  min-height: 100%;
+}
+
+.analytics-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.analytics-list-item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.analytics-list-item strong {
+  margin: 0;
+}
+
 .ticket-toolbar,
 .timeline-marker {
   display: flex;
@@ -1044,6 +1082,8 @@ textarea {
   .import-grid,
   .detail-grid,
   .hero-stats,
+  .analytics-summary-grid,
+  .analytics-grid,
   .stub-body,
   .map-grid,
   .attachment-grid {

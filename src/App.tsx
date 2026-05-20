@@ -3,6 +3,7 @@ import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { SmartImport } from "./components/SmartImport";
+import { StatisticsPanel } from "./components/StatisticsPanel";
 import { TicketForm } from "./components/TicketForm";
 import { TicketList } from "./components/TicketList";
 import { reviewImportedDraft, type ImportFieldReview, type ImportParseResult } from "./lib/importParser";
@@ -394,6 +395,7 @@ export default function App() {
         <section className="content-grid">
           <div className="panel-stack">
             <SmartImport onApplyImport={handleApplyImport} />
+            <StatisticsPanel tickets={visibleTickets} totalCount={tickets.length} />
             <TicketForm
               importReview={importReview}
               importedDraft={importedDraft}
