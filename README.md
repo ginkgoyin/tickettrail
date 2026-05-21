@@ -2,7 +2,7 @@
 
 ## 中文
 
-`TicketTrail` 是一个以票务信息沉淀、行程可视化和票根生成归档为核心的跨平台项目规划稿。第一阶段优先做桌面端，建议从 Windows 版本起步；在业务模型和数据结构稳定后，再扩展到 macOS 与 Android。
+`TicketTrail` 是一个以票务信息沉淀、行程可视化和票根生成归档为核心的跨平台项目。第一阶段优先做桌面端，建议从 Windows 版本起步；在业务模型和数据结构稳定后，再扩展到 macOS 与 Android。
 
 推荐中文名：`票迹`
 
@@ -19,17 +19,23 @@
 - `ItinStub`：更强调 itinerary 与票根存档。
 - `TripLedger`：更强调结构化出行账本。
 
-本目录当前包含：
+当前目录包含：
 
 - `README.md`：项目定位、命名方案与阶段目标。
 - `docs/requirements-analysis.md`：结构化需求分析报告。
+- `docs/technical-implementation-plan.md`：可落地的技术架构、模块规划、API 草案和工程规范。
+- `docs/development-setup.md`：本地开发环境与启动说明。
+- `docs/windows-release.md`：Windows 安装包打包与发布流程说明。
+- `src/`：React 前端界面与交互逻辑。
+- `src-tauri/`：Tauri 2 桌面壳与 Rust 命令层。
+- `database/schema.sql`：SQLite 数据库结构。
 
 第一阶段目标：
 
 1. 建立统一的票务数据模型，覆盖机票与火车票。
 2. 支持录入、编辑、检索、归档和可视化展示票务信息。
 3. 根据出发地与目的地生成地图行程连线和方向标识。
-4. 根据票务信息自动生成票根图并可保存导出。
+4. 根据票务信息自动生成票根图，并支持保存和导出。
 
 ## English
 

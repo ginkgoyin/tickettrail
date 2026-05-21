@@ -64,7 +64,7 @@ export function BackupPanel({
       </div>
 
       <p className="backup-copy">
-        备份会保存当前 SQLite 数据库和附件目录。恢复或导入后，当前票据和附件会被备份内容覆盖。
+        备份会保存当前 SQLite 数据库和附件目录。恢复备份或导入整库包后，当前票据和附件会被备份内容覆盖。
       </p>
 
       <div className="backup-import-panel">
@@ -72,7 +72,7 @@ export function BackupPanel({
           导入整库包路径
           <input
             onChange={(event) => setBundlePath(event.target.value)}
-            placeholder="例如：C:\\Users\\你的用户名\\Downloads\\backup-20260521-archive.zip"
+            placeholder="例如：C:\\Users\\你的用户名\\Downloads\\tickettrail-archive.zip"
             value={bundlePath}
           />
         </label>
@@ -108,7 +108,7 @@ export function BackupPanel({
         {backups.length === 0 ? (
           <div className="empty-state">
             <strong>还没有备份</strong>
-            <p>建议在开始长期录入之前先创建第一份备份。</p>
+            <p>建议在开始长期录入前先创建第一份备份。</p>
           </div>
         ) : (
           backups.map((backup) => (

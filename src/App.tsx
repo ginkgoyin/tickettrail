@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+﻿import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { BackupPanel } from "./components/BackupPanel";
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
@@ -543,7 +543,6 @@ export default function App() {
     try {
       const nextBackup = await createBackup();
       const readiness = await getBackupReadiness();
-      setBackupNotice(`Backup created: ${nextBackup.label}`);
       setBackupNotice(`已创建备份：${nextBackup.label}`);
       startTransition(() => {
         setBackups((current) => [nextBackup, ...current.filter((item) => item.id !== nextBackup.id)]);
@@ -580,9 +579,6 @@ export default function App() {
         getBackupReadiness(),
       ]);
       const restoredBackup = restoredBackups.find((backup) => backup.id === backupId);
-      setBackupNotice(
-        restoredBackup ? `Backup restored: ${restoredBackup.label}` : "Selected backup restored.",
-      );
       setBackupNotice(restoredBackup ? `已恢复备份：${restoredBackup.label}` : "已恢复选中的备份。");
       startTransition(() => {
         setTickets(restoredTickets);
@@ -592,9 +588,7 @@ export default function App() {
         setEditingId("");
         setImportedDraft(null);
         setImportReview(null);
-        setBackupStatusMessage(
-          restoredBackup ? `已恢复备份：${restoredBackup.label}` : "已恢复选中的备份。",
-        );
+        setBackupStatusMessage(restoredBackup ? `已恢复备份：${restoredBackup.label}` : "已恢复选中的备份。");
         setDetailVersion((current) => current + 1);
       });
     } catch (error) {
@@ -611,7 +605,7 @@ export default function App() {
 
     try {
       const exportPath = await exportBackup(backupId);
-      setBackupNotice(`Backup exported to: ${exportPath}`);
+      setBackupNotice(`备份已导出到：${exportPath}`);
       startTransition(() => {
         setBackupStatusMessage(`备份已导出到：${exportPath}`);
       });
@@ -630,9 +624,9 @@ export default function App() {
 
     try {
       const archivePath = await exportArchiveBundle();
-      setBackupNotice(`Archive bundle exported: ${archivePath}`);
+      setBackupNotice(`整库包已导出：${archivePath}`);
       startTransition(() => {
-        setBackupStatusMessage(`整库压缩包已导出到：${archivePath}`);
+        setBackupStatusMessage(`整库包已导出：${archivePath}`);
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to export archive bundle.");
@@ -658,7 +652,7 @@ export default function App() {
         listBackups(),
         getBackupReadiness(),
       ]);
-      setBackupNotice(`Archive bundle imported: ${bundlePath}`);
+      setBackupNotice(`整库包已导入：${bundlePath}`);
       startTransition(() => {
         setTickets(restoredTickets);
         setBackups(restoredBackups);
@@ -785,3 +779,4 @@ export default function App() {
     </div>
   );
 }
+

@@ -206,6 +206,7 @@ export function TicketList({
   const [viewMode, setViewMode] = useState<TicketListView>("cards");
   const [savedViewName, setSavedViewName] = useState("");
   const [editingSavedViewId, setEditingSavedViewId] = useState("");
+
   const timelineGroups = useMemo(() => {
     const groups = new Map<string, TicketRecord[]>();
 
@@ -364,7 +365,7 @@ export function TicketList({
                           {view.pinned ? "取消置顶" : "置顶"}
                         </button>
                         <button
-                          aria-label={`重命名视图 ${view.name}`}
+                          aria-label={`重命名 ${view.name}`}
                           className="saved-view-action-button"
                           onClick={() => handleRenameSavedView(view)}
                           type="button"
@@ -372,7 +373,7 @@ export function TicketList({
                           重命名
                         </button>
                         <button
-                          aria-label={`删除视图 ${view.name}`}
+                          aria-label={`删除 ${view.name}`}
                           className="saved-view-delete"
                           onClick={() => onDeleteSavedView(view.id)}
                           type="button"
@@ -409,9 +410,9 @@ export function TicketList({
             }
             value={filters.ticketType}
           >
-            <option value="all">All types</option>
+            <option value="all">All</option>
             <option value="flight">Flight</option>
-            <option value="train">Train</option>
+            <option value="train">Rail</option>
           </select>
         </label>
         <label>
@@ -425,7 +426,7 @@ export function TicketList({
             }
             value={filters.status}
           >
-            <option value="all">All status</option>
+            <option value="all">All</option>
             <option value="saved">Saved</option>
             <option value="used">Used</option>
             <option value="archived">Archived</option>
@@ -448,56 +449,46 @@ export function TicketList({
             <option value="departure_desc">Latest departure</option>
           </select>
         </label>
-        <button className="ghost-button compact-button filter-reset" onClick={onResetFilters} type="button">
-          Clear filters
-        </button>
       </div>
 
-      <div className="ticket-list">
-        {tickets.length === 0 ? (
-          <div className="empty-state">
-            <strong>No matching tickets</strong>
-            <p>Try clearing filters or create a new flight or train record.</p>
-          </div>
-        ) : viewMode === "cards" ? (
-          tickets.map((ticket) =>
-            renderTicketCard(
-              ticket,
-              selectedId,
-              busyTicketId,
-              onSelect,
-              onEdit,
-              onDelete,
-              onUpdateStatus,
-            ),
-          )
-        ) : (
-          <div className="timeline-list">
-            {timelineGroups.map(([timelineKey, groupedTickets]) => (
-              <section className="timeline-group" key={timelineKey}>
-                <div className="timeline-marker">
-                  <span className="timeline-dot" />
-                  <strong>{timelineKey}</strong>
-                  <small>{`${groupedTickets.length} ticket(s)`}</small>
-                </div>
-                <div className="timeline-cards">
-                  {groupedTickets.map((ticket) =>
-                    renderTicketCard(
-                      ticket,
-                      selectedId,
-                      busyTicketId,
-                      onSelect,
-                      onEdit,
-                      onDelete,
-                      onUpdateStatus,
-                    ),
+      <button className="ghost-button compact-button filter-reset" onClick={onResetFilters} type="button">
+        Reset filters
+      </button>
+
+      {viewMode === "cards" ? (
+        <div className="ticket-list">
+          {tickets.length === 0 ? (
+            <div className="empty-state">
+              <strong>No tickets match the current filters.</strong>
+              <p>Try adjusting search terms, status filters, or import a new ticket.</p>
+            </div>
+          ) : (
+            tickets.map((ticket) =>
+              renderTicketCard(ticket, selectedId, busyTicketId, onSelect, onEdit, onDelete, onUpdateStatus),
+            )
+          )}
+        </div>
+      ) : (
+        <div className="timeline-list">
+          {timelineGroups.length === 0 ? (
+            <div className="empty-state">
+              <strong>No tickets match the current filters.</strong>
+              <p>Try adjusting search terms, status filters, or import a new ticket.</p>
+            </div>
+          ) : (
+            timelineGroups.map(([label, group]) => (
+              <div className="timeline-group" key={label}>
+                <div className="timeline-date">{label}</div>
+                <div className="timeline-items">
+                  {group.map((ticket) =>
+                    renderTicketCard(ticket, selectedId, busyTicketId, onSelect, onEdit, onDelete, onUpdateStatus),
                   )}
                 </div>
-              </section>
-            ))}
-          </div>
-        )}
-      </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </section>
   );
 }
