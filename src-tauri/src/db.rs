@@ -11,6 +11,7 @@ use std::{
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
@@ -300,6 +301,21 @@ pub fn export_backup(app: &AppHandle, backup_id: &str) -> Result<String, String>
 
     copy_dir_recursive(&backup_dir, &export_dir)?;
     Ok(export_dir.to_string_lossy().to_string())
+}
+
+pub fn export_archive_bundle(app: &AppHandle) -> Result<String, String> {
+    let backup = create_backup(app)?;
+    let backup_dir = backup_root_dir(app)?.join(&backup.id);
+    let export_root = export_root_dir(app)?;
+    fs::create_dir_all(&export_root).map_err(|err| err.to_string())?;
+
+    let archive_path = export_root.join(format!("{}-archive.zip", backup.id));
+    if archive_path.exists() {
+        fs::remove_file(&archive_path).map_err(|err| err.to_string())?;
+    }
+
+    compress_directory_to_zip(&backup_dir, &archive_path)?;
+    Ok(archive_path.to_string_lossy().to_string())
 }
 
 pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
@@ -1401,6 +1417,30 @@ fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn compress_directory_to_zip(source: &Path, destination: &Path) -> Result<(), String> {
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            "param([string]$Source,[string]$Destination) Compress-Archive -LiteralPath $Source -DestinationPath $Destination -Force",
+        ])
+        .arg(source.to_string_lossy().to_string())
+        .arg(destination.to_string_lossy().to_string())
+        .output()
+        .map_err(|err| err.to_string())?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if stderr.is_empty() {
+            "Failed to compress archive bundle.".to_string()
+        } else {
+            stderr
+        })
+    }
 }
 
 fn resolve_map_point(conn: &Connection, location: &TicketLocationPayload) -> MapPointPayload {

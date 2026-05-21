@@ -14,6 +14,7 @@ import {
   createTicket,
   deleteTicket,
   deleteTicketAttachment,
+  exportArchiveBundle,
   exportBackup,
   getBackupReadiness,
   getTicketDetail,
@@ -620,6 +621,25 @@ export default function App() {
     }
   };
 
+  const handleExportArchiveBundle = async () => {
+    setBackupBusy(true);
+    setErrorMessage("");
+    setBackupStatusMessage("");
+    setBackupNotice("");
+
+    try {
+      const archivePath = await exportArchiveBundle();
+      setBackupNotice(`Archive bundle exported: ${archivePath}`);
+      startTransition(() => {
+        setBackupStatusMessage(`整库压缩包已导出到：${archivePath}`);
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to export archive bundle.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -668,6 +688,7 @@ export default function App() {
               readiness={backupReadiness}
               isBusy={backupBusy}
               onCreateBackup={handleCreateBackup}
+              onExportArchiveBundle={handleExportArchiveBundle}
               onExportBackup={handleExportBackup}
               onRestoreBackup={handleRestoreBackup}
               statusMessage={backupNotice || backupStatusMessage}

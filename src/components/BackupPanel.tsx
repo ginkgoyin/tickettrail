@@ -6,6 +6,7 @@ interface BackupPanelProps {
   isBusy: boolean;
   statusMessage: string;
   onCreateBackup: () => void;
+  onExportArchiveBundle: () => void;
   onRestoreBackup: (backupId: string) => void;
   onExportBackup: (backupId: string) => void;
 }
@@ -30,6 +31,7 @@ export function BackupPanel({
   isBusy,
   statusMessage,
   onCreateBackup,
+  onExportArchiveBundle,
   onRestoreBackup,
   onExportBackup,
 }: BackupPanelProps) {
@@ -42,9 +44,19 @@ export function BackupPanel({
           <p className="eyebrow">Safety</p>
           <h3>Backups</h3>
         </div>
-        <button className="ghost-button compact-button" disabled={isBusy} onClick={onCreateBackup} type="button">
-          创建备份
-        </button>
+        <div className="backup-card-actions">
+          <button className="ghost-button compact-button" disabled={isBusy} onClick={onCreateBackup} type="button">
+            创建备份
+          </button>
+          <button
+            className="ghost-button compact-button"
+            disabled={isBusy}
+            onClick={onExportArchiveBundle}
+            type="button"
+          >
+            导出整库包
+          </button>
+        </div>
       </div>
 
       <p className="backup-copy">

@@ -528,3 +528,12 @@ export async function exportBackup(backupId: string): Promise<string> {
 
   return `Web fallback backup: ${backup.label}`;
 }
+
+export async function exportArchiveBundle(): Promise<string> {
+  if (supportsTauri()) {
+    return invoke<string>("export_archive_bundle");
+  }
+
+  const backup = await createBackup();
+  return `Web fallback archive: ${backup.label}`;
+}
