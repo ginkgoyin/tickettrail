@@ -17,6 +17,7 @@ export interface SavedFilterView {
   name: string;
   filters: TicketFilters;
   createdAt: string;
+  pinned: boolean;
 }
 
 interface TicketListProps {
@@ -30,6 +31,8 @@ interface TicketListProps {
   onResetFilters: () => void;
   onSaveCurrentView: (name: string) => void;
   onApplySavedView: (id: string) => void;
+  onRenameSavedView: (id: string, name: string) => void;
+  onTogglePinSavedView: (id: string) => void;
   onDeleteSavedView: (id: string) => void;
   onSelect: (id: string) => void;
   onEdit: (id: string) => void;
@@ -190,6 +193,8 @@ export function TicketList({
   onResetFilters,
   onSaveCurrentView,
   onApplySavedView,
+  onRenameSavedView,
+  onTogglePinSavedView,
   onDeleteSavedView,
   onSelect,
   onEdit,
@@ -247,6 +252,15 @@ export function TicketList({
 
     onSaveCurrentView(normalizedName);
     setSavedViewName("");
+  };
+
+  const handleRenameSavedView = (view: SavedFilterView) => {
+    const nextName = window.prompt("重命名筛选视图", view.name)?.trim();
+    if (!nextName || nextName === view.name) {
+      return;
+    }
+
+    onRenameSavedView(view.id, nextName);
   };
 
   return (
@@ -312,16 +326,36 @@ export function TicketList({
                 key={view.id}
               >
                 <button className="saved-view-apply" onClick={() => onApplySavedView(view.id)} type="button">
-                  {view.name}
+                  <span className="saved-view-name">
+                    {view.pinned ? "置顶" : "视图"} · {view.name}
+                  </span>
                 </button>
-                <button
-                  aria-label={`删除视图 ${view.name}`}
-                  className="saved-view-delete"
-                  onClick={() => onDeleteSavedView(view.id)}
-                  type="button"
-                >
-                  ×
-                </button>
+                <div className="saved-view-actions">
+                  <button
+                    aria-label={view.pinned ? `取消置顶 ${view.name}` : `置顶 ${view.name}`}
+                    className="saved-view-action-button"
+                    onClick={() => onTogglePinSavedView(view.id)}
+                    type="button"
+                  >
+                    {view.pinned ? "Unpin" : "Pin"}
+                  </button>
+                  <button
+                    aria-label={`重命名视图 ${view.name}`}
+                    className="saved-view-action-button"
+                    onClick={() => handleRenameSavedView(view)}
+                    type="button"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    aria-label={`删除视图 ${view.name}`}
+                    className="saved-view-delete"
+                    onClick={() => onDeleteSavedView(view.id)}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             ))
           )}

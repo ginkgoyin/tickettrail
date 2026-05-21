@@ -754,7 +754,8 @@ textarea {
 .saved-view-chip {
   display: flex;
   align-items: stretch;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -767,7 +768,8 @@ textarea {
 }
 
 .saved-view-apply,
-.saved-view-delete {
+.saved-view-delete,
+.saved-view-action-button {
   border: 0;
   color: inherit;
 }
@@ -781,6 +783,26 @@ textarea {
   background: transparent;
 }
 
+.saved-view-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saved-view-action-button {
+  padding: 0 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.76rem;
+}
+
 .saved-view-delete {
   width: 34px;
   border-radius: 12px;
@@ -788,6 +810,7 @@ textarea {
   color: #ffcab7;
 }
 
+.saved-view-chip.active .saved-view-action-button,
 .saved-view-chip.active .saved-view-delete {
   background: rgba(255, 255, 255, 0.08);
 }

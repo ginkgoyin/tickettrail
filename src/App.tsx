@@ -28,6 +28,42 @@ const defaultFilters: TicketFilters = {
 
 const savedViewsStorageKey = "tickettrail.saved-filter-views";
 
+function normalizeSavedViews(rawValue: unknown): SavedFilterView[] {
+  if (!Array.isArray(rawValue)) {
+    return [];
+  }
+
+  return rawValue
+    .filter((item): item is Partial<SavedFilterView> & { id: string; name: string; filters: TicketFilters } => {
+      return Boolean(
+        item &&
+          typeof item === "object" &&
+          typeof item.id === "string" &&
+          typeof item.name === "string" &&
+          item.filters &&
+          typeof item.filters === "object",
+      );
+    })
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      filters: {
+        query: item.filters.query ?? "",
+        ticketType: item.filters.ticketType ?? "all",
+        status: item.filters.status ?? "all",
+        sort: item.filters.sort ?? "created_desc",
+      },
+      createdAt: item.createdAt ?? new Date().toISOString(),
+      pinned: item.pinned ?? false,
+    }))
+    .sort((left, right) => {
+      if (left.pinned !== right.pinned) {
+        return left.pinned ? -1 : 1;
+      }
+      return right.createdAt.localeCompare(left.createdAt);
+    });
+}
+
 function buildDraftFromTicket(ticket: TicketRecord): TicketDraft {
   return {
     ticketType: ticket.ticketType,
@@ -154,8 +190,8 @@ export default function App() {
         return;
       }
 
-      const parsed = JSON.parse(storedValue) as SavedFilterView[];
-      setSavedViews(Array.isArray(parsed) ? parsed : []);
+      const parsed = JSON.parse(storedValue) as unknown;
+      setSavedViews(normalizeSavedViews(parsed));
     } catch {
       setSavedViews([]);
     }
@@ -405,9 +441,10 @@ export default function App() {
           name: normalizedName,
           filters: { ...filters },
           createdAt: new Date().toISOString(),
+          pinned: false,
         };
 
-        return [nextView, ...current.filter((view) => view.name !== normalizedName)];
+        return normalizeSavedViews([nextView, ...current.filter((view) => view.name !== normalizedName)]);
       });
     });
   };
@@ -426,6 +463,31 @@ export default function App() {
   const handleDeleteSavedView = (viewId: string) => {
     startTransition(() => {
       setSavedViews((current) => current.filter((view) => view.id !== viewId));
+    });
+  };
+
+  const handleRenameSavedView = (viewId: string, name: string) => {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      return;
+    }
+
+    startTransition(() => {
+      setSavedViews((current) =>
+        normalizeSavedViews(
+          current.map((view) => (view.id === viewId ? { ...view, name: normalizedName } : view)),
+        ),
+      );
+    });
+  };
+
+  const handleTogglePinSavedView = (viewId: string) => {
+    startTransition(() => {
+      setSavedViews((current) =>
+        normalizeSavedViews(
+          current.map((view) => (view.id === viewId ? { ...view, pinned: !view.pinned } : view)),
+        ),
+      );
     });
   };
 
@@ -495,9 +557,11 @@ export default function App() {
               onEdit={handleEditTicket}
               onApplySavedView={handleApplySavedView}
               onFiltersChange={setFilters}
+              onRenameSavedView={handleRenameSavedView}
               onResetFilters={() => setFilters(defaultFilters)}
               onSaveCurrentView={handleSaveCurrentView}
               onSelect={setSelectedId}
+              onTogglePinSavedView={handleTogglePinSavedView}
               onUpdateStatus={handleUpdateStatus}
               savedViews={savedViews}
               selectedId={selectedTicket?.id ?? ""}
