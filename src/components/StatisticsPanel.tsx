@@ -256,6 +256,24 @@ export function StatisticsPanel({
     });
   };
 
+  const handleClearAnalyticsContext = () => {
+    onApplyArchiveFilter({
+      query: "",
+      ticketType: "all",
+    });
+  };
+
+  const regionActiveLabel = useMemo(() => {
+    const query = activeArchiveContext.query.trim().toLowerCase();
+    if (!query || !activeModeMatches) {
+      return "";
+    }
+
+    return (
+      analytics.regionCounts.find((item) => item.label.toLowerCase() === query)?.label || ""
+    );
+  }, [activeArchiveContext.query, activeModeMatches, analytics.regionCounts]);
+
   return (
     <section className="panel analytics-panel">
       <div className="panel-heading">
@@ -319,6 +337,9 @@ export function StatisticsPanel({
         <button className="ghost-button compact-button" onClick={handleApplyScopeToArchive} type="button">
           Apply scope to archive
         </button>
+        <button className="ghost-button compact-button" onClick={handleClearAnalyticsContext} type="button">
+          Clear analytics context
+        </button>
       </div>
 
       <div className="analytics-summary-grid">
@@ -353,7 +374,12 @@ export function StatisticsPanel({
           onPickItem={(item) => onApplyArchiveFilter({ query: item.label, ticketType: mode })}
           title="Top cities / stations"
         />
-        <RankedList items={analytics.regionCounts} title="Top countries / regions" />
+        <RankedList
+          activeLabel={regionActiveLabel}
+          items={analytics.regionCounts}
+          onPickItem={(item) => onApplyArchiveFilter({ query: item.label, ticketType: mode })}
+          title="Top countries / regions"
+        />
 
         <article className="detail-card analytics-card">
           <span>Recent months</span>
