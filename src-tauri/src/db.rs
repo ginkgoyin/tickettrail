@@ -273,6 +273,22 @@ pub fn restore_backup(app: &AppHandle, backup_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn export_backup(app: &AppHandle, backup_id: &str) -> Result<String, String> {
+    let backup_dir = backup_root_dir(app)?.join(backup_id);
+    if !backup_dir.exists() {
+        return Err(format!("Backup {} was not found.", backup_id));
+    }
+
+    let export_root = export_root_dir(app)?;
+    let export_dir = export_root.join(backup_id);
+    if export_dir.exists() {
+        fs::remove_dir_all(&export_dir).map_err(|err| err.to_string())?;
+    }
+
+    copy_dir_recursive(&backup_dir, &export_dir)?;
+    Ok(export_dir.to_string_lossy().to_string())
+}
+
 pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
     let conn = open_connection(app)?;
     let mut stmt = conn
@@ -1334,6 +1350,16 @@ fn attachment_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
 fn backup_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
     Ok(data_dir.join("backups"))
+}
+
+fn export_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path_service = app.path();
+    let base_dir = path_service
+        .download_dir()
+        .or_else(|_| path_service.desktop_dir())
+        .or_else(|_| path_service.document_dir())
+        .unwrap_or_else(|_| path_service.app_data_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    Ok(base_dir.join("TicketTrail Backups"))
 }
 
 fn attachment_ticket_dir(app: &AppHandle, ticket_id: &str) -> Result<PathBuf, String> {

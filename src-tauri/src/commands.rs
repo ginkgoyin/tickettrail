@@ -96,6 +96,11 @@ pub fn restore_backup(app: AppHandle, backup_id: String) -> Result<(), String> {
 }
 
 #[command]
+pub fn export_backup(app: AppHandle, backup_id: String) -> Result<String, String> {
+    db::export_backup(&app, &backup_id)
+}
+
+#[command]
 pub fn create_stub_preview(code: String, route_label: String) -> StubPreviewPayload {
     StubPreviewPayload {
         title: "Ticket Stub Preview".into(),

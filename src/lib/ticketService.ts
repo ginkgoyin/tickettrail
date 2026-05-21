@@ -498,3 +498,16 @@ export async function restoreBackup(backupId: string): Promise<void> {
   writeFallbackTickets(backup.tickets);
   writeFallbackAttachments(backup.attachments);
 }
+
+export async function exportBackup(backupId: string): Promise<string> {
+  if (supportsTauri()) {
+    return invoke<string>("export_backup", { backupId });
+  }
+
+  const backup = readFallbackBackups().find((item) => item.id === backupId);
+  if (!backup) {
+    throw new Error("Backup record not found.");
+  }
+
+  return `Web fallback backup: ${backup.label}`;
+}

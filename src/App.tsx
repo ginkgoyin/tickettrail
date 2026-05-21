@@ -14,6 +14,7 @@ import {
   createTicket,
   deleteTicket,
   deleteTicketAttachment,
+  exportBackup,
   getTicketDetail,
   listBackups,
   listTickets,
@@ -163,6 +164,7 @@ export default function App() {
   const [savedViews, setSavedViews] = useState<SavedFilterView[]>([]);
   const [backups, setBackups] = useState<BackupRecord[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [backupStatusMessage, setBackupStatusMessage] = useState("");
   const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
   const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
 
@@ -518,11 +520,13 @@ export default function App() {
   const handleCreateBackup = async () => {
     setBackupBusy(true);
     setErrorMessage("");
+    setBackupStatusMessage("");
 
     try {
       const nextBackup = await createBackup();
       startTransition(() => {
         setBackups((current) => [nextBackup, ...current.filter((item) => item.id !== nextBackup.id)]);
+        setBackupStatusMessage(`已创建备份：${nextBackup.label}`);
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to create backup.");
@@ -538,10 +542,12 @@ export default function App() {
 
     setBackupBusy(true);
     setErrorMessage("");
+    setBackupStatusMessage("");
 
     try {
       await restoreBackup(backupId);
       const [restoredTickets, restoredBackups] = await Promise.all([listTickets(), listBackups()]);
+      const restoredBackup = restoredBackups.find((backup) => backup.id === backupId);
       startTransition(() => {
         setTickets(restoredTickets);
         setBackups(restoredBackups);
@@ -549,10 +555,30 @@ export default function App() {
         setEditingId("");
         setImportedDraft(null);
         setImportReview(null);
+        setBackupStatusMessage(
+          restoredBackup ? `已恢复备份：${restoredBackup.label}` : "已恢复选中的备份。",
+        );
         setDetailVersion((current) => current + 1);
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to restore backup.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleExportBackup = async (backupId: string) => {
+    setBackupBusy(true);
+    setErrorMessage("");
+    setBackupStatusMessage("");
+
+    try {
+      const exportPath = await exportBackup(backupId);
+      startTransition(() => {
+        setBackupStatusMessage(`备份已导出到：${exportPath}`);
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to export backup.");
     } finally {
       setBackupBusy(false);
     }
@@ -605,7 +631,9 @@ export default function App() {
               backups={backups}
               isBusy={backupBusy}
               onCreateBackup={handleCreateBackup}
+              onExportBackup={handleExportBackup}
               onRestoreBackup={handleRestoreBackup}
+              statusMessage={backupStatusMessage}
             />
             <StatisticsPanel
               activeArchiveContext={filters}

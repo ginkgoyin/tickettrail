@@ -3,8 +3,10 @@ import type { BackupRecord } from "../types/ticket";
 interface BackupPanelProps {
   backups: BackupRecord[];
   isBusy: boolean;
+  statusMessage: string;
   onCreateBackup: () => void;
   onRestoreBackup: (backupId: string) => void;
+  onExportBackup: (backupId: string) => void;
 }
 
 function formatDateTime(value: string) {
@@ -21,7 +23,16 @@ function formatSize(bytes: number) {
   return `${bytes} B`;
 }
 
-export function BackupPanel({ backups, isBusy, onCreateBackup, onRestoreBackup }: BackupPanelProps) {
+export function BackupPanel({
+  backups,
+  isBusy,
+  statusMessage,
+  onCreateBackup,
+  onRestoreBackup,
+  onExportBackup,
+}: BackupPanelProps) {
+  const latestBackup = backups[0];
+
   return (
     <section className="panel backup-panel">
       <div className="panel-heading">
@@ -37,6 +48,16 @@ export function BackupPanel({ backups, isBusy, onCreateBackup, onRestoreBackup }
       <p className="backup-copy">
         备份会保存当前 SQLite 数据库和附件目录。恢复后，当前票据和附件会被备份内容覆盖。
       </p>
+
+      {latestBackup ? (
+        <div className="backup-highlight">
+          <strong>最近一次备份</strong>
+          <span>{latestBackup.label}</span>
+          <small>{formatDateTime(latestBackup.createdAt)}</small>
+        </div>
+      ) : null}
+
+      {statusMessage ? <p className="backup-status">{statusMessage}</p> : null}
 
       <div className="backup-list">
         {backups.length === 0 ? (
@@ -57,6 +78,14 @@ export function BackupPanel({ backups, isBusy, onCreateBackup, onRestoreBackup }
                 <span>{formatSize(backup.databaseSizeBytes)}</span>
               </div>
               <div className="backup-card-actions">
+                <button
+                  className="ghost-button compact-button"
+                  disabled={isBusy}
+                  onClick={() => onExportBackup(backup.id)}
+                  type="button"
+                >
+                  导出备份
+                </button>
                 <button
                   className="ghost-button compact-button"
                   disabled={isBusy}

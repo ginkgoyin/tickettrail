@@ -222,6 +222,25 @@ button {
   color: var(--text-soft);
 }
 
+.backup-highlight {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(112, 212, 255, 0.16);
+  background: rgba(112, 212, 255, 0.08);
+}
+
+.backup-highlight span,
+.backup-highlight small,
+.backup-status {
+  color: var(--text-soft);
+}
+
+.backup-status {
+  margin: 0;
+}
+
 .backup-card {
   display: grid;
   gap: 10px;
