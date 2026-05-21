@@ -466,6 +466,23 @@ export default function App() {
     });
   };
 
+  const handleUpdateSavedView = (viewId: string) => {
+    startTransition(() => {
+      setSavedViews((current) =>
+        normalizeSavedViews(
+          current.map((view) =>
+            view.id === viewId
+              ? {
+                  ...view,
+                  filters: { ...filters },
+                }
+              : view,
+          ),
+        ),
+      );
+    });
+  };
+
   const handleRenameSavedView = (viewId: string, name: string) => {
     const normalizedName = name.trim();
     if (!normalizedName) {
@@ -562,6 +579,7 @@ export default function App() {
               onSaveCurrentView={handleSaveCurrentView}
               onSelect={setSelectedId}
               onTogglePinSavedView={handleTogglePinSavedView}
+              onUpdateSavedView={handleUpdateSavedView}
               onUpdateStatus={handleUpdateStatus}
               savedViews={savedViews}
               selectedId={selectedTicket?.id ?? ""}

@@ -31,6 +31,7 @@ interface TicketListProps {
   onResetFilters: () => void;
   onSaveCurrentView: (name: string) => void;
   onApplySavedView: (id: string) => void;
+  onUpdateSavedView: (id: string) => void;
   onRenameSavedView: (id: string, name: string) => void;
   onTogglePinSavedView: (id: string) => void;
   onDeleteSavedView: (id: string) => void;
@@ -193,6 +194,7 @@ export function TicketList({
   onResetFilters,
   onSaveCurrentView,
   onApplySavedView,
+  onUpdateSavedView,
   onRenameSavedView,
   onTogglePinSavedView,
   onDeleteSavedView,
@@ -332,12 +334,20 @@ export function TicketList({
                 </button>
                 <div className="saved-view-actions">
                   <button
+                    aria-label={`用当前条件更新 ${view.name}`}
+                    className="saved-view-action-button"
+                    onClick={() => onUpdateSavedView(view.id)}
+                    type="button"
+                  >
+                    更新
+                  </button>
+                  <button
                     aria-label={view.pinned ? `取消置顶 ${view.name}` : `置顶 ${view.name}`}
                     className="saved-view-action-button"
                     onClick={() => onTogglePinSavedView(view.id)}
                     type="button"
                   >
-                    {view.pinned ? "Unpin" : "Pin"}
+                    {view.pinned ? "取消置顶" : "置顶"}
                   </button>
                   <button
                     aria-label={`重命名视图 ${view.name}`}
@@ -345,7 +355,7 @@ export function TicketList({
                     onClick={() => handleRenameSavedView(view)}
                     type="button"
                   >
-                    Rename
+                    重命名
                   </button>
                   <button
                     aria-label={`删除视图 ${view.name}`}
