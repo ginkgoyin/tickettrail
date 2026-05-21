@@ -1,8 +1,9 @@
 use crate::{
     db,
     models::{
-        AirlinePayload, LocationDirectoryPayload, StubPreviewPayload, TicketAttachmentPayload,
-        TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
+        AirlinePayload, BackupRecordPayload, LocationDirectoryPayload, StubPreviewPayload,
+        TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
+        TicketRecordPayload,
     },
 };
 use tauri::command;
@@ -77,6 +78,21 @@ pub fn search_airlines(app: AppHandle, query: String) -> Result<Vec<AirlinePaylo
 #[command]
 pub fn search_locations(app: AppHandle, query: String) -> Result<Vec<LocationDirectoryPayload>, String> {
     db::search_locations(&app, &query)
+}
+
+#[command]
+pub fn list_backups(app: AppHandle) -> Result<Vec<BackupRecordPayload>, String> {
+    db::list_backups(&app)
+}
+
+#[command]
+pub fn create_backup(app: AppHandle) -> Result<BackupRecordPayload, String> {
+    db::create_backup(&app)
+}
+
+#[command]
+pub fn restore_backup(app: AppHandle, backup_id: String) -> Result<(), String> {
+    db::restore_backup(&app, &backup_id)
 }
 
 #[command]

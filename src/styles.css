@@ -211,6 +211,41 @@ button {
   gap: 16px;
 }
 
+.backup-panel,
+.backup-list {
+  display: grid;
+  gap: 14px;
+}
+
+.backup-copy {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.backup-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.backup-card-main,
+.backup-card-meta,
+.backup-card-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.backup-card-main span,
+.backup-card-meta span {
+  color: var(--text-soft);
+  font-size: 0.86rem;
+}
+
 .import-actions {
   display: flex;
   gap: 12px;

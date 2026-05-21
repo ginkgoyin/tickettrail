@@ -179,3 +179,14 @@ pub struct LocationDirectoryPayload {
     pub timezone: Option<String>,
     pub country_code: Option<String>,
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupRecordPayload {
+    pub id: String,
+    pub label: String,
+    pub created_at: String,
+    pub ticket_count: usize,
+    pub attachment_count: usize,
+    pub database_size_bytes: u64,
+}

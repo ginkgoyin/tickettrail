@@ -1,10 +1,10 @@
 use crate::models::{
-    AirlinePayload, LocationDirectoryPayload, MapPointPayload, MapRoutePayload, MapViewportPayload,
-    MapSegmentPayload, StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
-    TicketDetailPayload, TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
-    TicketSegmentPayload,
+    AirlinePayload, BackupRecordPayload, LocationDirectoryPayload, MapPointPayload, MapRoutePayload,
+    MapViewportPayload, MapSegmentPayload, StubPreviewPayload, TicketAttachmentPayload,
+    TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketLocationPayload,
+    TicketRecordPayload, TicketSegmentPayload,
 };
-use chrono::{LocalResult, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, LocalResult, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use rusqlite::{params, Connection, Row};
 use std::{
@@ -66,6 +66,17 @@ struct AttachmentRowData {
     file_size: i64,
     file_path: String,
     created_at: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BackupManifest {
+    id: String,
+    label: String,
+    created_at: String,
+    ticket_count: usize,
+    attachment_count: usize,
+    database_size_bytes: u64,
 }
 
 pub fn search_airlines(app: &AppHandle, query: &str) -> Result<Vec<AirlinePayload>, String> {
@@ -149,6 +160,117 @@ pub fn search_locations(app: &AppHandle, query: &str) -> Result<Vec<LocationDire
     };
 
     rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+}
+
+pub fn list_backups(app: &AppHandle) -> Result<Vec<BackupRecordPayload>, String> {
+    let backup_root = backup_root_dir(app)?;
+    if !backup_root.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut backups = Vec::new();
+    for entry in fs::read_dir(&backup_root).map_err(|err| err.to_string())? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        if !entry.file_type().map_err(|err| err.to_string())?.is_dir() {
+            continue;
+        }
+
+        let manifest_path = entry.path().join("backup.json");
+        if !manifest_path.exists() {
+            continue;
+        }
+
+        let manifest_text = fs::read_to_string(&manifest_path).map_err(|err| err.to_string())?;
+        let manifest =
+            serde_json::from_str::<BackupManifest>(&manifest_text).map_err(|err| err.to_string())?;
+        backups.push(BackupRecordPayload {
+            id: manifest.id,
+            label: manifest.label,
+            created_at: manifest.created_at,
+            ticket_count: manifest.ticket_count,
+            attachment_count: manifest.attachment_count,
+            database_size_bytes: manifest.database_size_bytes,
+        });
+    }
+
+    backups.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+    Ok(backups)
+}
+
+pub fn create_backup(app: &AppHandle) -> Result<BackupRecordPayload, String> {
+    let conn = open_connection(app)?;
+    let ticket_count = list_tickets(app)?.len();
+    let attachment_count = count_attachments(&conn)?;
+    drop(conn);
+
+    let created_at = Utc::now().to_rfc3339();
+    let created_at_dt = DateTime::parse_from_rfc3339(&created_at).map_err(|err| err.to_string())?;
+    let backup_id = format!("backup-{}", created_at_dt.format("%Y%m%d-%H%M%S"));
+    let backup_dir = backup_root_dir(app)?.join(&backup_id);
+    fs::create_dir_all(&backup_dir).map_err(|err| err.to_string())?;
+
+    let db_source = database_path(app)?;
+    let db_destination = backup_dir.join("tickettrail.sqlite3");
+    fs::copy(&db_source, &db_destination).map_err(|err| err.to_string())?;
+
+    let attachment_source = attachment_root_dir(app)?;
+    let attachment_destination = backup_dir.join("attachments");
+    if attachment_source.exists() {
+        copy_dir_recursive(&attachment_source, &attachment_destination)?;
+    }
+
+    let database_size_bytes = fs::metadata(&db_destination)
+        .map_err(|err| err.to_string())?
+        .len();
+    let manifest = BackupManifest {
+        id: backup_id.clone(),
+        label: format!("Backup {}", created_at_dt.format("%Y-%m-%d %H:%M:%S")),
+        created_at: created_at.clone(),
+        ticket_count,
+        attachment_count,
+        database_size_bytes,
+    };
+
+    let manifest_text = serde_json::to_string_pretty(&manifest).map_err(|err| err.to_string())?;
+    fs::write(backup_dir.join("backup.json"), manifest_text).map_err(|err| err.to_string())?;
+
+    Ok(BackupRecordPayload {
+        id: manifest.id,
+        label: manifest.label,
+        created_at: manifest.created_at,
+        ticket_count: manifest.ticket_count,
+        attachment_count: manifest.attachment_count,
+        database_size_bytes: manifest.database_size_bytes,
+    })
+}
+
+pub fn restore_backup(app: &AppHandle, backup_id: &str) -> Result<(), String> {
+    let backup_dir = backup_root_dir(app)?.join(backup_id);
+    let backup_db = backup_dir.join("tickettrail.sqlite3");
+    if !backup_db.exists() {
+        return Err(format!("Backup {} was not found.", backup_id));
+    }
+
+    let target_db = database_path(app)?;
+    if let Some(parent) = target_db.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    fs::copy(&backup_db, &target_db).map_err(|err| err.to_string())?;
+
+    let target_attachments = attachment_root_dir(app)?;
+    if target_attachments.exists() {
+        fs::remove_dir_all(&target_attachments).map_err(|err| err.to_string())?;
+    }
+
+    let backup_attachments = backup_dir.join("attachments");
+    if backup_attachments.exists() {
+        copy_dir_recursive(&backup_attachments, &target_attachments)?;
+    } else {
+        fs::create_dir_all(&target_attachments).map_err(|err| err.to_string())?;
+    }
+
+    let _ = open_connection(app)?;
+    Ok(())
 }
 
 pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
@@ -1209,8 +1331,37 @@ fn attachment_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(data_dir.join("attachments"))
 }
 
+fn backup_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
+    Ok(data_dir.join("backups"))
+}
+
 fn attachment_ticket_dir(app: &AppHandle, ticket_id: &str) -> Result<PathBuf, String> {
     Ok(attachment_root_dir(app)?.join(ticket_id))
+}
+
+fn count_attachments(conn: &Connection) -> Result<usize, String> {
+    conn.query_row("SELECT COUNT(*) FROM ticket_attachments", [], |row| row.get::<_, i64>(0))
+        .map(|count| count.max(0) as usize)
+        .map_err(|err| err.to_string())
+}
+
+fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir_all(destination).map_err(|err| err.to_string())?;
+
+    for entry in fs::read_dir(source).map_err(|err| err.to_string())? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        let file_type = entry.file_type().map_err(|err| err.to_string())?;
+        let next_destination = destination.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_dir_recursive(&entry.path(), &next_destination)?;
+        } else {
+            fs::copy(entry.path(), next_destination).map_err(|err| err.to_string())?;
+        }
+    }
+
+    Ok(())
 }
 
 fn resolve_map_point(conn: &Connection, location: &TicketLocationPayload) -> MapPointPayload {

@@ -143,3 +143,12 @@ export interface TicketDetailPayload {
   stub: StubPreviewPayload;
   attachments: TicketAttachment[];
 }
+
+export interface BackupRecord {
+  id: string;
+  label: string;
+  createdAt: string;
+  ticketCount: number;
+  attachmentCount: number;
+  databaseSizeBytes: number;
+}

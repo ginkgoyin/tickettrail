@@ -1,4 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { BackupPanel } from "./components/BackupPanel";
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
@@ -9,15 +10,18 @@ import { TicketList, type SavedFilterView, type TicketFilters, type TicketSort }
 import { reviewImportedDraft, type ImportFieldReview, type ImportParseResult } from "./lib/importParser";
 import {
   addTicketAttachment,
+  createBackup,
   createTicket,
   deleteTicket,
   deleteTicketAttachment,
   getTicketDetail,
+  listBackups,
   listTickets,
+  restoreBackup,
   updateTicket,
   updateTicketStatus,
 } from "./lib/ticketService";
-import type { TicketDetailPayload, TicketDraft, TicketRecord, TicketStatus } from "./types/ticket";
+import type { BackupRecord, TicketDetailPayload, TicketDraft, TicketRecord, TicketStatus } from "./types/ticket";
 
 const defaultFilters: TicketFilters = {
   query: "",
@@ -157,6 +161,8 @@ export default function App() {
   const [detailVersion, setDetailVersion] = useState(0);
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
   const [savedViews, setSavedViews] = useState<SavedFilterView[]>([]);
+  const [backups, setBackups] = useState<BackupRecord[]>([]);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
   const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
 
@@ -204,15 +210,16 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadTickets = async () => {
+    const loadArchiveState = async () => {
       try {
-        const storedTickets = await listTickets();
+        const [storedTickets, storedBackups] = await Promise.all([listTickets(), listBackups()]);
         if (!isMounted) {
           return;
         }
 
         startTransition(() => {
           setTickets(storedTickets);
+          setBackups(storedBackups);
           setSelectedId(storedTickets[0]?.id ?? "");
         });
       } catch (error) {
@@ -226,7 +233,7 @@ export default function App() {
       }
     };
 
-    void loadTickets();
+    void loadArchiveState();
 
     return () => {
       isMounted = false;
@@ -508,6 +515,49 @@ export default function App() {
     });
   };
 
+  const handleCreateBackup = async () => {
+    setBackupBusy(true);
+    setErrorMessage("");
+
+    try {
+      const nextBackup = await createBackup();
+      startTransition(() => {
+        setBackups((current) => [nextBackup, ...current.filter((item) => item.id !== nextBackup.id)]);
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to create backup.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleRestoreBackup = async (backupId: string) => {
+    if (!window.confirm("恢复备份会覆盖当前数据库和附件，确定继续吗？")) {
+      return;
+    }
+
+    setBackupBusy(true);
+    setErrorMessage("");
+
+    try {
+      await restoreBackup(backupId);
+      const [restoredTickets, restoredBackups] = await Promise.all([listTickets(), listBackups()]);
+      startTransition(() => {
+        setTickets(restoredTickets);
+        setBackups(restoredBackups);
+        setSelectedId(restoredTickets[0]?.id ?? "");
+        setEditingId("");
+        setImportedDraft(null);
+        setImportReview(null);
+        setDetailVersion((current) => current + 1);
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to restore backup.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -551,6 +601,12 @@ export default function App() {
         <section className="content-grid">
           <div className="panel-stack">
             <SmartImport onApplyImport={handleApplyImport} />
+            <BackupPanel
+              backups={backups}
+              isBusy={backupBusy}
+              onCreateBackup={handleCreateBackup}
+              onRestoreBackup={handleRestoreBackup}
+            />
             <StatisticsPanel
               activeArchiveContext={filters}
               onApplyArchiveFilter={handleApplyAnalyticsFilter}

@@ -3,6 +3,7 @@ import airlineSeedData from "../data/airlines.seed.json";
 import locationSeedData from "../data/locations.seed.json";
 import type {
   AirlineDirectoryEntry,
+  BackupRecord,
   LocationDirectoryEntry,
   TicketAttachment,
   TicketAttachmentUpload,
@@ -15,6 +16,7 @@ import type {
 
 const STORAGE_KEY = "tickettrail.web-fallback.tickets";
 const ATTACHMENT_STORAGE_KEY = "tickettrail.web-fallback.attachments";
+const BACKUP_STORAGE_KEY = "tickettrail.web-fallback.backups";
 const AIRLINE_SEED = airlineSeedData as AirlineDirectoryEntry[];
 const LOCATION_SEED = locationSeedData as LocationDirectoryEntry[];
 
@@ -96,6 +98,34 @@ function readFallbackAttachments(): Record<string, TicketAttachment[]> {
 function writeFallbackAttachments(attachments: Record<string, TicketAttachment[]>) {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(ATTACHMENT_STORAGE_KEY, JSON.stringify(attachments));
+  }
+}
+
+interface WebFallbackBackupSnapshot extends BackupRecord {
+  tickets: TicketRecord[];
+  attachments: Record<string, TicketAttachment[]>;
+}
+
+function readFallbackBackups(): WebFallbackBackupSnapshot[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const stored = window.localStorage.getItem(BACKUP_STORAGE_KEY);
+  if (!stored) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(stored) as WebFallbackBackupSnapshot[];
+  } catch {
+    return [];
+  }
+}
+
+function writeFallbackBackups(backups: WebFallbackBackupSnapshot[]) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(backups));
   }
 }
 
@@ -415,4 +445,56 @@ export async function searchLocations(query: string): Promise<LocationDirectoryE
   }
 
   return LOCATION_SEED.filter((entry) => matchesLocationQuery(entry, query)).slice(0, 8);
+}
+
+export async function listBackups(): Promise<BackupRecord[]> {
+  if (supportsTauri()) {
+    return invoke<BackupRecord[]>("list_backups");
+  }
+
+  return readFallbackBackups().map(({ tickets, attachments, ...backup }) => ({
+    ...backup,
+    attachmentCount:
+      backup.attachmentCount ??
+      Object.values(attachments).reduce((sum, items) => sum + items.length, 0),
+    ticketCount: backup.ticketCount ?? tickets.length,
+  }));
+}
+
+export async function createBackup(): Promise<BackupRecord> {
+  if (supportsTauri()) {
+    return invoke<BackupRecord>("create_backup");
+  }
+
+  const tickets = readFallbackTickets();
+  const attachments = readFallbackAttachments();
+  const createdAt = new Date().toISOString();
+  const nextBackup: WebFallbackBackupSnapshot = {
+    id: `backup-${Date.now()}`,
+    label: `Backup ${createdAt.slice(0, 19).replace("T", " ")}`,
+    createdAt,
+    ticketCount: tickets.length,
+    attachmentCount: Object.values(attachments).reduce((sum, items) => sum + items.length, 0),
+    databaseSizeBytes: new Blob([JSON.stringify({ tickets, attachments })]).size,
+    tickets,
+    attachments,
+  };
+
+  writeFallbackBackups([nextBackup, ...readFallbackBackups()]);
+  return nextBackup;
+}
+
+export async function restoreBackup(backupId: string): Promise<void> {
+  if (supportsTauri()) {
+    await invoke("restore_backup", { backupId });
+    return;
+  }
+
+  const backup = readFallbackBackups().find((item) => item.id === backupId);
+  if (!backup) {
+    throw new Error("Backup record not found.");
+  }
+
+  writeFallbackTickets(backup.tickets);
+  writeFallbackAttachments(backup.attachments);
 }
