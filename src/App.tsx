@@ -5,7 +5,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SmartImport } from "./components/SmartImport";
 import { StatisticsPanel } from "./components/StatisticsPanel";
 import { TicketForm } from "./components/TicketForm";
-import { TicketList } from "./components/TicketList";
+import { TicketList, type SavedFilterView, type TicketFilters, type TicketSort } from "./components/TicketList";
 import { reviewImportedDraft, type ImportFieldReview, type ImportParseResult } from "./lib/importParser";
 import {
   addTicketAttachment,
@@ -17,16 +17,7 @@ import {
   updateTicket,
   updateTicketStatus,
 } from "./lib/ticketService";
-import type { TicketDetailPayload, TicketDraft, TicketRecord, TicketStatus, TicketType } from "./types/ticket";
-
-type TicketSort = "created_desc" | "created_asc" | "departure_asc" | "departure_desc";
-
-interface TicketFilters {
-  query: string;
-  ticketType: "all" | TicketType;
-  status: "all" | Exclude<TicketStatus, "draft">;
-  sort: TicketSort;
-}
+import type { TicketDetailPayload, TicketDraft, TicketRecord, TicketStatus } from "./types/ticket";
 
 const defaultFilters: TicketFilters = {
   query: "",
@@ -34,6 +25,8 @@ const defaultFilters: TicketFilters = {
   status: "all",
   sort: "created_desc",
 };
+
+const savedViewsStorageKey = "tickettrail.saved-filter-views";
 
 function buildDraftFromTicket(ticket: TicketRecord): TicketDraft {
   return {
@@ -127,6 +120,7 @@ export default function App() {
   const [selectedDetail, setSelectedDetail] = useState<TicketDetailPayload | null>(null);
   const [detailVersion, setDetailVersion] = useState(0);
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
+  const [savedViews, setSavedViews] = useState<SavedFilterView[]>([]);
   const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
   const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
 
@@ -152,6 +146,24 @@ export default function App() {
   const selectedTicket = visibleTickets.find((ticket) => ticket.id === selectedId) ?? visibleTickets[0] ?? null;
   const editingTicket = tickets.find((ticket) => ticket.id === editingId) ?? null;
   const formDraft = useMemo(() => (editingTicket ? buildDraftFromTicket(editingTicket) : null), [editingTicket]);
+
+  useEffect(() => {
+    try {
+      const storedValue = window.localStorage.getItem(savedViewsStorageKey);
+      if (!storedValue) {
+        return;
+      }
+
+      const parsed = JSON.parse(storedValue) as SavedFilterView[];
+      setSavedViews(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSavedViews([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(savedViewsStorageKey, JSON.stringify(savedViews));
+  }, [savedViews]);
 
   useEffect(() => {
     let isMounted = true;
@@ -380,6 +392,43 @@ export default function App() {
     });
   };
 
+  const handleSaveCurrentView = (name: string) => {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      return;
+    }
+
+    startTransition(() => {
+      setSavedViews((current) => {
+        const nextView: SavedFilterView = {
+          id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`,
+          name: normalizedName,
+          filters: { ...filters },
+          createdAt: new Date().toISOString(),
+        };
+
+        return [nextView, ...current.filter((view) => view.name !== normalizedName)];
+      });
+    });
+  };
+
+  const handleApplySavedView = (viewId: string) => {
+    const matchedView = savedViews.find((view) => view.id === viewId);
+    if (!matchedView) {
+      return;
+    }
+
+    startTransition(() => {
+      setFilters({ ...matchedView.filters });
+    });
+  };
+
+  const handleDeleteSavedView = (viewId: string) => {
+    startTransition(() => {
+      setSavedViews((current) => current.filter((view) => view.id !== viewId));
+    });
+  };
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -442,11 +491,15 @@ export default function App() {
               busyTicketId={busyTicketId}
               filters={filters}
               onDelete={handleDeleteTicket}
+              onDeleteSavedView={handleDeleteSavedView}
               onEdit={handleEditTicket}
+              onApplySavedView={handleApplySavedView}
               onFiltersChange={setFilters}
               onResetFilters={() => setFilters(defaultFilters)}
+              onSaveCurrentView={handleSaveCurrentView}
               onSelect={setSelectedId}
               onUpdateStatus={handleUpdateStatus}
+              savedViews={savedViews}
               selectedId={selectedTicket?.id ?? ""}
               tickets={visibleTickets}
               totalCount={tickets.length}

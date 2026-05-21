@@ -2,14 +2,21 @@ import { useMemo, useState } from "react";
 import { exportTextFile } from "../lib/visualization";
 import type { TicketRecord, TicketStatus, TicketType } from "../types/ticket";
 
-type TicketSort = "created_desc" | "created_asc" | "departure_asc" | "departure_desc";
+export type TicketSort = "created_desc" | "created_asc" | "departure_asc" | "departure_desc";
 type TicketListView = "cards" | "timeline";
 
-interface TicketFilters {
+export interface TicketFilters {
   query: string;
   ticketType: "all" | TicketType;
   status: "all" | Exclude<TicketStatus, "draft">;
   sort: TicketSort;
+}
+
+export interface SavedFilterView {
+  id: string;
+  name: string;
+  filters: TicketFilters;
+  createdAt: string;
 }
 
 interface TicketListProps {
@@ -18,8 +25,12 @@ interface TicketListProps {
   selectedId: string;
   busyTicketId?: string;
   filters: TicketFilters;
+  savedViews: SavedFilterView[];
   onFiltersChange: (filters: TicketFilters) => void;
   onResetFilters: () => void;
+  onSaveCurrentView: (name: string) => void;
+  onApplySavedView: (id: string) => void;
+  onDeleteSavedView: (id: string) => void;
   onSelect: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
@@ -174,14 +185,19 @@ export function TicketList({
   selectedId,
   busyTicketId,
   filters,
+  savedViews,
   onFiltersChange,
   onResetFilters,
+  onSaveCurrentView,
+  onApplySavedView,
+  onDeleteSavedView,
   onSelect,
   onEdit,
   onDelete,
   onUpdateStatus,
 }: TicketListProps) {
   const [viewMode, setViewMode] = useState<TicketListView>("cards");
+  const [savedViewName, setSavedViewName] = useState("");
   const timelineGroups = useMemo(() => {
     const groups = new Map<string, TicketRecord[]>();
 
@@ -212,6 +228,25 @@ export function TicketList({
       buildBatchExportCsv(tickets),
       "text/csv;charset=utf-8",
     );
+  };
+
+  const activeSavedViewId =
+    savedViews.find(
+      (view) =>
+        view.filters.query === filters.query &&
+        view.filters.ticketType === filters.ticketType &&
+        view.filters.status === filters.status &&
+        view.filters.sort === filters.sort,
+    )?.id ?? "";
+
+  const handleSaveCurrentView = () => {
+    const normalizedName = savedViewName.trim();
+    if (!normalizedName) {
+      return;
+    }
+
+    onSaveCurrentView(normalizedName);
+    setSavedViewName("");
   };
 
   return (
@@ -250,6 +285,46 @@ export function TicketList({
           <button className="ghost-button compact-button" onClick={() => handleBatchExport("csv")} type="button">
             导出当前 CSV
           </button>
+        </div>
+      </div>
+
+      <div className="saved-views-panel">
+        <div className="saved-view-form">
+          <label>
+            保存筛选视图
+            <input
+              onChange={(event) => setSavedViewName(event.target.value)}
+              placeholder="例如：国际航班 / 日本行程"
+              value={savedViewName}
+            />
+          </label>
+          <button className="ghost-button compact-button filter-reset" onClick={handleSaveCurrentView} type="button">
+            保存当前视图
+          </button>
+        </div>
+        <div className="saved-views-row">
+          {savedViews.length === 0 ? (
+            <span className="saved-view-empty">还没有保存的常用视图</span>
+          ) : (
+            savedViews.map((view) => (
+              <div
+                className={view.id === activeSavedViewId ? "saved-view-chip active" : "saved-view-chip"}
+                key={view.id}
+              >
+                <button className="saved-view-apply" onClick={() => onApplySavedView(view.id)} type="button">
+                  {view.name}
+                </button>
+                <button
+                  aria-label={`删除视图 ${view.name}`}
+                  className="saved-view-delete"
+                  onClick={() => onDeleteSavedView(view.id)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

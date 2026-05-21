@@ -726,6 +726,72 @@ textarea {
   align-items: center;
 }
 
+.saved-views-panel,
+.saved-view-form,
+.saved-views-row {
+  display: grid;
+  gap: 12px;
+}
+
+.saved-views-panel {
+  margin-bottom: 16px;
+}
+
+.saved-view-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.saved-views-row {
+  grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
+}
+
+.saved-view-empty {
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+.saved-view-chip {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.saved-view-chip.active {
+  border-color: rgba(255, 177, 90, 0.22);
+  background: rgba(255, 177, 90, 0.12);
+}
+
+.saved-view-apply,
+.saved-view-delete {
+  border: 0;
+  color: inherit;
+}
+
+.saved-view-apply {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  text-align: left;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.saved-view-delete {
+  width: 34px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffcab7;
+}
+
+.saved-view-chip.active .saved-view-delete {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .ticket-filters {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 0.8fr)) auto;
@@ -1239,6 +1305,10 @@ textarea {
   }
 
   .ticket-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-view-form {
     grid-template-columns: 1fr;
   }
 }
