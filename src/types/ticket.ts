@@ -109,6 +109,7 @@ export interface MapRoutePayload {
 
 export interface MapSegmentPayload {
   segmentIndex: number;
+  ticketId?: string;
   transportType: TicketType;
   carrierName: string;
   code: string;

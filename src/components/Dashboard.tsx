@@ -29,6 +29,7 @@ interface DashboardProps {
   attachmentBusy: boolean;
   onAddAttachment: (file: File) => Promise<void>;
   onDeleteAttachment: (attachmentId: string) => Promise<void>;
+  onSelectTicket: (ticketId: string) => void;
 }
 
 function isImageAttachment(attachment: TicketAttachment) {
@@ -89,7 +90,12 @@ function buildTicketExportCsv(detail: TicketDetailPayload) {
 
 function buildScopeMapPayload(details: TicketDetailPayload[]) {
   const segments = details
-    .flatMap((detail) => detail.segments)
+    .flatMap((detail) =>
+      detail.segments.map((segment) => ({
+        ...segment,
+        ticketId: detail.ticket.id,
+      })),
+    )
     .map((segment, index) => ({
       ...segment,
       segmentIndex: index,
@@ -151,6 +157,7 @@ export function Dashboard({
   attachmentBusy,
   onAddAttachment,
   onDeleteAttachment,
+  onSelectTicket,
 }: DashboardProps) {
   const [exportMessage, setExportMessage] = useState("");
   const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
@@ -347,6 +354,15 @@ export function Dashboard({
     setExportMessage("当前筛选范围路线 SVG 已导出。");
   };
 
+  const handleSelectScopeSegment = (segment: MapSegmentPayload) => {
+    if (!segment.ticketId) {
+      return;
+    }
+
+    onSelectTicket(segment.ticketId);
+    setExportMessage(`已切换到 ${segment.lineLabel} 对应票据。`);
+  };
+
   const handleChooseAttachment = () => {
     fileInputRef.current?.click();
   };
@@ -483,7 +499,12 @@ export function Dashboard({
             <span className="status-pill">{`${scopeMap.points.length} points`}</span>
           </div>
           <Suspense fallback={<p className="detail-loading">正在加载筛选范围路线地图...</p>}>
-            <RouteMap points={scopeMap.points} route={scopeMap.route} segments={scopeMap.segments} />
+            <RouteMap
+              onSegmentSelect={handleSelectScopeSegment}
+              points={scopeMap.points}
+              route={scopeMap.route}
+              segments={scopeMap.segments}
+            />
           </Suspense>
           <div className="map-summary">
             <span>{scopeMap.route.directionHint}</span>

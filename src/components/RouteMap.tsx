@@ -6,6 +6,7 @@ interface RouteMapProps {
   route: MapRoutePayload;
   segments?: MapSegmentPayload[];
   points?: MapPointPayload[];
+  onSegmentSelect?: (segment: MapSegmentPayload) => void;
 }
 
 function createMarkerElement(kind: "origin" | "destination" | "waypoint", label: string, code?: string) {
@@ -41,7 +42,7 @@ function buildActiveSegments(route: MapRoutePayload, segments: MapSegmentPayload
   ] satisfies MapSegmentPayload[];
 }
 
-export function RouteMap({ route, segments = [], points = [] }: RouteMapProps) {
+export function RouteMap({ route, segments = [], points = [], onSegmentSelect }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRefs = useRef<maplibregl.Marker[]>([]);
@@ -112,6 +113,64 @@ export function RouteMap({ route, segments = [], points = [] }: RouteMapProps) {
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || !onSegmentSelect) {
+      return;
+    }
+
+    const handleClick = (event: maplibregl.MapLayerMouseEvent) => {
+      const segmentIndex = Number(event.features?.[0]?.properties?.segmentIndex);
+      const activeSegment = buildActiveSegments(route, segments).find(
+        (segment) => segment.segmentIndex === segmentIndex,
+      );
+
+      if (activeSegment) {
+        onSegmentSelect(activeSegment);
+      }
+    };
+
+    const handleEnter = () => {
+      map.getCanvas().style.cursor = "pointer";
+    };
+
+    const handleLeave = () => {
+      map.getCanvas().style.cursor = "";
+    };
+
+    const bindLayerEvents = () => {
+      if (!map.getLayer("route-line-layer")) {
+        return;
+      }
+
+      map.on("click", "route-line-layer", handleClick);
+      map.on("mouseenter", "route-line-layer", handleEnter);
+      map.on("mouseleave", "route-line-layer", handleLeave);
+    };
+
+    const unbindLayerEvents = () => {
+      if (!map.getLayer("route-line-layer")) {
+        return;
+      }
+
+      map.off("click", "route-line-layer", handleClick);
+      map.off("mouseenter", "route-line-layer", handleEnter);
+      map.off("mouseleave", "route-line-layer", handleLeave);
+      map.getCanvas().style.cursor = "";
+    };
+
+    if (map.isStyleLoaded()) {
+      bindLayerEvents();
+    } else {
+      map.once("load", bindLayerEvents);
+    }
+
+    return () => {
+      map.off("load", bindLayerEvents);
+      unbindLayerEvents();
+    };
+  }, [onSegmentSelect, route, segments]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map) {
       return;
     }
@@ -127,6 +186,7 @@ export function RouteMap({ route, segments = [], points = [] }: RouteMapProps) {
             type: "Feature",
             properties: {
               segmentIndex: segment.segmentIndex,
+              ticketId: segment.ticketId || "",
             },
             geometry: {
               type: "LineString",

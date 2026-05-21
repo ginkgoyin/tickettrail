@@ -448,6 +448,7 @@ export default function App() {
             isLoading={detailLoading}
             onAddAttachment={handleAddAttachment}
             onDeleteAttachment={handleDeleteAttachment}
+            onSelectTicket={setSelectedId}
             ticket={selectedTicket}
             ticketsInView={visibleTickets}
             totalCount={tickets.length}
