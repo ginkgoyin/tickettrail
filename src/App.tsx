@@ -452,6 +452,7 @@ export default function App() {
             />
           </div>
           <Dashboard
+            activeArchiveContext={filters}
             attachmentBusy={attachmentBusy}
             detail={selectedDetail}
             isLoading={detailLoading}

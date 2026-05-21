@@ -26,6 +26,12 @@ interface DashboardProps {
   ticket: TicketRecord | null;
   ticketsInView: TicketRecord[];
   totalCount: number;
+  activeArchiveContext: {
+    query: string;
+    ticketType: "all" | "flight" | "train";
+    status: "all" | "saved" | "used" | "archived";
+    sort: string;
+  };
   attachmentBusy: boolean;
   onAddAttachment: (file: File) => Promise<void>;
   onDeleteAttachment: (attachmentId: string) => Promise<void>;
@@ -155,6 +161,7 @@ export function Dashboard({
   ticket,
   ticketsInView,
   totalCount,
+  activeArchiveContext,
   attachmentBusy,
   onAddAttachment,
   onDeleteAttachment,
@@ -290,6 +297,23 @@ export function Dashboard({
     () => (scopeMap ? buildMapSvgFromSegments(scopeMap.route, scopeMap.segments) : ""),
     [scopeMap],
   );
+  const activeContextBadges = useMemo(() => {
+    const badges: string[] = [];
+
+    if (activeArchiveContext.query.trim()) {
+      badges.push(`Query: ${activeArchiveContext.query.trim()}`);
+    }
+    if (activeArchiveContext.ticketType !== "all") {
+      badges.push(
+        activeArchiveContext.ticketType === "flight" ? "Type: Flight" : "Type: Rail",
+      );
+    }
+    if (activeArchiveContext.status !== "all") {
+      badges.push(`Status: ${activeArchiveContext.status}`);
+    }
+
+    return badges;
+  }, [activeArchiveContext]);
 
   const handleExportSvg = (kind: "map" | "stub") => {
     if (!activeDetail) {
@@ -444,6 +468,15 @@ export function Dashboard({
             </div>
             <span className="status-pill">{`${ticketsInView.length} / ${totalCount}`}</span>
           </div>
+          {activeContextBadges.length ? (
+            <div className="context-chip-row">
+              {activeContextBadges.map((badge) => (
+                <span className="field-meta-chip context-chip" key={badge}>
+                  {badge}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <div className="detail-grid itinerary-overview-grid">
             <div>
               <span>Total segments</span>
@@ -506,6 +539,19 @@ export function Dashboard({
             </div>
             <span className="status-pill">{`${scopeMap.points.length} points`}</span>
           </div>
+          {activeContextBadges.length ? (
+            <div className="context-chip-row">
+              {activeContextBadges.map((badge) => (
+                <span className="field-meta-chip context-chip" key={`map-${badge}`}>
+                  {badge}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="detail-loading scope-context-copy">
+              Showing the full visible archive on the collection map.
+            </p>
+          )}
           <Suspense fallback={<p className="detail-loading">正在加载筛选范围路线地图...</p>}>
             <RouteMap
               onPointSelect={handleSelectScopePoint}
