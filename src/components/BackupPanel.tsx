@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { BackupReadiness, BackupRecord } from "../types/ticket";
 
 interface BackupPanelProps {
@@ -7,6 +8,7 @@ interface BackupPanelProps {
   statusMessage: string;
   onCreateBackup: () => void;
   onExportArchiveBundle: () => void;
+  onImportArchiveBundle: (bundlePath: string) => void;
   onRestoreBackup: (backupId: string) => void;
   onExportBackup: (backupId: string) => void;
 }
@@ -32,10 +34,12 @@ export function BackupPanel({
   statusMessage,
   onCreateBackup,
   onExportArchiveBundle,
+  onImportArchiveBundle,
   onRestoreBackup,
   onExportBackup,
 }: BackupPanelProps) {
   const latestBackup = backups[0];
+  const [bundlePath, setBundlePath] = useState("");
 
   return (
     <section className="panel backup-panel">
@@ -60,8 +64,27 @@ export function BackupPanel({
       </div>
 
       <p className="backup-copy">
-        备份会保存当前 SQLite 数据库和附件目录。恢复后，当前票据和附件会被备份内容覆盖。
+        备份会保存当前 SQLite 数据库和附件目录。恢复或导入后，当前票据和附件会被备份内容覆盖。
       </p>
+
+      <div className="backup-import-panel">
+        <label>
+          导入整库包路径
+          <input
+            onChange={(event) => setBundlePath(event.target.value)}
+            placeholder="例如：C:\\Users\\你的用户名\\Downloads\\backup-20260521-archive.zip"
+            value={bundlePath}
+          />
+        </label>
+        <button
+          className="ghost-button compact-button"
+          disabled={isBusy || !bundlePath.trim()}
+          onClick={() => onImportArchiveBundle(bundlePath.trim())}
+          type="button"
+        >
+          导入整库包
+        </button>
+      </div>
 
       {readiness ? (
         <div className="backup-highlight">

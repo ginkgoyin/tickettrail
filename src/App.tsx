@@ -18,6 +18,7 @@ import {
   exportBackup,
   getBackupReadiness,
   getTicketDetail,
+  importArchiveBundle,
   listBackups,
   listTickets,
   restoreBackup,
@@ -640,6 +641,42 @@ export default function App() {
     }
   };
 
+  const handleImportArchiveBundle = async (bundlePath: string) => {
+    if (!window.confirm("导入整库包会覆盖当前数据库和附件，确定继续吗？")) {
+      return;
+    }
+
+    setBackupBusy(true);
+    setErrorMessage("");
+    setBackupStatusMessage("");
+    setBackupNotice("");
+
+    try {
+      await importArchiveBundle(bundlePath);
+      const [restoredTickets, restoredBackups, readiness] = await Promise.all([
+        listTickets(),
+        listBackups(),
+        getBackupReadiness(),
+      ]);
+      setBackupNotice(`Archive bundle imported: ${bundlePath}`);
+      startTransition(() => {
+        setTickets(restoredTickets);
+        setBackups(restoredBackups);
+        setBackupReadiness(readiness);
+        setSelectedId(restoredTickets[0]?.id ?? "");
+        setEditingId("");
+        setImportedDraft(null);
+        setImportReview(null);
+        setBackupStatusMessage(`整库包已导入：${bundlePath}`);
+        setDetailVersion((current) => current + 1);
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to import archive bundle.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -689,6 +726,7 @@ export default function App() {
               isBusy={backupBusy}
               onCreateBackup={handleCreateBackup}
               onExportArchiveBundle={handleExportArchiveBundle}
+              onImportArchiveBundle={handleImportArchiveBundle}
               onExportBackup={handleExportBackup}
               onRestoreBackup={handleRestoreBackup}
               statusMessage={backupNotice || backupStatusMessage}

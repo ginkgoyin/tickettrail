@@ -537,3 +537,12 @@ export async function exportArchiveBundle(): Promise<string> {
   const backup = await createBackup();
   return `Web fallback archive: ${backup.label}`;
 }
+
+export async function importArchiveBundle(bundlePath: string): Promise<void> {
+  if (supportsTauri()) {
+    await invoke("import_archive_bundle", { bundlePath });
+    return;
+  }
+
+  throw new Error("Web fallback does not support importing archive bundles.");
+}

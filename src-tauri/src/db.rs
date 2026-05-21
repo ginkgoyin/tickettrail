@@ -260,31 +260,7 @@ pub fn get_backup_readiness(app: &AppHandle) -> Result<BackupReadinessPayload, S
 
 pub fn restore_backup(app: &AppHandle, backup_id: &str) -> Result<(), String> {
     let backup_dir = backup_root_dir(app)?.join(backup_id);
-    let backup_db = backup_dir.join("tickettrail.sqlite3");
-    if !backup_db.exists() {
-        return Err(format!("Backup {} was not found.", backup_id));
-    }
-
-    let target_db = database_path(app)?;
-    if let Some(parent) = target_db.parent() {
-        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    fs::copy(&backup_db, &target_db).map_err(|err| err.to_string())?;
-
-    let target_attachments = attachment_root_dir(app)?;
-    if target_attachments.exists() {
-        fs::remove_dir_all(&target_attachments).map_err(|err| err.to_string())?;
-    }
-
-    let backup_attachments = backup_dir.join("attachments");
-    if backup_attachments.exists() {
-        copy_dir_recursive(&backup_attachments, &target_attachments)?;
-    } else {
-        fs::create_dir_all(&target_attachments).map_err(|err| err.to_string())?;
-    }
-
-    let _ = open_connection(app)?;
-    Ok(())
+    restore_from_backup_dir(app, &backup_dir)
 }
 
 pub fn export_backup(app: &AppHandle, backup_id: &str) -> Result<String, String> {
@@ -316,6 +292,25 @@ pub fn export_archive_bundle(app: &AppHandle) -> Result<String, String> {
 
     compress_directory_to_zip(&backup_dir, &archive_path)?;
     Ok(archive_path.to_string_lossy().to_string())
+}
+
+pub fn import_archive_bundle(app: &AppHandle, bundle_path: &str) -> Result<(), String> {
+    let archive_path = PathBuf::from(bundle_path);
+    if !archive_path.exists() {
+        return Err(format!("Archive bundle was not found: {}", bundle_path));
+    }
+
+    let import_root = app
+        .path()
+        .app_data_dir()
+        .map_err(|err| err.to_string())?
+        .join("imports")
+        .join(Uuid::new_v4().to_string());
+    fs::create_dir_all(&import_root).map_err(|err| err.to_string())?;
+
+    expand_zip_to_directory(&archive_path, &import_root)?;
+    let extracted_backup_dir = locate_backup_dir(&import_root)?;
+    restore_from_backup_dir(app, &extracted_backup_dir)
 }
 
 pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
@@ -1441,6 +1436,80 @@ fn compress_directory_to_zip(source: &Path, destination: &Path) -> Result<(), St
             stderr
         })
     }
+}
+
+fn expand_zip_to_directory(source: &Path, destination: &Path) -> Result<(), String> {
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            "param([string]$Source,[string]$Destination) Expand-Archive -LiteralPath $Source -DestinationPath $Destination -Force",
+        ])
+        .arg(source.to_string_lossy().to_string())
+        .arg(destination.to_string_lossy().to_string())
+        .output()
+        .map_err(|err| err.to_string())?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if stderr.is_empty() {
+            "Failed to expand archive bundle.".to_string()
+        } else {
+            stderr
+        })
+    }
+}
+
+fn locate_backup_dir(import_root: &Path) -> Result<PathBuf, String> {
+    let direct_manifest = import_root.join("backup.json");
+    if direct_manifest.exists() {
+        return Ok(import_root.to_path_buf());
+    }
+
+    for entry in fs::read_dir(import_root).map_err(|err| err.to_string())? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        if entry.file_type().map_err(|err| err.to_string())?.is_dir() {
+            let candidate = entry.path();
+            if candidate.join("backup.json").exists() {
+                return Ok(candidate);
+            }
+        }
+    }
+
+    Err("Could not locate a valid backup manifest inside the archive bundle.".to_string())
+}
+
+fn restore_from_backup_dir(app: &AppHandle, backup_dir: &Path) -> Result<(), String> {
+    let backup_db = backup_dir.join("tickettrail.sqlite3");
+    if !backup_db.exists() {
+        return Err(format!(
+            "Backup database was not found in {}.",
+            backup_dir.to_string_lossy()
+        ));
+    }
+
+    let target_db = database_path(app)?;
+    if let Some(parent) = target_db.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    fs::copy(&backup_db, &target_db).map_err(|err| err.to_string())?;
+
+    let target_attachments = attachment_root_dir(app)?;
+    if target_attachments.exists() {
+        fs::remove_dir_all(&target_attachments).map_err(|err| err.to_string())?;
+    }
+
+    let backup_attachments = backup_dir.join("attachments");
+    if backup_attachments.exists() {
+        copy_dir_recursive(&backup_attachments, &target_attachments)?;
+    } else {
+        fs::create_dir_all(&target_attachments).map_err(|err| err.to_string())?;
+    }
+
+    let _ = open_connection(app)?;
+    Ok(())
 }
 
 fn resolve_map_point(conn: &Connection, location: &TicketLocationPayload) -> MapPointPayload {
