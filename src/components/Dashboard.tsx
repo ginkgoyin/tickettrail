@@ -30,6 +30,7 @@ interface DashboardProps {
   onAddAttachment: (file: File) => Promise<void>;
   onDeleteAttachment: (attachmentId: string) => Promise<void>;
   onSelectTicket: (ticketId: string) => void;
+  onApplyArchiveFilter: (query: string) => void;
 }
 
 function isImageAttachment(attachment: TicketAttachment) {
@@ -158,6 +159,7 @@ export function Dashboard({
   onAddAttachment,
   onDeleteAttachment,
   onSelectTicket,
+  onApplyArchiveFilter,
 }: DashboardProps) {
   const [exportMessage, setExportMessage] = useState("");
   const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
@@ -363,6 +365,12 @@ export function Dashboard({
     setExportMessage(`已切换到 ${segment.lineLabel} 对应票据。`);
   };
 
+  const handleSelectScopePoint = (point: MapPointPayload) => {
+    const nextQuery = point.code || point.label;
+    onApplyArchiveFilter(nextQuery);
+    setExportMessage(`已按 ${point.label}${point.code ? ` (${point.code})` : ""} 筛选票据。`);
+  };
+
   const handleChooseAttachment = () => {
     fileInputRef.current?.click();
   };
@@ -500,6 +508,7 @@ export function Dashboard({
           </div>
           <Suspense fallback={<p className="detail-loading">正在加载筛选范围路线地图...</p>}>
             <RouteMap
+              onPointSelect={handleSelectScopePoint}
               onSegmentSelect={handleSelectScopeSegment}
               points={scopeMap.points}
               route={scopeMap.route}

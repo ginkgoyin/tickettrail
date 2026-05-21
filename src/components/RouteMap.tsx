@@ -7,6 +7,7 @@ interface RouteMapProps {
   segments?: MapSegmentPayload[];
   points?: MapPointPayload[];
   onSegmentSelect?: (segment: MapSegmentPayload) => void;
+  onPointSelect?: (point: MapPointPayload) => void;
 }
 
 function createMarkerElement(kind: "origin" | "destination" | "waypoint", label: string, code?: string) {
@@ -42,7 +43,13 @@ function buildActiveSegments(route: MapRoutePayload, segments: MapSegmentPayload
   ] satisfies MapSegmentPayload[];
 }
 
-export function RouteMap({ route, segments = [], points = [], onSegmentSelect }: RouteMapProps) {
+export function RouteMap({
+  route,
+  segments = [],
+  points = [],
+  onSegmentSelect,
+  onPointSelect,
+}: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRefs = useRef<maplibregl.Marker[]>([]);
@@ -259,14 +266,21 @@ export function RouteMap({ route, segments = [], points = [], onSegmentSelect }:
             { kind: "destination" as const, point: route.destination },
           ];
 
-      markerRefs.current = markerPoints.map(({ kind, point }) =>
-        new maplibregl.Marker({
-          element: createMarkerElement(kind, point.label, point.code),
+      markerRefs.current = markerPoints.map(({ kind, point }) => {
+        const element = createMarkerElement(kind, point.label, point.code);
+
+        if (onPointSelect) {
+          element.style.cursor = "pointer";
+          element.addEventListener("click", () => onPointSelect(point));
+        }
+
+        return new maplibregl.Marker({
+          element,
           anchor: "bottom",
         })
           .setLngLat([point.longitude, point.latitude])
-          .addTo(map),
-      );
+          .addTo(map);
+      });
 
       const bounds = new LngLatBounds(
         [route.viewport.minLongitude, route.viewport.minLatitude],
@@ -288,7 +302,7 @@ export function RouteMap({ route, segments = [], points = [], onSegmentSelect }:
     return () => {
       map.off("load", syncRoute);
     };
-  }, [points, route, segments]);
+  }, [onPointSelect, points, route, segments]);
 
   return (
     <div className="route-map-shell">

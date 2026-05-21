@@ -371,6 +371,15 @@ export default function App() {
     });
   };
 
+  const handleApplyArchiveQuery = (query: string) => {
+    startTransition(() => {
+      setFilters((current) => ({
+        ...current,
+        query,
+      }));
+    });
+  };
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -447,6 +456,7 @@ export default function App() {
             detail={selectedDetail}
             isLoading={detailLoading}
             onAddAttachment={handleAddAttachment}
+            onApplyArchiveFilter={handleApplyArchiveQuery}
             onDeleteAttachment={handleDeleteAttachment}
             onSelectTicket={setSelectedId}
             ticket={selectedTicket}
