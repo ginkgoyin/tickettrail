@@ -7,6 +7,12 @@ type ArchiveFilterPatch = {
 };
 
 interface StatisticsPanelProps {
+  activeArchiveContext: {
+    query: string;
+    ticketType: "all" | TicketType;
+    status: "all" | "saved" | "used" | "archived";
+    sort: string;
+  };
   onApplyArchiveFilter: (patch: ArchiveFilterPatch) => void;
   tickets: TicketRecord[];
   totalCount: number;
@@ -105,12 +111,14 @@ function formatYearLabel(value: string) {
 }
 
 function RankedList({
+  activeLabel,
   items,
   onPickItem,
   title,
 }: {
   title: string;
   items: RankedItem[];
+  activeLabel?: string;
   onPickItem?: (item: RankedItem) => void;
 }) {
   return (
@@ -121,7 +129,11 @@ function RankedList({
           {items.slice(0, 5).map((item, index) => (
             onPickItem ? (
               <button
-                className="analytics-list-button"
+                className={
+                  activeLabel === item.label
+                    ? "analytics-list-button analytics-list-button-active"
+                    : "analytics-list-button"
+                }
                 key={`${title}-${item.label}`}
                 onClick={() => onPickItem(item)}
                 type="button"
@@ -147,6 +159,7 @@ function RankedList({
 }
 
 export function StatisticsPanel({
+  activeArchiveContext,
   onApplyArchiveFilter,
   tickets,
   totalCount,
@@ -216,6 +229,25 @@ export function StatisticsPanel({
   }, [scopedTickets]);
 
   const archiveScopeQuery = selectedYear === "all" ? "" : selectedYear;
+  const normalizedActiveQuery = activeArchiveContext.query.trim().toLowerCase();
+  const activeModeMatches =
+    activeArchiveContext.ticketType === mode ||
+    (mode === "all" && activeArchiveContext.ticketType === "all");
+  const activeScopeSummary = useMemo(() => {
+    const labels: string[] = [];
+
+    if (activeArchiveContext.ticketType !== "all") {
+      labels.push(activeArchiveContext.ticketType === "flight" ? "Flight" : "Rail");
+    }
+    if (activeArchiveContext.status !== "all") {
+      labels.push(activeArchiveContext.status);
+    }
+    if (activeArchiveContext.query.trim()) {
+      labels.push(activeArchiveContext.query.trim());
+    }
+
+    return labels;
+  }, [activeArchiveContext]);
 
   const handleApplyScopeToArchive = () => {
     onApplyArchiveFilter({
@@ -235,6 +267,15 @@ export function StatisticsPanel({
           {scopedTickets.length} in view / {totalCount} total
         </span>
       </div>
+      {activeScopeSummary.length ? (
+        <div className="context-chip-row">
+          {activeScopeSummary.map((item) => (
+            <span className="field-meta-chip context-chip analytics-context-chip" key={item}>
+              {item}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div className="analytics-toolbar">
         <div className="analytics-toggle-group">
@@ -301,11 +342,13 @@ export function StatisticsPanel({
 
       <div className="analytics-grid">
         <RankedList
+          activeLabel={activeModeMatches ? activeArchiveContext.query.trim() : ""}
           items={analytics.carrierCounts}
           onPickItem={(item) => onApplyArchiveFilter({ query: item.label, ticketType: mode })}
           title="Top carriers"
         />
         <RankedList
+          activeLabel={activeModeMatches ? activeArchiveContext.query.trim() : ""}
           items={analytics.cityCounts}
           onPickItem={(item) => onApplyArchiveFilter({ query: item.label, ticketType: mode })}
           title="Top cities / stations"
@@ -318,7 +361,11 @@ export function StatisticsPanel({
             <div className="analytics-chart">
               {analytics.monthlyCounts.map((item) => (
                 <button
-                  className="analytics-bar-button"
+                  className={
+                    activeModeMatches && normalizedActiveQuery === item.label.toLowerCase()
+                      ? "analytics-bar-button analytics-bar-button-active"
+                      : "analytics-bar-button"
+                  }
                   key={item.label}
                   onClick={() => onApplyArchiveFilter({ query: item.label, ticketType: mode })}
                   type="button"

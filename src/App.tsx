@@ -424,6 +424,7 @@ export default function App() {
           <div className="panel-stack">
             <SmartImport onApplyImport={handleApplyImport} />
             <StatisticsPanel
+              activeArchiveContext={filters}
               onApplyArchiveFilter={handleApplyAnalyticsFilter}
               tickets={visibleTickets}
               totalCount={tickets.length}

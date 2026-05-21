@@ -668,6 +668,12 @@ textarea {
   border-radius: 14px;
 }
 
+.analytics-list-button-active .analytics-list-item,
+.analytics-bar-button-active .analytics-bar-row {
+  background: rgba(255, 177, 90, 0.12);
+  border-color: rgba(255, 177, 90, 0.24);
+}
+
 .analytics-list-button:hover .analytics-list-item,
 .analytics-bar-button:hover .analytics-bar-row {
   background: rgba(112, 212, 255, 0.08);
@@ -928,6 +934,12 @@ textarea {
   background: rgba(255, 177, 90, 0.12);
   border-color: rgba(255, 177, 90, 0.2);
   color: #ffd79e;
+}
+
+.analytics-context-chip {
+  background: rgba(112, 212, 255, 0.1);
+  border-color: rgba(112, 212, 255, 0.18);
+  color: #bdeaff;
 }
 
 .scope-context-copy {
