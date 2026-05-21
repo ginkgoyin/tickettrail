@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl, { LngLatBounds } from "maplibre-gl";
-import type { MapRoutePayload, MapSegmentPayload } from "../types/ticket";
+import type { MapPointPayload, MapRoutePayload, MapSegmentPayload } from "../types/ticket";
 
 interface RouteMapProps {
   route: MapRoutePayload;
   segments?: MapSegmentPayload[];
+  points?: MapPointPayload[];
 }
 
-function createMarkerElement(kind: "origin" | "destination", label: string, code?: string) {
+function createMarkerElement(kind: "origin" | "destination" | "waypoint", label: string, code?: string) {
   const marker = document.createElement("div");
   marker.className = `route-marker route-marker-${kind}`;
   marker.innerHTML = `
@@ -40,11 +41,10 @@ function buildActiveSegments(route: MapRoutePayload, segments: MapSegmentPayload
   ] satisfies MapSegmentPayload[];
 }
 
-export function RouteMap({ route, segments = [] }: RouteMapProps) {
+export function RouteMap({ route, segments = [], points = [] }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const originMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const destinationMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const markerRefs = useRef<maplibregl.Marker[]>([]);
   const [loadMessage, setLoadMessage] = useState("正在加载真实地图组件...");
 
   useEffect(() => {
@@ -103,8 +103,8 @@ export function RouteMap({ route, segments = [] }: RouteMapProps) {
     mapRef.current = map;
 
     return () => {
-      originMarkerRef.current?.remove();
-      destinationMarkerRef.current?.remove();
+      markerRefs.current.forEach((marker) => marker.remove());
+      markerRefs.current = [];
       map.remove();
       mapRef.current = null;
     };
@@ -181,22 +181,32 @@ export function RouteMap({ route, segments = [] }: RouteMapProps) {
         },
       });
 
-      originMarkerRef.current?.remove();
-      destinationMarkerRef.current?.remove();
+      markerRefs.current.forEach((marker) => marker.remove());
+      markerRefs.current = [];
 
-      originMarkerRef.current = new maplibregl.Marker({
-        element: createMarkerElement("origin", route.origin.label, route.origin.code),
-        anchor: "bottom",
-      })
-        .setLngLat([route.origin.longitude, route.origin.latitude])
-        .addTo(map);
+      const markerPoints = points.length
+        ? points.map((point, index) => ({
+            kind:
+              index === 0
+                ? ("origin" as const)
+                : index === points.length - 1
+                  ? ("destination" as const)
+                  : ("waypoint" as const),
+            point,
+          }))
+        : [
+            { kind: "origin" as const, point: route.origin },
+            { kind: "destination" as const, point: route.destination },
+          ];
 
-      destinationMarkerRef.current = new maplibregl.Marker({
-        element: createMarkerElement("destination", route.destination.label, route.destination.code),
-        anchor: "bottom",
-      })
-        .setLngLat([route.destination.longitude, route.destination.latitude])
-        .addTo(map);
+      markerRefs.current = markerPoints.map(({ kind, point }) =>
+        new maplibregl.Marker({
+          element: createMarkerElement(kind, point.label, point.code),
+          anchor: "bottom",
+        })
+          .setLngLat([point.longitude, point.latitude])
+          .addTo(map),
+      );
 
       const bounds = new LngLatBounds(
         [route.viewport.minLongitude, route.viewport.minLatitude],
@@ -218,7 +228,7 @@ export function RouteMap({ route, segments = [] }: RouteMapProps) {
     return () => {
       map.off("load", syncRoute);
     };
-  }, [route, segments]);
+  }, [points, route, segments]);
 
   return (
     <div className="route-map-shell">

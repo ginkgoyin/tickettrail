@@ -8,7 +8,15 @@ import {
   type StubTheme,
   visualizationSizes,
 } from "../lib/visualization";
-import type { TicketAttachment, TicketDetailPayload, TicketRecord } from "../types/ticket";
+import { getTicketDetail } from "../lib/ticketService";
+import type {
+  MapPointPayload,
+  MapRoutePayload,
+  MapSegmentPayload,
+  TicketAttachment,
+  TicketDetailPayload,
+  TicketRecord,
+} from "../types/ticket";
 
 const RouteMap = lazy(async () => import("./RouteMap").then((module) => ({ default: module.RouteMap })));
 
@@ -79,6 +87,61 @@ function buildTicketExportCsv(detail: TicketDetailPayload) {
   return [header.join(","), ...rows].join("\n");
 }
 
+function buildScopeMapPayload(details: TicketDetailPayload[]) {
+  const segments = details
+    .flatMap((detail) => detail.segments)
+    .map((segment, index) => ({
+      ...segment,
+      segmentIndex: index,
+    }));
+
+  if (!segments.length) {
+    return null;
+  }
+
+  const allPoints = segments.flatMap((segment) => [segment.origin, segment.destination]);
+  const uniquePoints = Array.from(
+    allPoints.reduce((counter, point) => {
+      const key = `${point.code || point.label}-${point.latitude}-${point.longitude}`;
+      if (!counter.has(key)) {
+        counter.set(key, point);
+      }
+      return counter;
+    }, new Map<string, MapPointPayload>()),
+  ).map((entry) => entry[1]);
+  const orderedDetails = [...details].sort((left, right) =>
+    left.ticket.departureTimeLocal.localeCompare(right.ticket.departureTimeLocal),
+  );
+  const minLatitude = Math.min(...allPoints.map((point) => point.latitude));
+  const maxLatitude = Math.max(...allPoints.map((point) => point.latitude));
+  const minLongitude = Math.min(...allPoints.map((point) => point.longitude));
+  const maxLongitude = Math.max(...allPoints.map((point) => point.longitude));
+  const totalDistanceKm = segments.reduce((sum, segment) => sum + segment.distanceHintKm, 0);
+  const firstSegment = orderedDetails[0]?.segments[0] ?? segments[0];
+  const lastSegments = orderedDetails[orderedDetails.length - 1]?.segments ?? [];
+  const lastSegment = lastSegments[lastSegments.length - 1] ?? segments[segments.length - 1];
+
+  const route: MapRoutePayload = {
+    lineLabel: `${details.length} ticket scope`,
+    directionHint: `${firstSegment.origin.label} -> ${lastSegment.destination.label}`,
+    distanceHintKm: totalDistanceKm,
+    origin: firstSegment.origin,
+    destination: lastSegment.destination,
+    viewport: {
+      minLatitude,
+      maxLatitude,
+      minLongitude,
+      maxLongitude,
+    },
+  };
+
+  return {
+    points: uniquePoints,
+    route,
+    segments,
+  };
+}
+
 export function Dashboard({
   detail,
   isLoading,
@@ -91,6 +154,8 @@ export function Dashboard({
 }: DashboardProps) {
   const [exportMessage, setExportMessage] = useState("");
   const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
+  const [scopeDetails, setScopeDetails] = useState<TicketDetailPayload[]>([]);
+  const [scopeLoading, setScopeLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!ticket) {
@@ -107,6 +172,43 @@ export function Dashboard({
   useEffect(() => {
     setStubTheme(isTrainTicket ? "ledger" : "boarding");
   }, [isTrainTicket, ticket.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadScopeDetails = async () => {
+      if (!ticketsInView.length) {
+        setScopeDetails([]);
+        return;
+      }
+
+      setScopeLoading(true);
+
+      try {
+        const nextDetails = await Promise.all(
+          ticketsInView.slice(0, 24).map((item) => getTicketDetail(item.id)),
+        );
+
+        if (isMounted) {
+          setScopeDetails(nextDetails);
+        }
+      } catch {
+        if (isMounted) {
+          setScopeDetails([]);
+        }
+      } finally {
+        if (isMounted) {
+          setScopeLoading(false);
+        }
+      }
+    };
+
+    void loadScopeDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [ticketsInView]);
 
   const mapSvg = useMemo(
     () => (activeDetail ? buildMapSvgFromSegments(activeDetail.map, activeDetail.segments) : ""),
@@ -134,12 +236,8 @@ export function Dashboard({
       totalDistanceKm,
       startLabel: firstSegment?.origin.label || activeDetail.ticket.departure.name,
       endLabel: lastSegment?.destination.label || activeDetail.ticket.arrival.name,
-      firstDeparture: firstSegment
-        ? formatDateTime(activeDetail.ticket.departureTimeLocal)
-        : formatDateTime(activeDetail.ticket.departureTimeLocal),
-      lastArrival: lastSegment
-        ? formatDateTime(activeDetail.ticket.arrivalTimeLocal)
-        : formatDateTime(activeDetail.ticket.arrivalTimeLocal),
+      firstDeparture: formatDateTime(activeDetail.ticket.departureTimeLocal),
+      lastArrival: formatDateTime(activeDetail.ticket.arrivalTimeLocal),
     };
   }, [activeDetail]);
   const scopeSummary = useMemo(() => {
@@ -164,7 +262,9 @@ export function Dashboard({
     )
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
       .slice(0, 5);
-    const departures = ticketsInView.map((item) => item.departureTimeLocal).sort((left, right) => left.localeCompare(right));
+    const departures = ticketsInView
+      .map((item) => item.departureTimeLocal)
+      .sort((left, right) => left.localeCompare(right));
 
     return {
       totalSegments,
@@ -176,6 +276,11 @@ export function Dashboard({
       lastDeparture: departures[departures.length - 1],
     };
   }, [ticketsInView]);
+  const scopeMap = useMemo(() => buildScopeMapPayload(scopeDetails), [scopeDetails]);
+  const scopeMapSvg = useMemo(
+    () => (scopeMap ? buildMapSvgFromSegments(scopeMap.route, scopeMap.segments) : ""),
+    [scopeMap],
+  );
 
   const handleExportSvg = (kind: "map" | "stub") => {
     if (!activeDetail) {
@@ -184,12 +289,12 @@ export function Dashboard({
 
     if (kind === "map") {
       exportSvg(`${activeDetail.ticket.code}-route-map.svg`, mapSvg);
-      setExportMessage("\u8def\u7ebf SVG \u5df2\u5bfc\u51fa\u3002");
+      setExportMessage("路线 SVG 已导出。");
       return;
     }
 
     exportSvg(`${activeDetail.ticket.code}-ticket-stub.svg`, stubSvg);
-    setExportMessage("\u7968\u6839 SVG \u5df2\u5bfc\u51fa\u3002");
+    setExportMessage("票根 SVG 已导出。");
   };
 
   const handleExportPng = async () => {
@@ -204,9 +309,9 @@ export function Dashboard({
         visualizationSizes.stub.width,
         visualizationSizes.stub.height,
       );
-      setExportMessage("\u7968\u6839 PNG \u5df2\u5bfc\u51fa\u3002");
+      setExportMessage("票根 PNG 已导出。");
     } catch (error) {
-      setExportMessage(error instanceof Error ? error.message : "PNG \u5bfc\u51fa\u5931\u8d25\u3002");
+      setExportMessage(error instanceof Error ? error.message : "PNG 导出失败。");
     }
   };
 
@@ -231,6 +336,15 @@ export function Dashboard({
       "text/csv;charset=utf-8",
     );
     setExportMessage("行程 CSV 已导出。");
+  };
+
+  const handleExportScopeMap = () => {
+    if (!scopeMap) {
+      return;
+    }
+
+    exportSvg(`tickettrail-scope-${ticketsInView.length}-routes.svg`, scopeMapSvg);
+    setExportMessage("当前筛选范围路线 SVG 已导出。");
   };
 
   const handleChooseAttachment = () => {
@@ -262,11 +376,7 @@ export function Dashboard({
         <span className="status-pill">{`${ticket.status} | ${ticket.segmentCount} segment(s)`}</span>
       </div>
 
-      {isLoading ? (
-        <p className="detail-loading">
-          {"\u6b63\u5728\u52a0\u8f7d\u8def\u7ebf\u3001\u7968\u6839\u548c\u9644\u4ef6\u6570\u636e..."}
-        </p>
-      ) : null}
+      {isLoading ? <p className="detail-loading">正在加载路线、票根和附件数据...</p> : null}
 
       {itinerarySummary ? (
         <article className="detail-card itinerary-overview-card">
@@ -363,21 +473,44 @@ export function Dashboard({
         </article>
       ) : null}
 
+      {scopeMap ? (
+        <article className="map-preview scope-map-preview">
+          <div className="panel-heading">
+            <div>
+              <span>Route collection map</span>
+              <strong>{`${scopeMap.segments.length} segment(s) across ${scopeDetails.length} ticket(s)`}</strong>
+            </div>
+            <span className="status-pill">{`${scopeMap.points.length} points`}</span>
+          </div>
+          <Suspense fallback={<p className="detail-loading">正在加载筛选范围路线地图...</p>}>
+            <RouteMap points={scopeMap.points} route={scopeMap.route} segments={scopeMap.segments} />
+          </Suspense>
+          <div className="map-summary">
+            <span>{scopeMap.route.directionHint}</span>
+            <span>{scopeMap.route.distanceHintKm} km total</span>
+            <span>{`${scopeMap.points.length} mapped stops`}</span>
+          </div>
+          <div className="export-row">
+            <button className="ghost-button" onClick={handleExportScopeMap} type="button">
+              导出范围路线 SVG
+            </button>
+          </div>
+        </article>
+      ) : scopeLoading ? (
+        <article className="map-preview scope-map-preview">
+          <p className="detail-loading">正在汇总当前筛选范围的路线地图...</p>
+        </article>
+      ) : null}
+
       <article className="map-preview">
         {activeDetail ? (
           <>
-            <Suspense
-              fallback={
-                <p className="detail-loading">
-                  {"\u6b63\u5728\u52a0\u8f7d\u771f\u5b9e\u5730\u56fe\u7ec4\u4ef6..."}
-                </p>
-              }
-            >
+            <Suspense fallback={<p className="detail-loading">正在加载真实地图组件...</p>}>
               <RouteMap route={activeDetail.map} segments={activeDetail.segments} />
             </Suspense>
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("map")} type="button">
-                {"\u5bfc\u51fa\u8def\u7ebf SVG"}
+                导出路线 SVG
               </button>
             </div>
             {activeDetail.segments.length > 1 ? (
@@ -444,20 +577,20 @@ export function Dashboard({
                   type="button"
                 >
                   {theme === "boarding"
-                    ? "\u767b\u673a\u724c"
+                    ? "登机牌"
                     : theme === "ledger"
-                      ? "\u62a5\u9500\u51ed\u8bc1"
-                      : "\u591c\u95f4\u9713\u8679"}
+                      ? "报销凭证"
+                      : "夜间霓虹"}
                 </button>
               ))}
             </div>
             <div className="svg-frame stub-canvas" dangerouslySetInnerHTML={{ __html: stubSvg }} />
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("stub")} type="button">
-                {"\u5bfc\u51fa\u7968\u6839 SVG"}
+                导出票根 SVG
               </button>
               <button className="primary-button" onClick={() => void handleExportPng()} type="button">
-                {"\u5bfc\u51fa\u7968\u6839 PNG"}
+                导出票根 PNG
               </button>
             </div>
           </>
@@ -507,7 +640,7 @@ export function Dashboard({
             onClick={handleChooseAttachment}
             type="button"
           >
-            {attachmentBusy ? "\u6b63\u5728\u5904\u7406\u9644\u4ef6..." : "\u6dfb\u52a0\u9644\u4ef6"}
+            {attachmentBusy ? "正在处理附件..." : "添加附件"}
           </button>
         </div>
         {activeDetail?.attachments.length ? (
@@ -586,7 +719,7 @@ export function Dashboard({
           <strong>{activeDetail?.stub.notes || ticket.notes || "No notes yet"}</strong>
         </div>
         <div className="detail-card">
-          <span>{"\u8d77\u70b9\u5750\u6807"}</span>
+          <span>起点坐标</span>
           <strong>
             {activeDetail
               ? `${activeDetail.map.origin.latitude.toFixed(2)}, ${activeDetail.map.origin.longitude.toFixed(2)}`
