@@ -16,6 +16,8 @@ interface DashboardProps {
   detail: TicketDetailPayload | null;
   isLoading: boolean;
   ticket: TicketRecord | null;
+  ticketsInView: TicketRecord[];
+  totalCount: number;
   attachmentBusy: boolean;
   onAddAttachment: (file: File) => Promise<void>;
   onDeleteAttachment: (attachmentId: string) => Promise<void>;
@@ -81,6 +83,8 @@ export function Dashboard({
   detail,
   isLoading,
   ticket,
+  ticketsInView,
+  totalCount,
   attachmentBusy,
   onAddAttachment,
   onDeleteAttachment,
@@ -138,6 +142,40 @@ export function Dashboard({
         : formatDateTime(activeDetail.ticket.arrivalTimeLocal),
     };
   }, [activeDetail]);
+  const scopeSummary = useMemo(() => {
+    if (ticketsInView.length === 0) {
+      return null;
+    }
+
+    const totalSegments = ticketsInView.reduce((sum, item) => sum + Math.max(item.segmentCount, 1), 0);
+    const topCarriers = Array.from(
+      ticketsInView.reduce((counter, item) => {
+        counter.set(item.carrierName, (counter.get(item.carrierName) ?? 0) + 1);
+        return counter;
+      }, new Map<string, number>()),
+    )
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .slice(0, 3);
+    const topRoutes = Array.from(
+      ticketsInView.reduce((counter, item) => {
+        counter.set(item.routeLabel, (counter.get(item.routeLabel) ?? 0) + 1);
+        return counter;
+      }, new Map<string, number>()),
+    )
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .slice(0, 5);
+    const departures = ticketsInView.map((item) => item.departureTimeLocal).sort((left, right) => left.localeCompare(right));
+
+    return {
+      totalSegments,
+      flightCount: ticketsInView.filter((item) => item.ticketType === "flight").length,
+      trainCount: ticketsInView.filter((item) => item.ticketType === "train").length,
+      topCarriers,
+      topRoutes,
+      firstDeparture: departures[0],
+      lastDeparture: departures[departures.length - 1],
+    };
+  }, [ticketsInView]);
 
   const handleExportSvg = (kind: "map" | "stub") => {
     if (!activeDetail) {
@@ -259,6 +297,68 @@ export function Dashboard({
             <button className="ghost-button" onClick={() => handleExportStructured("csv")} type="button">
               导出 CSV
             </button>
+          </div>
+        </article>
+      ) : null}
+
+      {scopeSummary ? (
+        <article className="detail-card scope-overview-card">
+          <div className="panel-heading">
+            <div>
+              <span>Current filtered scope</span>
+              <strong>{`${ticketsInView.length} ticket(s) in context`}</strong>
+            </div>
+            <span className="status-pill">{`${ticketsInView.length} / ${totalCount}`}</span>
+          </div>
+          <div className="detail-grid itinerary-overview-grid">
+            <div>
+              <span>Total segments</span>
+              <strong>{scopeSummary.totalSegments}</strong>
+            </div>
+            <div>
+              <span>Flights / rail</span>
+              <strong>{`${scopeSummary.flightCount} / ${scopeSummary.trainCount}`}</strong>
+            </div>
+            <div>
+              <span>First departure</span>
+              <strong>{formatDateTime(scopeSummary.firstDeparture)}</strong>
+            </div>
+            <div>
+              <span>Latest departure</span>
+              <strong>{formatDateTime(scopeSummary.lastDeparture)}</strong>
+            </div>
+          </div>
+          <div className="scope-grid">
+            <div className="detail-card scope-card">
+              <span>Top carriers in scope</span>
+              {scopeSummary.topCarriers.length ? (
+                <div className="scope-list">
+                  {scopeSummary.topCarriers.map(([carrier, count]) => (
+                    <div className="scope-list-item" key={carrier}>
+                      <strong>{carrier}</strong>
+                      <span>{count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <strong>No carrier data</strong>
+              )}
+            </div>
+            <div className="detail-card scope-card">
+              <span>Route collection view</span>
+              {scopeSummary.topRoutes.length ? (
+                <div className="scope-list">
+                  {scopeSummary.topRoutes.map(([route, count]) => (
+                    <div className="scope-list-item" key={route}>
+                      <strong>{route}</strong>
+                      <span>{count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <strong>No route data</strong>
+              )}
+            </div>
           </div>
         </article>
       ) : null}

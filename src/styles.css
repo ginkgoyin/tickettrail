@@ -911,6 +911,35 @@ textarea {
   gap: 14px;
 }
 
+.scope-overview-card,
+.scope-grid,
+.scope-list {
+  display: grid;
+  gap: 14px;
+}
+
+.scope-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.scope-card {
+  min-height: 100%;
+}
+
+.scope-list-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.scope-list-item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
 .itinerary-overview-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1165,6 +1194,7 @@ textarea {
   .hero-stats,
   .analytics-summary-grid,
   .analytics-grid,
+  .scope-grid,
   .stub-body,
   .map-grid,
   .attachment-grid {

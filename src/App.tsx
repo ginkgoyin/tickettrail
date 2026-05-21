@@ -449,6 +449,8 @@ export default function App() {
             onAddAttachment={handleAddAttachment}
             onDeleteAttachment={handleDeleteAttachment}
             ticket={selectedTicket}
+            ticketsInView={visibleTickets}
+            totalCount={tickets.length}
           />
         </section>
       </main>
