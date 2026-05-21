@@ -152,3 +152,11 @@ export interface BackupRecord {
   attachmentCount: number;
   databaseSizeBytes: number;
 }
+
+export interface BackupReadiness {
+  databaseExists: boolean;
+  databasePath: string;
+  attachmentRootPath: string;
+  ticketCount: number;
+  attachmentCount: number;
+}

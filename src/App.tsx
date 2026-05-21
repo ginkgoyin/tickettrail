@@ -15,6 +15,7 @@ import {
   deleteTicket,
   deleteTicketAttachment,
   exportBackup,
+  getBackupReadiness,
   getTicketDetail,
   listBackups,
   listTickets,
@@ -22,7 +23,14 @@ import {
   updateTicket,
   updateTicketStatus,
 } from "./lib/ticketService";
-import type { BackupRecord, TicketDetailPayload, TicketDraft, TicketRecord, TicketStatus } from "./types/ticket";
+import type {
+  BackupReadiness,
+  BackupRecord,
+  TicketDetailPayload,
+  TicketDraft,
+  TicketRecord,
+  TicketStatus,
+} from "./types/ticket";
 
 const defaultFilters: TicketFilters = {
   query: "",
@@ -163,8 +171,10 @@ export default function App() {
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
   const [savedViews, setSavedViews] = useState<SavedFilterView[]>([]);
   const [backups, setBackups] = useState<BackupRecord[]>([]);
+  const [backupReadiness, setBackupReadiness] = useState<BackupReadiness | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupStatusMessage, setBackupStatusMessage] = useState("");
+  const [backupNotice, setBackupNotice] = useState("");
   const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
   const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
 
@@ -214,7 +224,11 @@ export default function App() {
 
     const loadArchiveState = async () => {
       try {
-        const [storedTickets, storedBackups] = await Promise.all([listTickets(), listBackups()]);
+        const [storedTickets, storedBackups, readiness] = await Promise.all([
+          listTickets(),
+          listBackups(),
+          getBackupReadiness(),
+        ]);
         if (!isMounted) {
           return;
         }
@@ -222,6 +236,7 @@ export default function App() {
         startTransition(() => {
           setTickets(storedTickets);
           setBackups(storedBackups);
+          setBackupReadiness(readiness);
           setSelectedId(storedTickets[0]?.id ?? "");
         });
       } catch (error) {
@@ -521,11 +536,16 @@ export default function App() {
     setBackupBusy(true);
     setErrorMessage("");
     setBackupStatusMessage("");
+    setBackupNotice("");
 
     try {
       const nextBackup = await createBackup();
+      const readiness = await getBackupReadiness();
+      setBackupNotice(`Backup created: ${nextBackup.label}`);
+      setBackupNotice(`已创建备份：${nextBackup.label}`);
       startTransition(() => {
         setBackups((current) => [nextBackup, ...current.filter((item) => item.id !== nextBackup.id)]);
+        setBackupReadiness(readiness);
         setBackupStatusMessage(`已创建备份：${nextBackup.label}`);
       });
     } catch (error) {
@@ -536,21 +556,36 @@ export default function App() {
   };
 
   const handleRestoreBackup = async (backupId: string) => {
-    if (!window.confirm("恢复备份会覆盖当前数据库和附件，确定继续吗？")) {
+    const targetBackup = backups.find((backup) => backup.id === backupId);
+    const confirmMessage = targetBackup
+      ? `将恢复备份“${targetBackup.label}”。\n其中包含 ${targetBackup.ticketCount} 张票和 ${targetBackup.attachmentCount} 个附件。\n恢复后会覆盖当前数据库和附件，确定继续吗？`
+      : "恢复备份会覆盖当前数据库和附件，确定继续吗？";
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     setBackupBusy(true);
     setErrorMessage("");
     setBackupStatusMessage("");
+    setBackupNotice("");
 
     try {
       await restoreBackup(backupId);
-      const [restoredTickets, restoredBackups] = await Promise.all([listTickets(), listBackups()]);
+      const [restoredTickets, restoredBackups, readiness] = await Promise.all([
+        listTickets(),
+        listBackups(),
+        getBackupReadiness(),
+      ]);
       const restoredBackup = restoredBackups.find((backup) => backup.id === backupId);
+      setBackupNotice(
+        restoredBackup ? `Backup restored: ${restoredBackup.label}` : "Selected backup restored.",
+      );
+      setBackupNotice(restoredBackup ? `已恢复备份：${restoredBackup.label}` : "已恢复选中的备份。");
       startTransition(() => {
         setTickets(restoredTickets);
         setBackups(restoredBackups);
+        setBackupReadiness(readiness);
         setSelectedId(restoredTickets[0]?.id ?? "");
         setEditingId("");
         setImportedDraft(null);
@@ -574,6 +609,7 @@ export default function App() {
 
     try {
       const exportPath = await exportBackup(backupId);
+      setBackupNotice(`Backup exported to: ${exportPath}`);
       startTransition(() => {
         setBackupStatusMessage(`备份已导出到：${exportPath}`);
       });
@@ -629,11 +665,12 @@ export default function App() {
             <SmartImport onApplyImport={handleApplyImport} />
             <BackupPanel
               backups={backups}
+              readiness={backupReadiness}
               isBusy={backupBusy}
               onCreateBackup={handleCreateBackup}
               onExportBackup={handleExportBackup}
               onRestoreBackup={handleRestoreBackup}
-              statusMessage={backupStatusMessage}
+              statusMessage={backupNotice || backupStatusMessage}
             />
             <StatisticsPanel
               activeArchiveContext={filters}

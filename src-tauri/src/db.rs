@@ -1,8 +1,8 @@
 use crate::models::{
-    AirlinePayload, BackupRecordPayload, LocationDirectoryPayload, MapPointPayload, MapRoutePayload,
-    MapViewportPayload, MapSegmentPayload, StubPreviewPayload, TicketAttachmentPayload,
-    TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketLocationPayload,
-    TicketRecordPayload, TicketSegmentPayload,
+    AirlinePayload, BackupReadinessPayload, BackupRecordPayload, LocationDirectoryPayload,
+    MapPointPayload, MapRoutePayload, MapViewportPayload, MapSegmentPayload, StubPreviewPayload,
+    TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
+    TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
 };
 use chrono::{DateTime, LocalResult, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -241,6 +241,19 @@ pub fn create_backup(app: &AppHandle) -> Result<BackupRecordPayload, String> {
         ticket_count: manifest.ticket_count,
         attachment_count: manifest.attachment_count,
         database_size_bytes: manifest.database_size_bytes,
+    })
+}
+
+pub fn get_backup_readiness(app: &AppHandle) -> Result<BackupReadinessPayload, String> {
+    let conn = open_connection(app)?;
+    let db_path = database_path(app)?;
+    let attachment_root = attachment_root_dir(app)?;
+    Ok(BackupReadinessPayload {
+        database_exists: db_path.exists(),
+        database_path: db_path.to_string_lossy().to_string(),
+        attachment_root_path: attachment_root.to_string_lossy().to_string(),
+        ticket_count: list_tickets(app)?.len(),
+        attachment_count: count_attachments(&conn)?,
     })
 }
 

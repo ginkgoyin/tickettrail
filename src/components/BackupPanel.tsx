@@ -1,7 +1,8 @@
-import type { BackupRecord } from "../types/ticket";
+import type { BackupReadiness, BackupRecord } from "../types/ticket";
 
 interface BackupPanelProps {
   backups: BackupRecord[];
+  readiness: BackupReadiness | null;
   isBusy: boolean;
   statusMessage: string;
   onCreateBackup: () => void;
@@ -25,6 +26,7 @@ function formatSize(bytes: number) {
 
 export function BackupPanel({
   backups,
+  readiness,
   isBusy,
   statusMessage,
   onCreateBackup,
@@ -48,6 +50,14 @@ export function BackupPanel({
       <p className="backup-copy">
         备份会保存当前 SQLite 数据库和附件目录。恢复后，当前票据和附件会被备份内容覆盖。
       </p>
+
+      {readiness ? (
+        <div className="backup-highlight">
+          <strong>备份前校验</strong>
+          <span>{readiness.databaseExists ? "数据库文件可用" : "数据库文件不存在"}</span>
+          <small>{`${readiness.ticketCount} 张票 · ${readiness.attachmentCount} 个附件`}</small>
+        </div>
+      ) : null}
 
       {latestBackup ? (
         <div className="backup-highlight">

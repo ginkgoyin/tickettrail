@@ -190,3 +190,13 @@ pub struct BackupRecordPayload {
     pub attachment_count: usize,
     pub database_size_bytes: u64,
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupReadinessPayload {
+    pub database_exists: bool,
+    pub database_path: String,
+    pub attachment_root_path: String,
+    pub ticket_count: usize,
+    pub attachment_count: usize,
+}

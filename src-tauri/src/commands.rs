@@ -1,9 +1,9 @@
 use crate::{
     db,
     models::{
-        AirlinePayload, BackupRecordPayload, LocationDirectoryPayload, StubPreviewPayload,
-        TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
-        TicketRecordPayload,
+        AirlinePayload, BackupReadinessPayload, BackupRecordPayload, LocationDirectoryPayload,
+        StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
+        TicketDraftPayload, TicketRecordPayload,
     },
 };
 use tauri::command;
@@ -88,6 +88,11 @@ pub fn list_backups(app: AppHandle) -> Result<Vec<BackupRecordPayload>, String> 
 #[command]
 pub fn create_backup(app: AppHandle) -> Result<BackupRecordPayload, String> {
     db::create_backup(&app)
+}
+
+#[command]
+pub fn get_backup_readiness(app: AppHandle) -> Result<BackupReadinessPayload, String> {
+    db::get_backup_readiness(&app)
 }
 
 #[command]

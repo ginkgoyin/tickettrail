@@ -3,6 +3,7 @@ import airlineSeedData from "../data/airlines.seed.json";
 import locationSeedData from "../data/locations.seed.json";
 import type {
   AirlineDirectoryEntry,
+  BackupReadiness,
   BackupRecord,
   LocationDirectoryEntry,
   TicketAttachment,
@@ -482,6 +483,22 @@ export async function createBackup(): Promise<BackupRecord> {
 
   writeFallbackBackups([nextBackup, ...readFallbackBackups()]);
   return nextBackup;
+}
+
+export async function getBackupReadiness(): Promise<BackupReadiness> {
+  if (supportsTauri()) {
+    return invoke<BackupReadiness>("get_backup_readiness");
+  }
+
+  const tickets = readFallbackTickets();
+  const attachments = readFallbackAttachments();
+  return {
+    databaseExists: true,
+    databasePath: "Web fallback localStorage",
+    attachmentRootPath: "Web fallback localStorage",
+    ticketCount: tickets.length,
+    attachmentCount: Object.values(attachments).reduce((sum, items) => sum + items.length, 0),
+  };
 }
 
 export async function restoreBackup(backupId: string): Promise<void> {
