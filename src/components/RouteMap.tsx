@@ -13,13 +13,21 @@ interface RouteMapProps {
 function createMarkerElement(kind: "origin" | "destination" | "waypoint", label: string, code?: string) {
   const marker = document.createElement("div");
   marker.className = `route-marker route-marker-${kind}`;
-  marker.innerHTML = `
-    <span class="route-marker-dot"></span>
-    <span class="route-marker-card">
-      <strong>${code ?? label}</strong>
-      <small>${label}</small>
-    </span>
-  `;
+
+  const dot = document.createElement("span");
+  dot.className = "route-marker-dot";
+
+  const card = document.createElement("span");
+  card.className = "route-marker-card";
+
+  const title = document.createElement("strong");
+  title.textContent = code ?? label;
+
+  const subtitle = document.createElement("small");
+  subtitle.textContent = label;
+
+  card.append(title, subtitle);
+  marker.append(dot, card);
   return marker;
 }
 

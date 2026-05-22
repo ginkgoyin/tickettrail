@@ -1565,6 +1565,74 @@ fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
     (latitude, longitude)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{
+        normalize_to_utc, sanitize_file_name, validate_draft, TicketDraftPayload, TicketLocationPayload,
+        TicketSegmentPayload,
+    };
+
+    fn sample_location(name: &str, code: Option<&str>, timezone: &str) -> TicketLocationPayload {
+        TicketLocationPayload {
+            name: name.to_string(),
+            code: code.map(|value| value.to_string()),
+            timezone: timezone.to_string(),
+        }
+    }
+
+    fn sample_draft() -> TicketDraftPayload {
+        TicketDraftPayload {
+            ticket_type: "flight".to_string(),
+            carrier_name: "China Eastern".to_string(),
+            code: "MU561".to_string(),
+            departure: sample_location("Shanghai Pudong", Some("PVG"), "Asia/Shanghai"),
+            arrival: sample_location("Sydney", Some("SYD"), "Australia/Sydney"),
+            departure_time_local: "2026-05-21T09:30".to_string(),
+            arrival_time_local: "2026-05-21T21:30".to_string(),
+            class_info: "Economy".to_string(),
+            seat_info: "24A".to_string(),
+            notes: "".to_string(),
+            segments: Some(vec![TicketSegmentPayload {
+                carrier_name: "China Eastern".to_string(),
+                code: "MU562".to_string(),
+                departure: sample_location("Sydney", Some("SYD"), "Australia/Sydney"),
+                arrival: sample_location("Melbourne", Some("MEL"), "Australia/Melbourne"),
+                departure_time_local: "2026-05-22T08:00".to_string(),
+                arrival_time_local: "2026-05-22T09:35".to_string(),
+                class_info: "Economy".to_string(),
+                seat_info: "11C".to_string(),
+                notes: "".to_string(),
+            }]),
+        }
+    }
+
+    #[test]
+    fn normalize_to_utc_converts_local_time() {
+        let value = normalize_to_utc("2026-05-21T09:30", "Asia/Shanghai").expect("should convert");
+        assert!(value.starts_with("2026-05-21T01:30:00"));
+    }
+
+    #[test]
+    fn sanitize_file_name_replaces_invalid_characters() {
+        let sanitized = sanitize_file_name("boa:rd*ing?/pass<>.png");
+        assert_eq!(sanitized, "boa_rd_ing__pass__.png");
+    }
+
+    #[test]
+    fn validate_draft_accepts_well_formed_multi_segment_ticket() {
+        let draft = sample_draft();
+        assert!(validate_draft(&draft).is_ok());
+    }
+
+    #[test]
+    fn validate_draft_rejects_missing_timezone() {
+        let mut draft = sample_draft();
+        draft.departure.timezone = "".to_string();
+        let result = validate_draft(&draft);
+        assert!(result.is_err());
+    }
+}
+
 fn lookup_coordinates(conn: &Connection, location: &TicketLocationPayload) -> Option<(f64, f64)> {
     let code = location.code.clone().unwrap_or_default();
     let name = location.name.clone();

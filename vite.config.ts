@@ -7,5 +7,14 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "maplibre-vendor": ["maplibre-gl"],
+        },
+      },
+    },
+  },
   clearScreen: false,
 });

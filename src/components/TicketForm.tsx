@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { ImportFieldKey, ImportFieldReview } from "../lib/importParser";
 import { searchAirlines, searchLocations } from "../lib/ticketService";
 import type {
@@ -142,7 +142,28 @@ export function TicketForm({
   const [segmentAirlineSuggestions, setSegmentAirlineSuggestions] = useState<Record<number, AirlineDirectoryEntry[]>>({});
   const [segmentDepartureSuggestions, setSegmentDepartureSuggestions] = useState<Record<number, LocationDirectoryEntry[]>>({});
   const [segmentArrivalSuggestions, setSegmentArrivalSuggestions] = useState<Record<number, LocationDirectoryEntry[]>>({});
+  const airlineSuggestionCacheRef = useRef(new Map<string, AirlineDirectoryEntry[]>());
+  const locationSuggestionCacheRef = useRef(new Map<string, LocationDirectoryEntry[]>());
   const reviewMap = buildReviewMap(mode === "edit" ? null : importReview);
+
+  const mainAirlineQuery = draft.ticketType === "flight" ? draft.carrierName.trim() : "";
+  const segmentAirlineQueries = useMemo(
+    () =>
+      (draft.segments ?? []).map((segment) =>
+        draft.ticketType === "flight" ? segment.carrierName.trim() : "",
+      ),
+    [draft.segments, draft.ticketType],
+  );
+  const mainDepartureQuery = (draft.departure.name || draft.departure.code || "").trim();
+  const mainArrivalQuery = (draft.arrival.name || draft.arrival.code || "").trim();
+  const segmentLocationQueries = useMemo(
+    () =>
+      (draft.segments ?? []).map((segment) => ({
+        departure: (segment.departure.name || segment.departure.code || "").trim(),
+        arrival: (segment.arrival.name || segment.arrival.code || "").trim(),
+      })),
+    [draft.segments],
+  );
 
   useEffect(() => {
     if (mode === "edit") {
@@ -161,45 +182,49 @@ export function TicketForm({
   useEffect(() => {
     let isMounted = true;
 
+    const resolveAirlineSuggestions = async (query: string) => {
+      const trimmed = query.trim();
+      if (draft.ticketType !== "flight" || trimmed.length < 1) {
+        return [];
+      }
+
+      const cacheKey = trimmed.toLowerCase();
+      const cached = airlineSuggestionCacheRef.current.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const results = await searchAirlines(trimmed);
+      airlineSuggestionCacheRef.current.set(cacheKey, results);
+      return results;
+    };
+
     const loadAirlineSuggestions = async () => {
-      if (draft.ticketType !== "flight" || draft.carrierName.trim().length < 1) {
-        setAirlineSuggestions([]);
-      } else {
-        try {
-          const results = await searchAirlines(draft.carrierName.trim());
-          if (isMounted) {
-            setAirlineSuggestions(results);
-          }
-        } catch {
-          if (isMounted) {
-            setAirlineSuggestions([]);
-          }
-        }
-      }
+      const uniqueQueries = Array.from(
+        new Set([mainAirlineQuery, ...segmentAirlineQueries].map((query) => query.trim()).filter(Boolean)),
+      );
 
-      if (!draft.segments?.length) {
-        setSegmentAirlineSuggestions({});
-        return;
-      }
-
-      const entries = await Promise.all(
-        draft.segments.map(async (segment, index) => {
-          if (draft.ticketType !== "flight" || segment.carrierName.trim().length < 1) {
-            return [index, []] as const;
-          }
-
+      const resultsByQuery = new Map<string, AirlineDirectoryEntry[]>();
+      await Promise.all(
+        uniqueQueries.map(async (query) => {
           try {
-            const results = await searchAirlines(segment.carrierName.trim());
-            return [index, results] as const;
+            resultsByQuery.set(query, await resolveAirlineSuggestions(query));
           } catch {
-            return [index, []] as const;
+            resultsByQuery.set(query, []);
           }
         }),
       );
 
-      if (isMounted) {
-        setSegmentAirlineSuggestions(Object.fromEntries(entries));
+      if (!isMounted) {
+        return;
       }
+
+      setAirlineSuggestions(resultsByQuery.get(mainAirlineQuery) ?? []);
+      setSegmentAirlineSuggestions(
+        Object.fromEntries(
+          segmentAirlineQueries.map((query, index) => [index, resultsByQuery.get(query) ?? []]),
+        ),
+      );
     };
 
     void loadAirlineSuggestions();
@@ -207,50 +232,64 @@ export function TicketForm({
     return () => {
       isMounted = false;
     };
-  }, [draft.carrierName, draft.ticketType]);
+  }, [draft.ticketType, mainAirlineQuery, segmentAirlineQueries]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadLocationSuggestions = async (query: string) => {
-      if (query.trim().length < 1) {
+    const resolveLocationSuggestions = async (query: string) => {
+      const trimmed = query.trim();
+      if (trimmed.length < 1) {
         return [];
       }
 
-      try {
-        return await searchLocations(query.trim());
-      } catch {
-        return [];
+      const cacheKey = trimmed.toLowerCase();
+      const cached = locationSuggestionCacheRef.current.get(cacheKey);
+      if (cached) {
+        return cached;
       }
+
+      const results = await searchLocations(trimmed);
+      locationSuggestionCacheRef.current.set(cacheKey, results);
+      return results;
     };
 
     const loadAllSuggestions = async () => {
-      const [mainDeparture, mainArrival, segmentEntries] = await Promise.all([
-        loadLocationSuggestions(draft.departure.name || draft.departure.code || ""),
-        loadLocationSuggestions(draft.arrival.name || draft.arrival.code || ""),
-        Promise.all(
-          (draft.segments ?? []).map(async (segment, index) => {
-            const [departure, arrival] = await Promise.all([
-              loadLocationSuggestions(segment.departure.name || segment.departure.code || ""),
-              loadLocationSuggestions(segment.arrival.name || segment.arrival.code || ""),
-            ]);
-
-            return [index, { departure, arrival }] as const;
-          }),
+      const uniqueQueries = Array.from(
+        new Set(
+          [mainDepartureQuery, mainArrivalQuery]
+            .concat(segmentLocationQueries.flatMap((segment) => [segment.departure, segment.arrival]))
+            .map((query) => query.trim())
+            .filter(Boolean),
         ),
-      ]);
+      );
+
+      const resultsByQuery = new Map<string, LocationDirectoryEntry[]>();
+      await Promise.all(
+        uniqueQueries.map(async (query) => {
+          try {
+            resultsByQuery.set(query, await resolveLocationSuggestions(query));
+          } catch {
+            resultsByQuery.set(query, []);
+          }
+        }),
+      );
 
       if (!isMounted) {
         return;
       }
 
-      setDepartureSuggestions(mainDeparture);
-      setArrivalSuggestions(mainArrival);
+      setDepartureSuggestions(resultsByQuery.get(mainDepartureQuery) ?? []);
+      setArrivalSuggestions(resultsByQuery.get(mainArrivalQuery) ?? []);
       setSegmentDepartureSuggestions(
-        Object.fromEntries(segmentEntries.map(([index, result]) => [index, result.departure])),
+        Object.fromEntries(
+          segmentLocationQueries.map((segment, index) => [index, resultsByQuery.get(segment.departure) ?? []]),
+        ),
       );
       setSegmentArrivalSuggestions(
-        Object.fromEntries(segmentEntries.map(([index, result]) => [index, result.arrival])),
+        Object.fromEntries(
+          segmentLocationQueries.map((segment, index) => [index, resultsByQuery.get(segment.arrival) ?? []]),
+        ),
       );
     };
 
@@ -259,7 +298,7 @@ export function TicketForm({
     return () => {
       isMounted = false;
     };
-  }, [draft]);
+  }, [mainArrivalQuery, mainDepartureQuery, segmentLocationQueries]);
 
   const updateField = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));

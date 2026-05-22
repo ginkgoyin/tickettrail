@@ -173,27 +173,32 @@ export function Dashboard({
   const [scopeDetails, setScopeDetails] = useState<TicketDetailPayload[]>([]);
   const [scopeLoading, setScopeLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  if (!ticket) {
-    return (
-      <section className="panel dashboard">
-        <h3>No ticket selected</h3>
-      </section>
-    );
-  }
-
-  const activeDetail = detail?.ticket.id === ticket.id ? detail : null;
-  const isTrainTicket = ticket.ticketType === "train";
+  const scopeDetailCacheRef = useRef(new Map<string, TicketDetailPayload>());
+  const activeDetail = ticket && detail?.ticket.id === ticket.id ? detail : null;
+  const isTrainTicket = ticket?.ticketType === "train";
 
   useEffect(() => {
+    if (!detail) {
+      return;
+    }
+
+    scopeDetailCacheRef.current.set(`${detail.ticket.id}:${detail.ticket.updatedAt}`, detail);
+  }, [detail]);
+
+  useEffect(() => {
+    if (!ticket) {
+      return;
+    }
+
     setStubTheme(isTrainTicket ? "ledger" : "boarding");
-  }, [isTrainTicket, ticket.id]);
+  }, [isTrainTicket, ticket]);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadScopeDetails = async () => {
-      if (!ticketsInView.length) {
+      const visibleScopeTickets = ticketsInView.slice(0, 24);
+      if (!visibleScopeTickets.length) {
         setScopeDetails([]);
         return;
       }
@@ -202,7 +207,20 @@ export function Dashboard({
 
       try {
         const nextDetails = await Promise.all(
-          ticketsInView.slice(0, 24).map((item) => getTicketDetail(item.id)),
+          visibleScopeTickets.map(async (item) => {
+            const cacheKey = `${item.id}:${item.updatedAt}`;
+            const cachedDetail = scopeDetailCacheRef.current.get(cacheKey);
+            if (cachedDetail) {
+              return cachedDetail;
+            }
+
+            const fetchedDetail = await getTicketDetail(item.id);
+            scopeDetailCacheRef.current.set(
+              `${fetchedDetail.ticket.id}:${fetchedDetail.ticket.updatedAt}`,
+              fetchedDetail,
+            );
+            return fetchedDetail;
+          }),
         );
 
         if (isMounted) {
@@ -413,6 +431,14 @@ export function Dashboard({
   const themeOptions: StubTheme[] = isTrainTicket
     ? ["ledger", "boarding", "night"]
     : ["boarding", "ledger", "night"];
+
+  if (!ticket) {
+    return (
+      <section className="panel dashboard">
+        <h3>No ticket selected</h3>
+      </section>
+    );
+  }
 
   return (
     <section className="panel dashboard">
