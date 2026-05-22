@@ -85,11 +85,25 @@ src-tauri\target\release\bundle\
 如果要触发 GitHub Release 自动上传，推荐流程是：
 
 ```powershell
+npm.cmd run version:sync -- 0.1.1
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+git commit -m "Bump version to 0.1.1"
 git tag v0.1.1
 git push origin v0.1.1
 ```
 
 推送标签后，GitHub Actions 会自动构建，并把生成的 Windows 安装包挂到对应的 Release 页面。
+
+## 版本号规范
+
+当前项目已经加入两条版本工具脚本：
+
+- `npm.cmd run version:sync -- 0.1.1`
+  同步 `package.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml`
+- `npm.cmd run version:check`
+  校验三处版本号是否一致；如果当前是 `v*` 标签构建，还会检查标签版本是否与项目版本一致
+
+建议每次正式发版都先执行 `version:sync`，再提交、打标签、推送。
 
 ## 当前边界
 
