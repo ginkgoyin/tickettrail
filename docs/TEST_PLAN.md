@@ -35,7 +35,7 @@ There is also no separate type-check command documented; frontend type-checking 
 
 ### `tests/importParser.test.ts`
 
-- File path: [tests/importParser.test.ts](C:/yx/00app/ticket/tests/importParser.test.ts)
+- File path: `tests/importParser.test.ts`
 - What it appears to cover:
   - Flight-like text parsing into a draft
   - Train-like text parsing into a draft
@@ -49,7 +49,7 @@ There is also no separate type-check command documented; frontend type-checking 
 
 ### `tests/ticketService.fallback.test.ts`
 
-- File path: [tests/ticketService.fallback.test.ts](C:/yx/00app/ticket/tests/ticketService.fallback.test.ts)
+- File path: `tests/ticketService.fallback.test.ts`
 - What it appears to cover:
   - Web fallback ticket create/list/update/delete
   - Fallback ticket detail loading
@@ -67,7 +67,7 @@ There is also no separate type-check command documented; frontend type-checking 
 
 ### `tests/visualization.test.ts`
 
-- File path: [tests/visualization.test.ts](C:/yx/00app/ticket/tests/visualization.test.ts)
+- File path: `tests/visualization.test.ts`
 - What it appears to cover:
   - Route SVG generation
   - Flight stub SVG generation
