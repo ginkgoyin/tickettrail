@@ -14,6 +14,13 @@ Current repository risks to keep in mind:
 - Tests exist, but coverage is still limited.
 - Do not start large refactors before the main user flows are stable.
 
+## Before Coding
+
+- Read this `AGENTS.md` and the relevant docs first.
+- If requirements are unclear, inspect existing code and docs before guessing.
+- For new features, update the relevant docs or task plan before implementation.
+- Avoid broad refactors unless explicitly requested.
+
 ## Repository Structure
 
 - `src/`: React frontend
@@ -34,8 +41,10 @@ Current repository risks to keep in mind:
 - Desktop dev: `npm run tauri:dev`
 - Frontend build: `npm run build`
 - Desktop build: `npm run tauri:build`
+- Windows installer build: `npm run tauri:build:windows`
+- Windows release build: `npm run release:windows`
 - Frontend tests: `npm run test`
-- Rust tests: `cargo test`
+- Rust tests: `cargo test --manifest-path src-tauri/Cargo.toml`
 
 ## Development Rules
 
@@ -45,6 +54,13 @@ Current repository risks to keep in mind:
 - Keep Tauri/Rust models and frontend TypeScript models consistent.
 - Update docs when behavior, architecture, data model, or commands change.
 - Stabilize main flows before doing structural refactors.
+
+## Known Architecture Direction
+
+- Stabilize current user flows first.
+- Later, gradually split `src/App.tsx` into page-level or feature-level modules.
+- Later, gradually split `src-tauri/src/db.rs` into smaller Rust modules.
+- Do not perform those refactors as part of unrelated feature work.
 
 ## Testing Expectations
 
@@ -58,6 +74,14 @@ Current repository risks to keep in mind:
 - Keep `docs/` up to date.
 - Prefer recording project decisions in `docs/` rather than leaving important context only in chat.
 - If requirements change, update the relevant requirements or plan doc first.
+
+## Documentation Map
+
+- `docs/requirements-analysis.md`: product requirements and scope
+- `docs/technical-implementation-plan.md`: implementation and architecture plan
+- `docs/development-setup.md`: local setup and startup notes
+- `docs/windows-release.md`: Windows packaging and release workflow
+- Create missing docs such as `TEST_PLAN.md`, `API_SPEC.md`, `DATA_MODEL.md`, or `TASKS.md` incrementally when they become necessary.
 
 ## Safety And Security Rules
 
@@ -76,6 +100,18 @@ For new requirements:
 3. Implement.
 4. Test.
 5. Summarize changes, risks, and verification.
+
+## Response Format
+
+After each task, summarize:
+
+- What changed
+- Files changed
+- Commands run
+- Test results
+- Assumptions
+- Risks / TODOs
+- Recommended next step
 
 ## Definition Of Done
 
