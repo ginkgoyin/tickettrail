@@ -2,74 +2,81 @@
 
 ## 中文
 
-`TicketTrail` 是一个以票务信息沉淀、行程可视化和票根生成归档为核心的跨平台项目。第一阶段优先做桌面端，建议从 Windows 版本起步；在业务模型和数据结构稳定后，再扩展到 macOS 与 Android。
+`TicketTrail` 是一个以票务信息归档、行程可视化和票根导出为核心的桌面项目，当前重点是 Windows 桌面端。
 
-推荐中文名：`票迹`
+项目当前已经具备这些能力：
 
-推荐英文名：`TicketTrail`
+- 票据录入、编辑、删除、归档
+- 单段与多段行程管理
+- 地图路线展示与集合地图
+- 票根 SVG / PNG 导出
+- 附件保存、备份、恢复
+- OCR / 文本智能导入
+- 统计、筛选、时间线和常用视图
 
-命名含义：
+## 启动方式
 
-- `Ticket` 表达机票、火车票等票务信息管理。
-- `Trail` 表达出行轨迹、地图路线和历史归档能力。
+### 1. 日常使用
 
-备选名称：
+优先使用下面两个入口之一：
 
-- `RouteKeeper`：更强调路线与记录保存。
-- `ItinStub`：更强调 itinerary 与票根存档。
-- `TripLedger`：更强调结构化出行账本。
+- 安装包：
+  `src-tauri\target\release\bundle\nsis\TicketTrail_0.1.0_x64-setup.exe`
+- 独立运行版：
+  `src-tauri\target\release\tickettrail.exe`
 
-当前目录包含：
+### 2. 开发调试
 
-- `README.md`：项目定位、命名方案与阶段目标。
-- `docs/requirements-analysis.md`：结构化需求分析报告。
-- `docs/technical-implementation-plan.md`：可落地的技术架构、模块规划、API 草案和工程规范。
-- `docs/development-setup.md`：本地开发环境与启动说明。
-- `docs/windows-release.md`：Windows 安装包打包与发布流程说明。
-- `src/`：React 前端界面与交互逻辑。
-- `src-tauri/`：Tauri 2 桌面壳与 Rust 命令层。
-- `database/schema.sql`：SQLite 数据库结构。
+开发版需要本地启动 Vite 服务和 Tauri 容器，请在项目根目录运行：
 
-第一阶段目标：
+```powershell
+npm.cmd install
+npm.cmd run tauri:dev
+```
 
-1. 建立统一的票务数据模型，覆盖机票与火车票。
-2. 支持录入、编辑、检索、归档和可视化展示票务信息。
-3. 根据出发地与目的地生成地图行程连线和方向标识。
-4. 根据票务信息自动生成票根图，并支持保存和导出。
+也可以直接双击：
+
+- `scripts\run-tickettrail-dev.bat`
+
+### 3. 不要直接双击这个文件
+
+不要直接双击：
+
+```text
+src-tauri\target\debug\tickettrail.exe
+```
+
+这是开发调试产物，它会尝试连接 `http://localhost:1420`。如果没有先运行 `npm.cmd run tauri:dev`，就会出现你看到的 `ERR_CONNECTION_REFUSED`。
+
+### 4. 一键打开发布版
+
+如果你已经打过 Windows 发布包，也可以直接双击：
+
+- `scripts\run-tickettrail-release.bat`
+
+它会优先打开：
+
+```text
+src-tauri\target\release\tickettrail.exe
+```
+
+如果发布版不存在，脚本会提示你先执行构建。
+
+## 目录说明
+
+- `src/`：React 前端
+- `src-tauri/`：Tauri 与 Rust
+- `database/schema.sql`：SQLite 结构
+- `docs/development-setup.md`：开发环境与启动说明
+- `docs/windows-release.md`：Windows 打包与发布说明
 
 ## English
 
-`TicketTrail` is a cross-platform project concept centered on ticket information archiving, itinerary visualization, and ticket-stub image generation. The first phase should prioritize desktop, starting with Windows; once the business model and data structures are stable, the product can expand to macOS and Android.
+`TicketTrail` is a Windows-first desktop app for ticket archiving, itinerary visualization, map rendering, ticket-stub export, OCR-assisted import, and structured travel records.
 
-Recommended Chinese name: `票迹`
+For normal use, launch the release build or installer:
 
-Recommended English name: `TicketTrail`
+- `src-tauri\target\release\tickettrail.exe`
+- `src-tauri\target\release\bundle\nsis\TicketTrail_0.1.0_x64-setup.exe`
 
-Name rationale:
-
-- `Ticket` reflects management of flight tickets, train tickets, and similar travel records.
-- `Trail` reflects trip traces, map routes, and historical archiving.
-
-Alternative names:
-
-- `RouteKeeper`: emphasizes route management and record keeping.
-- `ItinStub`: emphasizes itineraries and ticket-stub archiving.
-- `TripLedger`: emphasizes a structured travel ledger.
-
-This directory currently contains:
-
-- `README.md`: project positioning, naming options, and phase goals.
-- `docs/requirements-analysis.md`: structured requirements analysis report.
-- `docs/technical-implementation-plan.md`: implementation-ready technical architecture, module plan, API draft, and engineering standards.
-- `docs/development-setup.md`: scaffold status and local startup guidance.
-- `docs/windows-release.md`: Windows installer packaging and release workflow notes.
-- `src/`: React-based Windows-first frontend scaffold.
-- `src-tauri/`: Tauri 2 desktop shell and Rust command scaffold.
-- `database/schema.sql`: initial SQLite schema draft.
-
-Phase 1 goals:
-
-1. Build a unified ticket data model covering flights and trains.
-2. Support ticket record creation, editing, search, archiving, and visualization.
-3. Generate map route lines and direction markers from origin and destination data.
-4. Auto-generate ticket-stub images from ticket details and support persistence/export.
+Do not double-click `src-tauri\target\debug\tickettrail.exe` by itself. That debug binary expects the local Vite dev server from `npm.cmd run tauri:dev`, so it will fail with `ERR_CONNECTION_REFUSED` when launched standalone.
