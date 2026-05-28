@@ -40,11 +40,79 @@ interface DashboardProps {
 }
 
 function isImageAttachment(attachment: TicketAttachment) {
-  return attachment.mimeType.startsWith("image/");
+  return safeText(attachment.mimeType).startsWith("image/");
 }
 
-function formatDateTime(value: string) {
-  return value.replace("T", " ").slice(0, 16);
+function safeText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function formatDateTime(value: unknown) {
+  const text = safeText(value).trim();
+  if (!text) {
+    return "--";
+  }
+
+  return text.replace("T", " ").slice(0, 16) || text;
+}
+
+function formatCoordinate(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function hasUsableMapPoint(point: MapPointPayload | null | undefined): point is MapPointPayload {
+  return Boolean(
+    point &&
+      typeof point.label === "string" &&
+      point.label.trim().length > 0 &&
+      typeof point.timezone === "string" &&
+      point.timezone.trim().length > 0 &&
+      isFiniteNumber(point.latitude) &&
+      isFiniteNumber(point.longitude),
+  );
+}
+
+function hasUsableMapRoute(route: MapRoutePayload | null | undefined): route is MapRoutePayload {
+  return Boolean(
+    route &&
+      typeof route.lineLabel === "string" &&
+      typeof route.directionHint === "string" &&
+      isFiniteNumber(route.distanceHintKm) &&
+      hasUsableMapPoint(route.origin) &&
+      hasUsableMapPoint(route.destination) &&
+      route.viewport &&
+      isFiniteNumber(route.viewport.minLatitude) &&
+      isFiniteNumber(route.viewport.maxLatitude) &&
+      isFiniteNumber(route.viewport.minLongitude) &&
+      isFiniteNumber(route.viewport.maxLongitude),
+  );
+}
+
+function hasUsableMapSegment(segment: MapSegmentPayload | null | undefined): segment is MapSegmentPayload {
+  return Boolean(
+    segment &&
+      typeof segment.lineLabel === "string" &&
+      typeof segment.directionHint === "string" &&
+      isFiniteNumber(segment.distanceHintKm) &&
+      hasUsableMapPoint(segment.origin) &&
+      hasUsableMapPoint(segment.destination),
+  );
+}
+
+function hasRenderableStub(detail: TicketDetailPayload | null) {
+  return Boolean(
+    detail &&
+      typeof detail.stub?.transportBadge === "string" &&
+      typeof detail.stub?.carrierName === "string" &&
+      typeof detail.stub?.departureLabel === "string" &&
+      typeof detail.stub?.arrivalLabel === "string" &&
+      typeof detail.stub?.departureTimeLocal === "string" &&
+      typeof detail.stub?.arrivalTimeLocal === "string",
+  );
 }
 
 function buildTicketExportJson(detail: TicketDetailPayload) {
@@ -103,6 +171,7 @@ function buildScopeMapPayload(details: TicketDetailPayload[]) {
         ticketId: detail.ticket.id,
       })),
     )
+    .filter(hasUsableMapSegment)
     .map((segment, index) => ({
       ...segment,
       segmentIndex: index,
@@ -123,7 +192,7 @@ function buildScopeMapPayload(details: TicketDetailPayload[]) {
     }, new Map<string, MapPointPayload>()),
   ).map((entry) => entry[1]);
   const orderedDetails = [...details].sort((left, right) =>
-    left.ticket.departureTimeLocal.localeCompare(right.ticket.departureTimeLocal),
+    safeText(left.ticket.departureTimeLocal).localeCompare(safeText(right.ticket.departureTimeLocal)),
   );
   const minLatitude = Math.min(...allPoints.map((point) => point.latitude));
   const maxLatitude = Math.max(...allPoints.map((point) => point.latitude));
@@ -176,6 +245,11 @@ export function Dashboard({
   const scopeDetailCacheRef = useRef(new Map<string, TicketDetailPayload>());
   const activeDetail = ticket && detail?.ticket.id === ticket.id ? detail : null;
   const isTrainTicket = ticket?.ticketType === "train";
+  const canRenderActiveMap =
+    Boolean(activeDetail) &&
+    hasUsableMapRoute(activeDetail?.map) &&
+    (activeDetail?.segments ?? []).every(hasUsableMapSegment);
+  const canRenderActiveStub = hasRenderableStub(activeDetail);
 
   useEffect(() => {
     if (!detail) {
@@ -245,12 +319,18 @@ export function Dashboard({
   }, [ticketsInView]);
 
   const mapSvg = useMemo(
-    () => (activeDetail ? buildMapSvgFromSegments(activeDetail.map, activeDetail.segments) : ""),
-    [activeDetail],
+    () =>
+      activeDetail && canRenderActiveMap
+        ? buildMapSvgFromSegments(activeDetail.map, activeDetail.segments)
+        : "",
+    [activeDetail, canRenderActiveMap],
   );
   const stubSvg = useMemo(
-    () => (activeDetail ? buildStubSvg(activeDetail.stub, stubTheme, activeDetail.segments) : ""),
-    [activeDetail, stubTheme],
+    () =>
+      activeDetail && canRenderActiveStub
+        ? buildStubSvg(activeDetail.stub, stubTheme, activeDetail.segments)
+        : "",
+    [activeDetail, canRenderActiveStub, stubTheme],
   );
   const itinerarySummary = useMemo(() => {
     if (!activeDetail) {
@@ -297,7 +377,7 @@ export function Dashboard({
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
       .slice(0, 5);
     const departures = ticketsInView
-      .map((item) => item.departureTimeLocal)
+      .map((item) => safeText(item.departureTimeLocal))
       .sort((left, right) => left.localeCompare(right));
 
     return {
@@ -339,17 +419,30 @@ export function Dashboard({
     }
 
     if (kind === "map") {
+      if (!mapSvg) {
+        setExportMessage("Route map data is incomplete.");
+        return;
+      }
       exportSvg(`${activeDetail.ticket.code}-route-map.svg`, mapSvg);
       setExportMessage("路线 SVG 已导出。");
       return;
     }
 
+    if (!stubSvg) {
+      setExportMessage("Ticket stub data is incomplete.");
+      return;
+    }
     exportSvg(`${activeDetail.ticket.code}-ticket-stub.svg`, stubSvg);
     setExportMessage("票根 SVG 已导出。");
   };
 
   const handleExportPng = async () => {
     if (!activeDetail) {
+      return;
+    }
+
+    if (!stubSvg) {
+      setExportMessage("Ticket stub data is incomplete.");
       return;
     }
 
@@ -606,7 +699,8 @@ export function Dashboard({
 
       <article className="map-preview">
         {activeDetail ? (
-          <>
+          canRenderActiveMap ? (
+            <>
             <Suspense fallback={<p className="detail-loading">正在加载真实地图组件...</p>}>
               <RouteMap route={activeDetail.map} segments={activeDetail.segments} />
             </Suspense>
@@ -635,7 +729,13 @@ export function Dashboard({
                 ))}
               </div>
             ) : null}
-          </>
+            </>
+          ) : (
+            <div className="empty-state">
+              <strong>Route preview is unavailable</strong>
+              <p>The saved ticket data is incomplete, so the route preview was skipped safely.</p>
+            </div>
+          )
         ) : (
           <div className="map-grid">
             <div className="map-node">
@@ -655,20 +755,20 @@ export function Dashboard({
             </div>
           </div>
         )}
-        {activeDetail ? (
+        {activeDetail && canRenderActiveMap ? (
           <div className="map-summary">
             <span>{activeDetail.map.directionHint}</span>
             <span>{activeDetail.map.distanceHintKm} km</span>
             <span>
-              {activeDetail.map.viewport.minLatitude.toFixed(2)} /{" "}
-              {activeDetail.map.viewport.maxLatitude.toFixed(2)} lat
+              {formatCoordinate(activeDetail.map.viewport.minLatitude)} /{" "}
+              {formatCoordinate(activeDetail.map.viewport.maxLatitude)} lat
             </span>
           </div>
         ) : null}
       </article>
 
       <article className="stub-preview">
-        {activeDetail ? (
+        {activeDetail && canRenderActiveStub ? (
           <>
             <div className="theme-switcher">
               {themeOptions.map((theme) => (
@@ -696,25 +796,30 @@ export function Dashboard({
               </button>
             </div>
           </>
+        ) : activeDetail ? (
+          <div className="empty-state">
+            <strong>Ticket stub preview is unavailable</strong>
+            <p>The saved ticket data is incomplete, so the stub preview was skipped safely.</p>
+          </div>
         ) : (
           <>
             <header>
-              <span>{ticket.ticketType.toUpperCase()}</span>
-              <strong>{ticket.code}</strong>
+              <span>{safeText(ticket.ticketType, "ticket").toUpperCase()}</span>
+              <strong>{safeText(ticket.code, "--")}</strong>
             </header>
             <div className="stub-body">
               <div>
-                <span>{ticket.departure.name}</span>
-                <strong>{ticket.departureTimeLocal.replace("T", " ")}</strong>
+                <span>{safeText(ticket.departure?.name, "Departure")}</span>
+                <strong>{formatDateTime(ticket.departureTimeLocal)}</strong>
               </div>
               <div>
-                <span>{ticket.arrival.name}</span>
-                <strong>{ticket.arrivalTimeLocal.replace("T", " ")}</strong>
+                <span>{safeText(ticket.arrival?.name, "Arrival")}</span>
+                <strong>{formatDateTime(ticket.arrivalTimeLocal)}</strong>
               </div>
             </div>
             <footer>
-              <span>{ticket.carrierName}</span>
-              <span>{`${ticket.classInfo || "TBD"} / ${ticket.seatInfo || "TBD"}`}</span>
+              <span>{safeText(ticket.carrierName, "Carrier")}</span>
+              <span>{`${safeText(ticket.classInfo, "TBD") || "TBD"} / ${safeText(ticket.seatInfo, "TBD") || "TBD"}`}</span>
             </footer>
           </>
         )}
@@ -726,7 +831,7 @@ export function Dashboard({
             <p className="eyebrow">Attachments</p>
             <h3>Original ticket files</h3>
           </div>
-          <span className="status-pill">{activeDetail?.attachments.length ?? 0} files</span>
+          <span className="status-pill">{activeDetail?.attachments?.length ?? 0} files</span>
         </div>
         <input
           accept="image/*,application/pdf"
@@ -745,9 +850,9 @@ export function Dashboard({
             {attachmentBusy ? "正在处理附件..." : "添加附件"}
           </button>
         </div>
-        {activeDetail?.attachments.length ? (
+        {activeDetail?.attachments?.length ? (
           <div className="attachment-grid">
-            {activeDetail.attachments.map((attachment) => (
+            {(activeDetail.attachments ?? []).map((attachment) => (
               <article className="attachment-card" key={attachment.id}>
                 {isImageAttachment(attachment) && attachment.previewUrl ? (
                   <img
@@ -757,13 +862,13 @@ export function Dashboard({
                   />
                 ) : (
                   <div className="attachment-fallback">
-                    <strong>{attachment.mimeType.includes("pdf") ? "PDF" : "FILE"}</strong>
+                    <strong>{safeText(attachment.mimeType).includes("pdf") ? "PDF" : "FILE"}</strong>
                   </div>
                 )}
                 <div className="attachment-meta">
-                  <strong>{attachment.fileName}</strong>
+                  <strong>{safeText(attachment.fileName, "Attachment")}</strong>
                   <span>{Math.max(1, Math.round(attachment.fileSize / 1024))} KB</span>
-                  <span>{attachment.createdAt.replace("T", " ").slice(0, 16)}</span>
+                  <span>{formatDateTime(attachment.createdAt)}</span>
                 </div>
                 <div className="attachment-actions">
                   {attachment.previewUrl ? (
@@ -810,21 +915,21 @@ export function Dashboard({
       <article className="detail-grid">
         <div className="detail-card">
           <span>Departure timezone</span>
-          <strong>{ticket.departure.timezone}</strong>
+          <strong>{safeText(ticket.departure?.timezone, "Unknown")}</strong>
         </div>
         <div className="detail-card">
           <span>Arrival timezone</span>
-          <strong>{ticket.arrival.timezone}</strong>
+          <strong>{safeText(ticket.arrival?.timezone, "Unknown")}</strong>
         </div>
         <div className="detail-card">
           <span>Notes</span>
-          <strong>{activeDetail?.stub.notes || ticket.notes || "No notes yet"}</strong>
+          <strong>{safeText(activeDetail?.stub.notes || ticket.notes, "No notes yet") || "No notes yet"}</strong>
         </div>
         <div className="detail-card">
           <span>起点坐标</span>
           <strong>
-            {activeDetail
-              ? `${activeDetail.map.origin.latitude.toFixed(2)}, ${activeDetail.map.origin.longitude.toFixed(2)}`
+            {activeDetail && hasUsableMapRoute(activeDetail.map)
+              ? `${formatCoordinate(activeDetail.map.origin.latitude)}, ${formatCoordinate(activeDetail.map.origin.longitude)}`
               : "Pending"}
           </strong>
         </div>

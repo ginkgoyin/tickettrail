@@ -10,6 +10,34 @@ interface RouteMapProps {
   onPointSelect?: (point: MapPointPayload) => void;
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function hasUsableMapPoint(point: MapPointPayload | null | undefined): point is MapPointPayload {
+  return Boolean(
+    point &&
+      typeof point.label === "string" &&
+      point.label.trim().length > 0 &&
+      typeof point.timezone === "string" &&
+      point.timezone.trim().length > 0 &&
+      isFiniteNumber(point.latitude) &&
+      isFiniteNumber(point.longitude),
+  );
+}
+
+function hasUsableRoute(route: MapRoutePayload | null | undefined) {
+  return Boolean(
+    hasUsableMapPoint(route?.origin) &&
+      hasUsableMapPoint(route?.destination) &&
+      route?.viewport &&
+      isFiniteNumber(route.viewport.minLongitude) &&
+      isFiniteNumber(route.viewport.maxLongitude) &&
+      isFiniteNumber(route.viewport.minLatitude) &&
+      isFiniteNumber(route.viewport.maxLatitude),
+  );
+}
+
 function createMarkerElement(kind: "origin" | "destination" | "waypoint", label: string, code?: string) {
   const marker = document.createElement("div");
   marker.className = `route-marker route-marker-${kind}`;
@@ -61,12 +89,36 @@ export function RouteMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRefs = useRef<maplibregl.Marker[]>([]);
-  const [loadMessage, setLoadMessage] = useState("正在加载真实地图组件...");
+  const disposedRef = useRef(false);
+  const originLatitude = hasUsableMapPoint(route?.origin) ? route.origin.latitude : 0;
+  const originLongitude = hasUsableMapPoint(route?.origin) ? route.origin.longitude : 0;
+  const hasRenderableRoute =
+    hasUsableRoute(route) &&
+    buildActiveSegments(route, segments).every(
+      (segment) => hasUsableMapPoint(segment.origin) && hasUsableMapPoint(segment.destination),
+    ) &&
+    (!points.length || points.every(hasUsableMapPoint));
+  const [loadMessage, setLoadMessage] = useState("Loading route map...");
+
+  const getActiveMap = () => {
+    if (disposedRef.current) {
+      return null;
+    }
+
+    return mapRef.current;
+  };
 
   useEffect(() => {
+    if (!hasRenderableRoute) {
+      setLoadMessage("Route map unavailable for this ticket.");
+      return;
+    }
+
     if (!containerRef.current || mapRef.current) {
       return;
     }
+
+    disposedRef.current = false;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -96,9 +148,11 @@ export function RouteMap({
       },
     });
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
+    const handleLoad = () => {
+      if (disposedRef.current || mapRef.current !== map) {
+        return;
+      }
 
-    map.on("load", () => {
       setLoadMessage("");
 
       if (!map.getSource("route-line")) {
@@ -110,25 +164,37 @@ export function RouteMap({
           },
         });
       }
-    });
+    };
 
-    map.on("error", () => {
-      setLoadMessage("地图加载失败，请稍后重试。");
-    });
+    const handleError = () => {
+      if (disposedRef.current || mapRef.current !== map) {
+        return;
+      }
 
+      setLoadMessage("Route map unavailable for this ticket.");
+    };
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
+    map.on("load", handleLoad);
+    map.on("error", handleError);
     mapRef.current = map;
 
     return () => {
+      disposedRef.current = true;
       markerRefs.current.forEach((marker) => marker.remove());
       markerRefs.current = [];
+      map.off("load", handleLoad);
+      map.off("error", handleError);
       map.remove();
-      mapRef.current = null;
+
+      if (mapRef.current === map) {
+        mapRef.current = null;
+      }
     };
-  }, [route.origin.latitude, route.origin.longitude]);
+  }, [hasRenderableRoute, originLatitude, originLongitude, route]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !onSegmentSelect) {
+    if (!onSegmentSelect || !hasRenderableRoute) {
       return;
     }
 
@@ -144,15 +210,26 @@ export function RouteMap({
     };
 
     const handleEnter = () => {
+      const map = getActiveMap();
+      if (!map) {
+        return;
+      }
+
       map.getCanvas().style.cursor = "pointer";
     };
 
     const handleLeave = () => {
+      const map = getActiveMap();
+      if (!map) {
+        return;
+      }
+
       map.getCanvas().style.cursor = "";
     };
 
     const bindLayerEvents = () => {
-      if (!map.getLayer("route-line-layer")) {
+      const map = getActiveMap();
+      if (!map || !map.getLayer("route-line-layer")) {
         return;
       }
 
@@ -162,7 +239,8 @@ export function RouteMap({
     };
 
     const unbindLayerEvents = () => {
-      if (!map.getLayer("route-line-layer")) {
+      const map = getActiveMap();
+      if (!map || !map.getLayer("route-line-layer")) {
         return;
       }
 
@@ -172,6 +250,11 @@ export function RouteMap({
       map.getCanvas().style.cursor = "";
     };
 
+    const map = getActiveMap();
+    if (!map) {
+      return;
+    }
+
     if (map.isStyleLoaded()) {
       bindLayerEvents();
     } else {
@@ -179,40 +262,47 @@ export function RouteMap({
     }
 
     return () => {
-      map.off("load", bindLayerEvents);
+      const activeMap = getActiveMap();
+      activeMap?.off("load", bindLayerEvents);
       unbindLayerEvents();
     };
-  }, [onSegmentSelect, route, segments]);
+  }, [hasRenderableRoute, onSegmentSelect, route, segments]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) {
+    if (!hasRenderableRoute) {
       return;
     }
 
     const syncRoute = () => {
+      const map = getActiveMap();
+      if (!map) {
+        setLoadMessage("Route map unavailable for this ticket.");
+        return;
+      }
+
       const activeSegments = buildActiveSegments(route, segments);
       const source = map.getSource("route-line") as maplibregl.GeoJSONSource | undefined;
-
-      if (source) {
-        source.setData({
-          type: "FeatureCollection",
-          features: activeSegments.map((segment) => ({
-            type: "Feature",
-            properties: {
-              segmentIndex: segment.segmentIndex,
-              ticketId: segment.ticketId || "",
-            },
-            geometry: {
-              type: "LineString",
-              coordinates: [
-                [segment.origin.longitude, segment.origin.latitude],
-                [segment.destination.longitude, segment.destination.latitude],
-              ],
-            },
-          })),
-        });
+      if (!source) {
+        return;
       }
+
+      source.setData({
+        type: "FeatureCollection",
+        features: activeSegments.map((segment) => ({
+          type: "Feature",
+          properties: {
+            segmentIndex: segment.segmentIndex,
+            ticketId: segment.ticketId || "",
+          },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [segment.origin.longitude, segment.origin.latitude],
+              [segment.destination.longitude, segment.destination.latitude],
+            ],
+          },
+        })),
+      });
 
       if (map.getLayer("route-line-layer")) {
         map.removeLayer("route-line-layer");
@@ -247,8 +337,10 @@ export function RouteMap({
         paint: {
           "line-color": [
             "case",
-            ["==", ["get", "segmentIndex"], 0], "#1ca4da",
-            ["==", ["%", ["get", "segmentIndex"], 2], 1], "#ff9854",
+            ["==", ["get", "segmentIndex"], 0],
+            "#1ca4da",
+            ["==", ["%", ["get", "segmentIndex"], 2], 1],
+            "#ff9854",
             "#76df95",
           ],
           "line-width": 4,
@@ -301,6 +393,12 @@ export function RouteMap({
       });
     };
 
+    const map = getActiveMap();
+    if (!map) {
+      setLoadMessage("Route map unavailable for this ticket.");
+      return;
+    }
+
     if (map.isStyleLoaded()) {
       syncRoute();
       return;
@@ -308,9 +406,10 @@ export function RouteMap({
 
     map.once("load", syncRoute);
     return () => {
-      map.off("load", syncRoute);
+      const activeMap = getActiveMap();
+      activeMap?.off("load", syncRoute);
     };
-  }, [onPointSelect, points, route, segments]);
+  }, [hasRenderableRoute, onPointSelect, points, route, segments]);
 
   return (
     <div className="route-map-shell">

@@ -28,8 +28,16 @@ interface StubSegmentSummary {
   seatLabel: string;
 }
 
-function escapeXml(value: string) {
-  return value
+function safeText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function safeNumber(value: unknown, fallback = 0) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function escapeXml(value: unknown) {
+  return safeText(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -38,16 +46,24 @@ function escapeXml(value: string) {
 }
 
 function projectPoint(point: MapPointPayload, viewport: MapViewportPayload) {
-  const longitudeSpan = Math.max(viewport.maxLongitude - viewport.minLongitude, 1);
-  const latitudeSpan = Math.max(viewport.maxLatitude - viewport.minLatitude, 1);
+  const longitudeSpan = Math.max(
+    safeNumber(viewport.maxLongitude) - safeNumber(viewport.minLongitude),
+    1,
+  );
+  const latitudeSpan = Math.max(
+    safeNumber(viewport.maxLatitude) - safeNumber(viewport.minLatitude),
+    1,
+  );
 
   const x =
     MAP_PADDING +
-    ((point.longitude - viewport.minLongitude) / longitudeSpan) * (MAP_WIDTH - MAP_PADDING * 2);
+    ((safeNumber(point.longitude) - safeNumber(viewport.minLongitude)) / longitudeSpan) *
+      (MAP_WIDTH - MAP_PADDING * 2);
   const y =
     MAP_HEIGHT -
     MAP_PADDING -
-    ((point.latitude - viewport.minLatitude) / latitudeSpan) * (MAP_HEIGHT - MAP_PADDING * 2);
+    ((safeNumber(point.latitude) - safeNumber(viewport.minLatitude)) / latitudeSpan) *
+      (MAP_HEIGHT - MAP_PADDING * 2);
 
   return { x, y };
 }
@@ -208,27 +224,28 @@ function getFlightThemeTokens(theme: StubTheme) {
 }
 
 function getCarrierBrand(carrierName: string) {
-  const lowerName = carrierName.toLowerCase();
-  const text = carrierName
+  const normalizedCarrierName = safeText(carrierName);
+  const lowerName = normalizedCarrierName.toLowerCase();
+  const text = normalizedCarrierName
     .split(/[\s-]+/)
     .map((part) => part[0])
     .join("")
     .slice(0, 3)
     .toUpperCase();
 
-  if (lowerName.includes("china eastern") || carrierName.includes("\u4e1c\u65b9")) {
+  if (lowerName.includes("china eastern") || normalizedCarrierName.includes("\u4e1c\u65b9")) {
     return { code: "MU", color: "#005baa", accent: "#d61f2c", symbol: "wing" as const };
   }
-  if (lowerName.includes("china southern") || carrierName.includes("\u5357\u65b9")) {
+  if (lowerName.includes("china southern") || normalizedCarrierName.includes("\u5357\u65b9")) {
     return { code: "CZ", color: "#0072ce", accent: "#cde7ff", symbol: "wing" as const };
   }
-  if (lowerName.includes("air china") || carrierName.includes("\u56fd\u822a")) {
+  if (lowerName.includes("air china") || normalizedCarrierName.includes("\u56fd\u822a")) {
     return { code: "CA", color: "#c1121f", accent: "#f9d8db", symbol: "phoenix" as const };
   }
-  if (lowerName.includes("hainan") || carrierName.includes("\u6d77\u822a")) {
+  if (lowerName.includes("hainan") || normalizedCarrierName.includes("\u6d77\u822a")) {
     return { code: "HU", color: "#c4892d", accent: "#f1dfbc", symbol: "wing" as const };
   }
-  if (lowerName.includes("china railway") || carrierName.includes("\u94c1\u8def")) {
+  if (lowerName.includes("china railway") || normalizedCarrierName.includes("\u94c1\u8def")) {
     return { code: "CR", color: "#0c8488", accent: "#caeef0", symbol: "rail" as const };
   }
 
@@ -295,7 +312,7 @@ function createTrainQrPattern() {
 }
 
 function formatTrainDepartureTime(value: string) {
-  const [datePart, timePart = "00:00"] = value.split("T");
+  const [datePart, timePart = "00:00"] = safeText(value).split("T");
   const [year = "2026", month = "01", day = "01"] = datePart.split("-");
   return `${year}\u5e74${month}\u6708${day}\u65e5 ${timePart}\u5f00`;
 }
@@ -332,13 +349,14 @@ function buildSegmentManifest(segments: StubSegmentSummary[], x: number, y: numb
 }
 
 function buildTrainStubSvg(stub: StubPreviewPayload, segments: StubSegmentSummary[]) {
-  const coachSeat = stub.seatLabel.split("/").map((part) => part.trim());
+  const coachSeat = safeText(stub.seatLabel).split("/").map((part) => part.trim());
   const coachInfo = coachSeat[0] || `02\u8f66`;
   const seatInfo = coachSeat[1] || `04F\u53f7`;
-  const serial = `E${stub.primaryCode.replace(/\D/g, "").padEnd(9, "2").slice(0, 9)}`;
-  const priceSeed = Array.from(stub.primaryCode).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const safePrimaryCode = safeText(stub.primaryCode);
+  const serial = `E${safePrimaryCode.replace(/\D/g, "").padEnd(9, "2").slice(0, 9)}`;
+  const priceSeed = Array.from(safePrimaryCode).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const fare = ((priceSeed % 380) + 88).toFixed(1);
-  const bottomSerial = `${stub.primaryCode.replace(/\W/g, "").padEnd(22, "6").slice(0, 22)}`;
+  const bottomSerial = `${safePrimaryCode.replace(/\W/g, "").padEnd(22, "6").slice(0, 22)}`;
 
   return `
   <svg xmlns="http://www.w3.org/2000/svg" width="${STUB_WIDTH}" height="${STUB_HEIGHT}" viewBox="0 0 ${STUB_WIDTH} ${STUB_HEIGHT}">
@@ -382,7 +400,7 @@ function buildTrainStubSvg(stub: StubPreviewPayload, segments: StubSegmentSummar
     <rect x="114" y="396" width="500" height="70" rx="2" fill="none" stroke="#1f2f36" stroke-width="2" stroke-dasharray="10 6" />
     <text x="364" y="430" text-anchor="middle" fill="#1f2f36" font-size="28" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">\u62a5\u9500\u51ed\u8bc1 \u3000\u9057\u5931\u4e0d\u8865</text>
     <text x="364" y="460" text-anchor="middle" fill="#1f2f36" font-size="22" font-family="Segoe UI, Noto Sans SC, sans-serif">\u9000\u7968\u6539\u7b7e\u65f6\u987b\u4ea4\u56de\u8f66\u7ad9</text>
-    <text x="52" y="406" fill="#1f2f36" font-size="20" font-family="Consolas, monospace">${escapeXml(stub.primaryCode)} ${escapeXml(stub.carrierName.slice(0, 10))}</text>
+    <text x="52" y="406" fill="#1f2f36" font-size="20" font-family="Consolas, monospace">${escapeXml(stub.primaryCode)} ${escapeXml(safeText(stub.carrierName).slice(0, 10))}</text>
     ${buildSegmentManifest(segments, 632, 388, 286)}
     <rect x="0" y="${STUB_HEIGHT - 54}" width="${STUB_WIDTH}" height="54" fill="#62c3cf" />
     <text x="36" y="${STUB_HEIGHT - 18}" fill="#1c3440" font-size="26" font-family="Consolas, monospace">${escapeXml(bottomSerial)}</text>
@@ -391,10 +409,11 @@ function buildTrainStubSvg(stub: StubPreviewPayload, segments: StubSegmentSummar
 
 function buildFlightStubSvg(stub: StubPreviewPayload, theme: StubTheme, segments: StubSegmentSummary[]) {
   const tokens = getFlightThemeTokens(theme);
-  const departureCode = stub.departureLabel.slice(0, 3).toUpperCase();
-  const arrivalCode = stub.arrivalLabel.slice(0, 3).toUpperCase();
-  const gate = `G${(stub.primaryCode.length % 9) + 1}${String.fromCharCode(65 + (stub.primaryCode.length % 5))}`;
-  const boardingTime = stub.departureTimeLocal.replace("T", " ").slice(5);
+  const departureCode = safeText(stub.departureLabel).slice(0, 3).toUpperCase();
+  const arrivalCode = safeText(stub.arrivalLabel).slice(0, 3).toUpperCase();
+  const primaryCode = safeText(stub.primaryCode);
+  const gate = `G${(primaryCode.length % 9) + 1}${String.fromCharCode(65 + (primaryCode.length % 5))}`;
+  const boardingTime = safeText(stub.departureTimeLocal).replace("T", " ").slice(5);
   const manifest = buildSegmentManifest(segments, 52, 404, 654, true);
 
   return `
@@ -446,14 +465,14 @@ function buildStubSegmentSummaries(
     return [
       {
         segmentIndex: 0,
-        transportType: stub.transportBadge.toLowerCase().includes("train") ? "train" : "flight",
-        carrierName: stub.carrierName,
-        code: stub.primaryCode,
-        departureLabel: stub.departureLabel,
-        arrivalLabel: stub.arrivalLabel,
-        departureTimeLocal: stub.departureTimeLocal,
-        arrivalTimeLocal: stub.arrivalTimeLocal,
-        seatLabel: stub.seatLabel,
+        transportType: safeText(stub.transportBadge).toLowerCase().includes("train") ? "train" : "flight",
+        carrierName: safeText(stub.carrierName),
+        code: safeText(stub.primaryCode),
+        departureLabel: safeText(stub.departureLabel),
+        arrivalLabel: safeText(stub.arrivalLabel),
+        departureTimeLocal: safeText(stub.departureTimeLocal),
+        arrivalTimeLocal: safeText(stub.arrivalTimeLocal),
+        seatLabel: safeText(stub.seatLabel),
       },
     ];
   }
@@ -477,9 +496,9 @@ export function buildStubSvg(
   segments: MapSegmentPayload[] = [],
 ) {
   const isTrain =
-    stub.transportBadge.toLowerCase().includes("train") ||
-    stub.carrierName.toLowerCase().includes("rail") ||
-    stub.carrierName.includes("\u94c1\u8def");
+    safeText(stub.transportBadge).toLowerCase().includes("train") ||
+    safeText(stub.carrierName).toLowerCase().includes("rail") ||
+    safeText(stub.carrierName).includes("\u94c1\u8def");
   const segmentSummaries = buildStubSegmentSummaries(stub, segments);
 
   return isTrain ? buildTrainStubSvg(stub, segmentSummaries) : buildFlightStubSvg(stub, theme, segmentSummaries);

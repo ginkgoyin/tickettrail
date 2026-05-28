@@ -46,13 +46,22 @@ function nextStatusOptions(status: TicketStatus): Exclude<TicketStatus, "draft">
   return statuses.filter((item) => item !== status);
 }
 
-function formatDateTime(value: string) {
-  return value.replace("T", " ").slice(0, 16);
+function safeText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function formatDateTime(value: unknown) {
+  const text = safeText(value).trim();
+  if (!text) {
+    return "--";
+  }
+
+  return text.replace("T", " ").slice(0, 16) || text;
 }
 
 function buildTimelineLabel(ticket: TicketRecord) {
-  const [datePart] = ticket.departureTimeLocal.split("T");
-  return datePart || ticket.createdAt.slice(0, 10);
+  const [datePart] = safeText(ticket.departureTimeLocal).split("T");
+  return datePart || safeText(ticket.createdAt).slice(0, 10);
 }
 
 function buildBatchExportJson(tickets: TicketRecord[]) {

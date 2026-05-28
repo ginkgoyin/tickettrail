@@ -1,4 +1,5 @@
 ﻿import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { BackupPanel } from "./components/BackupPanel";
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
@@ -42,6 +43,10 @@ const defaultFilters: TicketFilters = {
 };
 
 const savedViewsStorageKey = "tickettrail.saved-filter-views";
+
+function asComparableText(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
 
 function normalizeSavedViews(rawValue: unknown): SavedFilterView[] {
   if (!Array.isArray(rawValue)) {
@@ -106,31 +111,31 @@ function matchesQuery(ticket: TicketRecord, query: string) {
   }
 
   return [
-    ticket.code,
-    ticket.routeLabel,
-    ticket.carrierName,
-    ticket.notes,
-    ticket.departure.name,
-    ticket.arrival.name,
-    ticket.departure.code || "",
-    ticket.arrival.code || "",
-    ticket.departure.timezone,
-    ticket.arrival.timezone,
-    ticket.departureTimeLocal,
-    ticket.arrivalTimeLocal,
-    ticket.ticketType,
-    ticket.status,
+    asComparableText(ticket.code),
+    asComparableText(ticket.routeLabel),
+    asComparableText(ticket.carrierName),
+    asComparableText(ticket.notes),
+    asComparableText(ticket.departure?.name),
+    asComparableText(ticket.arrival?.name),
+    asComparableText(ticket.departure?.code),
+    asComparableText(ticket.arrival?.code),
+    asComparableText(ticket.departure?.timezone),
+    asComparableText(ticket.arrival?.timezone),
+    asComparableText(ticket.departureTimeLocal),
+    asComparableText(ticket.arrivalTimeLocal),
+    asComparableText(ticket.ticketType),
+    asComparableText(ticket.status),
     ...(ticket.segments ?? []).flatMap((segment) => [
-      segment.code,
-      segment.carrierName,
-      segment.departure.name,
-      segment.arrival.name,
-      segment.departure.code || "",
-      segment.arrival.code || "",
-      segment.departure.timezone,
-      segment.arrival.timezone,
-      segment.departureTimeLocal,
-      segment.arrivalTimeLocal,
+      asComparableText(segment.code),
+      asComparableText(segment.carrierName),
+      asComparableText(segment.departure?.name),
+      asComparableText(segment.arrival?.name),
+      asComparableText(segment.departure?.code),
+      asComparableText(segment.arrival?.code),
+      asComparableText(segment.departure?.timezone),
+      asComparableText(segment.arrival?.timezone),
+      asComparableText(segment.departureTimeLocal),
+      asComparableText(segment.arrivalTimeLocal),
     ]),
   ]
     .join(" ")
@@ -143,16 +148,16 @@ function sortTickets(tickets: TicketRecord[], sort: TicketSort) {
 
   nextTickets.sort((left, right) => {
     if (sort === "created_asc") {
-      return left.createdAt.localeCompare(right.createdAt);
+      return asComparableText(left.createdAt).localeCompare(asComparableText(right.createdAt));
     }
     if (sort === "departure_asc") {
-      return left.departureTimeLocal.localeCompare(right.departureTimeLocal);
+      return asComparableText(left.departureTimeLocal).localeCompare(asComparableText(right.departureTimeLocal));
     }
     if (sort === "departure_desc") {
-      return right.departureTimeLocal.localeCompare(left.departureTimeLocal);
+      return asComparableText(right.departureTimeLocal).localeCompare(asComparableText(left.departureTimeLocal));
     }
 
-    return right.createdAt.localeCompare(left.createdAt);
+    return asComparableText(right.createdAt).localeCompare(asComparableText(left.createdAt));
   });
 
   return nextTickets;
@@ -290,6 +295,7 @@ export default function App() {
         }
       } catch (error) {
         if (isMounted) {
+          setSelectedDetail(null);
           setErrorMessage(error instanceof Error ? error.message : "Failed to load ticket detail.");
         }
       } finally {
@@ -675,106 +681,108 @@ export default function App() {
     <div className="app-shell">
       <Sidebar />
       <main className="workspace">
-        <Header />
-        <section className="hero">
-          <div>
-            <p className="eyebrow">Windows MVP Scaffold</p>
-            <h1>TicketTrail</h1>
-            <p className="hero-copy">
-              Capture flights and rail trips, normalize them into structured journeys,
-              preview map routes, and prepare branded ticket-stub exports.
-            </p>
-            <p className="hero-copy">
-              {loading
-                ? "Loading local archive..."
-                : `Archive ready: ${visibleTickets.length} visible ticket(s) from ${tickets.length} total.`}
-            </p>
-            {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
-          </div>
-          <div className="hero-stats">
-            <div className="stat-card">
-              <span className="stat-value">{tickets.length}</span>
-              <span className="stat-label">Stored tickets</span>
+        <AppErrorBoundary>
+          <Header />
+          <section className="hero">
+            <div>
+              <p className="eyebrow">Windows MVP Scaffold</p>
+              <h1>TicketTrail</h1>
+              <p className="hero-copy">
+                Capture flights and rail trips, normalize them into structured journeys,
+                preview map routes, and prepare branded ticket-stub exports.
+              </p>
+              <p className="hero-copy">
+                {loading
+                  ? "Loading local archive..."
+                  : `Archive ready: ${visibleTickets.length} visible ticket(s) from ${tickets.length} total.`}
+              </p>
+              {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
             </div>
-            <div className="stat-card">
-              <span className="stat-value">
-                {tickets.filter((ticket) => ticket.ticketType === "flight").length}
-              </span>
-              <span className="stat-label">Flights</span>
+            <div className="hero-stats">
+              <div className="stat-card">
+                <span className="stat-value">{tickets.length}</span>
+                <span className="stat-label">Stored tickets</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-value">
+                  {tickets.filter((ticket) => ticket.ticketType === "flight").length}
+                </span>
+                <span className="stat-label">Flights</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-value">
+                  {tickets.filter((ticket) => ticket.ticketType === "train").length}
+                </span>
+                <span className="stat-label">Rail segments</span>
+              </div>
             </div>
-            <div className="stat-card">
-              <span className="stat-value">
-                {tickets.filter((ticket) => ticket.ticketType === "train").length}
-              </span>
-              <span className="stat-label">Rail segments</span>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="content-grid">
-          <div className="panel-stack">
-            <SmartImport onApplyImport={handleApplyImport} />
-            <BackupPanel
-              backups={backups}
-              readiness={backupReadiness}
-              isBusy={backupBusy}
-              onCreateBackup={handleCreateBackup}
-              onExportArchiveBundle={handleExportArchiveBundle}
-              onImportArchiveBundle={handleImportArchiveBundle}
-              onExportBackup={handleExportBackup}
-              onRestoreBackup={handleRestoreBackup}
-              statusMessage={backupNotice || backupStatusMessage}
-            />
-            <StatisticsPanel
+          <section className="content-grid">
+            <div className="panel-stack">
+              <SmartImport onApplyImport={handleApplyImport} />
+              <BackupPanel
+                backups={backups}
+                readiness={backupReadiness}
+                isBusy={backupBusy}
+                onCreateBackup={handleCreateBackup}
+                onExportArchiveBundle={handleExportArchiveBundle}
+                onImportArchiveBundle={handleImportArchiveBundle}
+                onExportBackup={handleExportBackup}
+                onRestoreBackup={handleRestoreBackup}
+                statusMessage={backupNotice || backupStatusMessage}
+              />
+              <StatisticsPanel
+                activeArchiveContext={filters}
+                onApplyArchiveFilter={handleApplyAnalyticsFilter}
+                tickets={visibleTickets}
+                totalCount={tickets.length}
+              />
+              <TicketForm
+                importReview={importReview}
+                importedDraft={importedDraft}
+                initialDraft={formDraft}
+                isSaving={isSaving}
+                mode={editingTicket ? "edit" : "create"}
+                onCancelEdit={() => setEditingId("")}
+                onSubmitTicket={handleSubmitTicket}
+              />
+              <TicketList
+                busyTicketId={busyTicketId}
+                filters={filters}
+                onDelete={handleDeleteTicket}
+                onDeleteSavedView={handleDeleteSavedView}
+                onEdit={handleEditTicket}
+                onApplySavedView={handleApplySavedView}
+                onFiltersChange={setFilters}
+                onRenameSavedView={handleRenameSavedView}
+                onResetFilters={() => setFilters(defaultFilters)}
+                onSaveCurrentView={handleSaveCurrentView}
+                onSelect={setSelectedId}
+                onTogglePinSavedView={handleTogglePinSavedView}
+                onUpdateSavedView={handleUpdateSavedView}
+                onUpdateStatus={handleUpdateStatus}
+                savedViews={savedViews}
+                selectedId={selectedTicket?.id ?? ""}
+                tickets={visibleTickets}
+                totalCount={tickets.length}
+              />
+            </div>
+            <Dashboard
               activeArchiveContext={filters}
-              onApplyArchiveFilter={handleApplyAnalyticsFilter}
-              tickets={visibleTickets}
+              attachmentBusy={attachmentBusy}
+              detail={selectedDetail}
+              isLoading={detailLoading}
+              onAddAttachment={handleAddAttachment}
+              onApplyArchiveFilter={handleApplyArchiveQuery}
+              onDeleteAttachment={handleDeleteAttachment}
+              onSelectTicket={setSelectedId}
+              ticket={selectedTicket}
+              ticketsInView={visibleTickets}
               totalCount={tickets.length}
             />
-            <TicketForm
-              importReview={importReview}
-              importedDraft={importedDraft}
-              initialDraft={formDraft}
-              isSaving={isSaving}
-              mode={editingTicket ? "edit" : "create"}
-              onCancelEdit={() => setEditingId("")}
-              onSubmitTicket={handleSubmitTicket}
-            />
-            <TicketList
-              busyTicketId={busyTicketId}
-              filters={filters}
-              onDelete={handleDeleteTicket}
-              onDeleteSavedView={handleDeleteSavedView}
-              onEdit={handleEditTicket}
-              onApplySavedView={handleApplySavedView}
-              onFiltersChange={setFilters}
-              onRenameSavedView={handleRenameSavedView}
-              onResetFilters={() => setFilters(defaultFilters)}
-              onSaveCurrentView={handleSaveCurrentView}
-              onSelect={setSelectedId}
-              onTogglePinSavedView={handleTogglePinSavedView}
-              onUpdateSavedView={handleUpdateSavedView}
-              onUpdateStatus={handleUpdateStatus}
-              savedViews={savedViews}
-              selectedId={selectedTicket?.id ?? ""}
-              tickets={visibleTickets}
-              totalCount={tickets.length}
-            />
-          </div>
-          <Dashboard
-            activeArchiveContext={filters}
-            attachmentBusy={attachmentBusy}
-            detail={selectedDetail}
-            isLoading={detailLoading}
-            onAddAttachment={handleAddAttachment}
-            onApplyArchiveFilter={handleApplyArchiveQuery}
-            onDeleteAttachment={handleDeleteAttachment}
-            onSelectTicket={setSelectedId}
-            ticket={selectedTicket}
-            ticketsInView={visibleTickets}
-            totalCount={tickets.length}
-          />
-        </section>
+          </section>
+        </AppErrorBoundary>
       </main>
     </div>
   );
