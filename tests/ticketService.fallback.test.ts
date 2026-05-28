@@ -3,8 +3,11 @@ import {
   createBackup,
   createTicket,
   deleteTicket,
+  exportArchiveBundle,
+  exportBackup,
   getBackupReadiness,
   getTicketDetail,
+  importArchiveBundle,
   listBackups,
   listTickets,
   restoreBackup,
@@ -117,5 +120,21 @@ describe("ticketService web fallback", () => {
     expect(readiness.databaseExists).toBe(true);
     expect(readiness.databasePath).toContain("localStorage");
     expect(readiness.ticketCount).toBe(1);
+  });
+
+  it("returns export labels and rejects unsupported archive import in web fallback", async () => {
+    await createTicket(buildDraft());
+    const backup = await createBackup();
+
+    await expect(exportBackup(backup.id)).resolves.toContain(backup.label);
+    await expect(exportArchiveBundle()).resolves.toContain("Web fallback archive");
+    await expect(importArchiveBundle("C:\\fake\\archive.zip")).rejects.toThrow(
+      "Web fallback does not support importing archive bundles.",
+    );
+  });
+
+  it("throws clear errors for missing fallback backup records", async () => {
+    await expect(restoreBackup("missing-backup")).rejects.toThrow("Backup record not found.");
+    await expect(exportBackup("missing-backup")).rejects.toThrow("Backup record not found.");
   });
 });
