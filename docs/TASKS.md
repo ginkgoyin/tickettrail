@@ -288,13 +288,14 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 - Notes:
   - Needs user confirmation.
 
-### [ ] Improve visible section navigation if current single-workspace flow remains
+### [~] Improve visible section navigation if current single-workspace flow remains
 - Goal: Make the current workspace easier to navigate without a full routing refactor.
 - Acceptance criteria:
   - Current sections become easier to reach and understand.
   - No large page/router rewrite is required.
 - Notes:
-  - Only do this after Milestone 1 stability verification.
+  - A first local-section implementation is now in place without a router rewrite.
+  - Manual verification is still needed before this can be considered complete.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

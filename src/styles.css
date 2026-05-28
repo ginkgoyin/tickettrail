@@ -47,6 +47,7 @@ button {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 280px 1fr;
+  align-items: start;
 }
 
 .sidebar {
@@ -55,7 +56,18 @@ button {
   background: rgba(2, 12, 21, 0.35);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 28px;
+  justify-content: flex-start;
+  position: sticky;
+  top: 0;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-intro {
+  display: grid;
+  gap: 4px;
 }
 
 .logo-mark {
@@ -88,6 +100,7 @@ button {
 .nav-list {
   display: grid;
   gap: 12px;
+  align-content: start;
 }
 
 .nav-item {
@@ -99,10 +112,27 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.nav-item:hover {
+  border-color: rgba(112, 212, 255, 0.24);
+  background: rgba(112, 212, 255, 0.08);
+}
+
+.nav-item.active {
+  border-color: rgba(255, 177, 90, 0.28);
+  background: linear-gradient(135deg, rgba(28, 164, 218, 0.2), rgba(255, 152, 84, 0.2));
+  transform: translateY(-1px);
+}
+
+.nav-item.active strong {
+  color: #ffd79e;
 }
 
 .workspace {
   padding: 28px;
+  min-height: 100vh;
 }
 
 .app-header,
@@ -185,6 +215,16 @@ button {
 .panel-stack {
   display: grid;
   gap: 20px;
+}
+
+.section-stack {
+  display: grid;
+  gap: 20px;
+}
+
+.section-placeholder {
+  display: grid;
+  gap: 10px;
 }
 
 .panel {
@@ -1341,6 +1381,10 @@ textarea {
   }
 
   .sidebar {
+    position: static;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid var(--panel-border);
     gap: 24px;
