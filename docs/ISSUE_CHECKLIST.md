@@ -27,20 +27,11 @@
 - `UX-007`: non-overview page titles are no longer wrapped in large bordered cards and were manually verified
 - `UI-001`: redundant decorative eyebrow labels were reduced acceptably and manually verified
 - `UI-002`: scrollbar styling now matches the app theme acceptably and was manually verified
+- `UX-004`: Journeys no longer duplicate the Tickets selected-ticket detail view and was manually verified
+- `JOURNEY-001`: Journeys now default to a `Summary` scaffold instead of selected-ticket detail duplication and was manually verified
+- `JOURNEY-002`: Journeys now provide a lightweight `List` scaffold subview and this behavior was manually verified
 
 ## 2. Implemented / Recorded / Needs Future Verification
-
-- `UX-004`
-  - Journeys no longer duplicate the Tickets selected-ticket detail view.
-  - Status: `Implemented / needs manual verification`
-
-- `JOURNEY-001`
-  - Journeys now default to a `Summary` scaffold instead of selected-ticket detail duplication.
-  - Status: `Implemented / needs manual verification`
-
-- `JOURNEY-002`
-  - Journeys now provide a lightweight `List` scaffold subview.
-  - Status: `Implemented / needs manual verification`
 
 - `UX-005L`
   - Ticket list pagination after `20` records is implemented.
