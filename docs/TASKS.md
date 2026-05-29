@@ -296,7 +296,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 - Notes:
   - A first local-section implementation is now in place without a router rewrite.
   - Sticky sidebar and local section switching have now been manually verified by the user.
-  - The next UI issue to address is `NAV-003` scroll-to-top on sidebar section change, followed by reducing repeated hero/preview content across non-overview sections.
+  - `NAV-003` scroll-to-top on sidebar section change has now been manually verified by the user.
+  - The next UI issue after that is reducing repeated hero/preview content across non-overview sections.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

@@ -1,5 +1,6 @@
 ﻿import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { useRef } from "react";
 import { BackupPanel } from "./components/BackupPanel";
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
@@ -163,6 +164,7 @@ function sortTickets(tickets: TicketRecord[], sort: TicketSort) {
 }
 
 export default function App() {
+  const workspaceRef = useRef<HTMLElement | null>(null);
   const [tickets, setTickets] = useState<TicketRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [editingId, setEditingId] = useState<string>("");
@@ -311,6 +313,15 @@ export default function App() {
       isMounted = false;
     };
   }, [selectedId, detailVersion]);
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    workspace?.scrollTo({ top: 0, behavior: "auto" });
+
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [activeSection]);
 
   const handleSubmitTicket = async (draft: TicketDraft) => {
     setIsSaving(true);
@@ -824,7 +835,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <Sidebar activeSection={activeSection} onSelectSection={setActiveSection} />
-      <main className="workspace">
+      <main className="workspace" ref={workspaceRef}>
         <AppErrorBoundary>
           <Header />
           <section className="hero">

@@ -9,6 +9,7 @@
 - `BL-003`: blank workspace after adding ticket fixed and manually verified
 - `NAV-001`: sidebar is sticky/persistently visible
 - `NAV-002`: sidebar buttons switch local sections
+- `NAV-003`: switching sidebar sections scrolls the main workspace/content area back to the top and was manually verified
 - `ARCH-001`: initial `HomePage` and `TicketsPage` wrappers extracted and manually verified
 
 ## 2. Implemented / Needs Checkpoint
@@ -16,11 +17,6 @@
 - `ARCH-001`: page wrapper extraction has been manually verified and should be committed as a checkpoint if not already committed
 
 ## 3. Open UX / Product Issues
-
-- `NAV-003`
-  - Switching sidebar sections does not automatically scroll the main workspace to the top.
-  - Status: `Open`
-  - Priority: `Medium`
 
 - `UX-001`
   - The large top summary/hero block appears on multiple pages, but it should mainly belong to Overview.
