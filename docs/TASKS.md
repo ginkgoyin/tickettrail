@@ -295,7 +295,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - No large page/router rewrite is required.
 - Notes:
   - A first local-section implementation is now in place without a router rewrite.
-  - Manual verification is still needed before this can be considered complete.
+  - Sticky sidebar and local section switching have now been manually verified by the user.
+  - The next UI issue to address is `NAV-003` scroll-to-top on sidebar section change, followed by reducing repeated hero/preview content across non-overview sections.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.
@@ -358,6 +359,9 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - Each extraction is scoped narrowly.
   - Behavior remains unchanged.
   - Tests/manual checks are updated around the extraction.
+- Notes:
+  - Initial `HomePage` and `TicketsPage` wrapper extraction has been manually verified.
+  - Further page-level extraction should remain incremental and should not begin with a router rewrite.
 
 ### [ ] Keep architecture cleanup out of unrelated feature work
 - Goal: Avoid hidden refactors in routine tasks.

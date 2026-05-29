@@ -4,11 +4,10 @@ import { BackupPanel } from "./components/BackupPanel";
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
 import { Sidebar, type AppSection } from "./components/Sidebar";
-import { SmartImport } from "./components/SmartImport";
-import { StatisticsPanel } from "./components/StatisticsPanel";
-import { TicketForm } from "./components/TicketForm";
 import { TicketList, type SavedFilterView, type TicketFilters, type TicketSort } from "./components/TicketList";
 import { reviewImportedDraft, type ImportFieldReview, type ImportParseResult } from "./lib/importParser";
+import { HomePage } from "./pages/HomePage";
+import { TicketsPage } from "./pages/TicketsPage";
 import {
   addTicketAttachment,
   createBackup,
@@ -681,84 +680,19 @@ export default function App() {
     }
   };
 
-  const renderOverviewSection = () => (
-    <section className="content-grid">
-      <div className="panel-stack">
-        <StatisticsPanel
-          activeArchiveContext={filters}
-          onApplyArchiveFilter={handleApplyAnalyticsFilter}
-          tickets={visibleTickets}
-          totalCount={tickets.length}
-        />
-      </div>
-      <Dashboard
-        activeArchiveContext={filters}
-        attachmentBusy={attachmentBusy}
-        detail={selectedDetail}
-        isLoading={detailLoading}
-        onAddAttachment={handleAddAttachment}
-        onApplyArchiveFilter={handleApplyArchiveQuery}
-        onDeleteAttachment={handleDeleteAttachment}
-        onSelectTicket={(ticketId) => {
-          setSelectedId(ticketId);
-          setActiveSection("tickets");
-        }}
-        ticket={selectedTicket}
-        ticketsInView={visibleTickets}
-        totalCount={tickets.length}
-      />
-    </section>
-  );
-
-  const renderTicketsSection = () => (
-    <section className="content-grid">
-      <div className="panel-stack">
-        <SmartImport onApplyImport={handleApplyImport} />
-        <TicketForm
-          importReview={importReview}
-          importedDraft={importedDraft}
-          initialDraft={formDraft}
-          isSaving={isSaving}
-          mode={editingTicket ? "edit" : "create"}
-          onCancelEdit={() => setEditingId("")}
-          onSubmitTicket={handleSubmitTicket}
-        />
-        <TicketList
-          busyTicketId={busyTicketId}
-          filters={filters}
-          onDelete={handleDeleteTicket}
-          onDeleteSavedView={handleDeleteSavedView}
-          onEdit={handleEditTicket}
-          onApplySavedView={handleApplySavedView}
-          onFiltersChange={setFilters}
-          onRenameSavedView={handleRenameSavedView}
-          onResetFilters={() => setFilters(defaultFilters)}
-          onSaveCurrentView={handleSaveCurrentView}
-          onSelect={setSelectedId}
-          onTogglePinSavedView={handleTogglePinSavedView}
-          onUpdateSavedView={handleUpdateSavedView}
-          onUpdateStatus={handleUpdateStatus}
-          savedViews={savedViews}
-          selectedId={selectedTicket?.id ?? ""}
-          tickets={visibleTickets}
-          totalCount={tickets.length}
-        />
-      </div>
-      <Dashboard
-        activeArchiveContext={filters}
-        attachmentBusy={attachmentBusy}
-        detail={selectedDetail}
-        isLoading={detailLoading}
-        onAddAttachment={handleAddAttachment}
-        onApplyArchiveFilter={handleApplyArchiveQuery}
-        onDeleteAttachment={handleDeleteAttachment}
-        onSelectTicket={setSelectedId}
-        ticket={selectedTicket}
-        ticketsInView={visibleTickets}
-        totalCount={tickets.length}
-      />
-    </section>
-  );
+  const dashboardProps = {
+    activeArchiveContext: filters,
+    attachmentBusy,
+    detail: selectedDetail,
+    isLoading: detailLoading,
+    onAddAttachment: handleAddAttachment,
+    onApplyArchiveFilter: handleApplyArchiveQuery,
+    onDeleteAttachment: handleDeleteAttachment,
+    onSelectTicket: setSelectedId,
+    ticket: selectedTicket,
+    ticketsInView: visibleTickets,
+    totalCount: tickets.length,
+  };
 
   const renderJourneysSection = () => (
     <section className="section-stack">
@@ -772,20 +706,11 @@ export default function App() {
         </p>
       </div>
       <Dashboard
-        activeArchiveContext={filters}
-        attachmentBusy={attachmentBusy}
-        detail={selectedDetail}
-        isLoading={detailLoading}
-        onAddAttachment={handleAddAttachment}
-        onApplyArchiveFilter={handleApplyArchiveQuery}
-        onDeleteAttachment={handleDeleteAttachment}
+        {...dashboardProps}
         onSelectTicket={(ticketId) => {
           setSelectedId(ticketId);
           setActiveSection("tickets");
         }}
-        ticket={selectedTicket}
-        ticketsInView={visibleTickets}
-        totalCount={tickets.length}
       />
     </section>
   );
@@ -801,20 +726,11 @@ export default function App() {
         </p>
       </div>
       <Dashboard
-        activeArchiveContext={filters}
-        attachmentBusy={attachmentBusy}
-        detail={selectedDetail}
-        isLoading={detailLoading}
-        onAddAttachment={handleAddAttachment}
-        onApplyArchiveFilter={handleApplyArchiveQuery}
-        onDeleteAttachment={handleDeleteAttachment}
+        {...dashboardProps}
         onSelectTicket={(ticketId) => {
           setSelectedId(ticketId);
           setActiveSection("tickets");
         }}
-        ticket={selectedTicket}
-        ticketsInView={visibleTickets}
-        totalCount={tickets.length}
       />
     </section>
   );
@@ -835,29 +751,70 @@ export default function App() {
         />
       </div>
       <Dashboard
-        activeArchiveContext={filters}
-        attachmentBusy={attachmentBusy}
-        detail={selectedDetail}
-        isLoading={detailLoading}
-        onAddAttachment={handleAddAttachment}
-        onApplyArchiveFilter={handleApplyArchiveQuery}
-        onDeleteAttachment={handleDeleteAttachment}
+        {...dashboardProps}
         onSelectTicket={(ticketId) => {
           setSelectedId(ticketId);
           setActiveSection("tickets");
         }}
-        ticket={selectedTicket}
-        ticketsInView={visibleTickets}
-        totalCount={tickets.length}
       />
     </section>
   );
 
   const sectionContent =
     activeSection === "overview"
-      ? renderOverviewSection()
+      ? (
+          <HomePage
+            dashboardProps={{
+              ...dashboardProps,
+              onSelectTicket: (ticketId) => {
+                setSelectedId(ticketId);
+                setActiveSection("tickets");
+              },
+            }}
+            statisticsProps={{
+              activeArchiveContext: filters,
+              onApplyArchiveFilter: handleApplyAnalyticsFilter,
+              tickets: visibleTickets,
+              totalCount: tickets.length,
+            }}
+          />
+        )
       : activeSection === "tickets"
-        ? renderTicketsSection()
+        ? (
+            <TicketsPage
+              dashboardProps={dashboardProps}
+              formProps={{
+                importReview,
+                importedDraft,
+                initialDraft: formDraft,
+                isSaving,
+                mode: editingTicket ? "edit" : "create",
+                onCancelEdit: () => setEditingId(""),
+                onSubmitTicket: handleSubmitTicket,
+              }}
+              importProps={{ onApplyImport: handleApplyImport }}
+              listProps={{
+                busyTicketId,
+                filters,
+                onDelete: handleDeleteTicket,
+                onDeleteSavedView: handleDeleteSavedView,
+                onEdit: handleEditTicket,
+                onApplySavedView: handleApplySavedView,
+                onFiltersChange: setFilters,
+                onRenameSavedView: handleRenameSavedView,
+                onResetFilters: () => setFilters(defaultFilters),
+                onSaveCurrentView: handleSaveCurrentView,
+                onSelect: setSelectedId,
+                onTogglePinSavedView: handleTogglePinSavedView,
+                onUpdateSavedView: handleUpdateSavedView,
+                onUpdateStatus: handleUpdateStatus,
+                savedViews,
+                selectedId: selectedTicket?.id ?? "",
+                tickets: visibleTickets,
+                totalCount: tickets.length,
+              }}
+            />
+          )
         : activeSection === "journeys"
           ? renderJourneysSection()
           : activeSection === "map"

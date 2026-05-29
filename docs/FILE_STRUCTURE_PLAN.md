@@ -16,10 +16,21 @@ It does not require immediate file moves, large refactors, or broad architecture
   - `src/App.tsx`
   - `src/main.tsx`
   - `src/styles.css`
+  - `src/pages/`
   - `src/components/`
   - `src/lib/`
   - `src/types/`
   - `src/data/`
+
+### `src/pages/`
+
+- Current role:
+  - Early page-level composition wrappers introduced without a router rewrite
+- Current contents:
+  - `HomePage.tsx`
+  - `TicketsPage.tsx`
+- Current issue:
+  - Only the first two wrappers exist so far; journeys, map, and export areas still rely on section-level inline composition inside `src/App.tsx`
 
 ### `src/components/`
 
@@ -294,6 +305,9 @@ src-tauri/src/
   - `MapPage`
   - `BackupExportPage`
 - Keep current data model unchanged if possible
+- Notes:
+  - `HomePage` and `TicketsPage` wrapper-level extraction has started.
+  - Further page extraction should stay incremental.
 
 ### Phase 3
 
