@@ -300,7 +300,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - `UX-001` limiting the large overview hero/summary to `Overview` still needs follow-up and manual verification.
   - `UX-006` compacting long non-overview intro text behind a smaller tooltip-style help affordance still needs manual verification.
   - `UX-007` removing large bordered title containers from non-overview page headers is now part of the same follow-up pass.
-  - The next UI issue after that is reducing repeated preview content and clarifying non-overview section structure.
+  - `UX-003` reducing repeated preview content and clarifying non-overview section structure has now been manually verified.
+  - The next UI issue after that is improving ticket-page ordering and navigation flow without destabilizing the current add-ticket path.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

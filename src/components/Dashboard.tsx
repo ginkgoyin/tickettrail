@@ -20,6 +20,8 @@ import type {
 
 const RouteMap = lazy(async () => import("./RouteMap").then((module) => ({ default: module.RouteMap })));
 
+export type DashboardMode = "overview" | "tickets" | "journeys" | "map" | "exports";
+
 interface DashboardProps {
   detail: TicketDetailPayload | null;
   isLoading: boolean;
@@ -37,6 +39,7 @@ interface DashboardProps {
   onDeleteAttachment: (attachmentId: string) => Promise<void>;
   onSelectTicket: (ticketId: string) => void;
   onApplyArchiveFilter: (query: string) => void;
+  mode?: DashboardMode;
 }
 
 function isImageAttachment(attachment: TicketAttachment) {
@@ -236,6 +239,7 @@ export function Dashboard({
   onDeleteAttachment,
   onSelectTicket,
   onApplyArchiveFilter,
+  mode = "tickets",
 }: DashboardProps) {
   const [exportMessage, setExportMessage] = useState("");
   const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
@@ -524,30 +528,45 @@ export function Dashboard({
   const themeOptions: StubTheme[] = isTrainTicket
     ? ["ledger", "boarding", "night"]
     : ["boarding", "ledger", "night"];
+  const showsScopeContent = mode === "overview" || mode === "map";
+  const showsSelectedSummary = mode === "tickets" || mode === "journeys" || mode === "exports";
+  const showsActiveRoute = mode === "tickets" || mode === "journeys" || mode === "map" || mode === "exports";
+  const showsStubPreview = mode === "tickets" || mode === "exports";
+  const showsAttachments = mode === "tickets";
+  const showsTicketMeta = mode === "tickets" || mode === "journeys";
+  const showsSelectedHeading = mode === "tickets" || mode === "journeys" || mode === "exports";
+  const mapModuleLabel =
+    mode === "exports" ? "Route map export" : mode === "map" ? "Selected route" : "Route map";
+  const stubModuleLabel = "Ticket stub preview";
+  const detailModuleLabel =
+    mode === "exports" ? "Export data" : mode === "journeys" ? "Journey detail" : "Ticket detail";
+  const showsScopeFallback = showsScopeContent && !scopeSummary && !scopeMap && !scopeLoading;
 
-  if (!ticket) {
+  if (!ticket && !showsScopeContent) {
     return (
       <section className="panel dashboard">
-        <h3>No ticket selected</h3>
+        <h3>{mode === "exports" ? "Select a ticket to export" : "No ticket selected"}</h3>
       </section>
     );
   }
 
   return (
     <section className="panel dashboard">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Preview</p>
-          <h3>{ticket.routeLabel}</h3>
+      {ticket && showsSelectedHeading ? (
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">{mode === "exports" ? "Export ticket" : "Selected ticket"}</p>
+            <h3>{ticket.routeLabel}</h3>
+          </div>
+          <span className="status-pill">{`${ticket.status} | ${ticket.segmentCount} segment(s)`}</span>
         </div>
-        <span className="status-pill">{`${ticket.status} | ${ticket.segmentCount} segment(s)`}</span>
-      </div>
+      ) : null}
 
       {isLoading ? <p className="detail-loading">正在加载路线、票根和附件数据...</p> : null}
 
-      {itinerarySummary ? (
+      {itinerarySummary && showsSelectedSummary ? (
         <article className="detail-card itinerary-overview-card">
-          <span>Itinerary overview</span>
+          <span>{detailModuleLabel}</span>
           <strong>{`${itinerarySummary.startLabel} -> ${itinerarySummary.endLabel}`}</strong>
           <div className="detail-grid itinerary-overview-grid">
             <div>
@@ -578,7 +597,7 @@ export function Dashboard({
         </article>
       ) : null}
 
-      {scopeSummary ? (
+      {scopeSummary && showsScopeContent ? (
         <article className="detail-card scope-overview-card">
           <div className="panel-heading">
             <div>
@@ -649,7 +668,7 @@ export function Dashboard({
         </article>
       ) : null}
 
-      {scopeMap ? (
+      {scopeMap && showsScopeContent ? (
         <article className="map-preview scope-map-preview">
           <div className="panel-heading">
             <div>
@@ -691,13 +710,33 @@ export function Dashboard({
             </button>
           </div>
         </article>
-      ) : scopeLoading ? (
+      ) : scopeLoading && showsScopeContent ? (
         <article className="map-preview scope-map-preview">
           <p className="detail-loading">正在汇总当前筛选范围的路线地图...</p>
         </article>
       ) : null}
 
+      {showsScopeFallback ? (
+        <article className="detail-card">
+          <span>Route overview</span>
+          <strong>No route data in the current view</strong>
+          <p className="detail-loading">
+            Add tickets or broaden the current filters to populate the route overview for this section.
+          </p>
+        </article>
+      ) : null}
+
+      {ticket && showsActiveRoute ? (
       <article className="map-preview">
+        <div className="panel-heading">
+          <div>
+            <span>{mapModuleLabel}</span>
+            <strong>{activeDetail?.map.directionHint || ticket.routeLabel}</strong>
+          </div>
+          {activeDetail && canRenderActiveMap ? (
+            <span className="status-pill">{`${activeDetail.map.distanceHintKm} km`}</span>
+          ) : null}
+        </div>
         {activeDetail ? (
           canRenderActiveMap ? (
             <>
@@ -709,7 +748,7 @@ export function Dashboard({
                 导出路线 SVG
               </button>
             </div>
-            {activeDetail.segments.length > 1 ? (
+            {activeDetail.segments.length > 1 && mode !== "exports" ? (
               <div className="segment-stack">
                 {activeDetail.segments.map((segment) => (
                   <article className="segment-card" key={`${segment.code}-${segment.segmentIndex}`}>
@@ -766,8 +805,17 @@ export function Dashboard({
           </div>
         ) : null}
       </article>
+      ) : null}
 
+      {ticket && showsStubPreview ? (
       <article className="stub-preview">
+        <div className="panel-heading">
+          <div>
+            <span>{stubModuleLabel}</span>
+            <strong>{safeText(ticket.code, "--")}</strong>
+          </div>
+          <span className="status-pill">{safeText(ticket.ticketType, "ticket").toUpperCase()}</span>
+        </div>
         {activeDetail && canRenderActiveStub ? (
           <>
             <div className="theme-switcher">
@@ -803,10 +851,6 @@ export function Dashboard({
           </div>
         ) : (
           <>
-            <header>
-              <span>{safeText(ticket.ticketType, "ticket").toUpperCase()}</span>
-              <strong>{safeText(ticket.code, "--")}</strong>
-            </header>
             <div className="stub-body">
               <div>
                 <span>{safeText(ticket.departure?.name, "Departure")}</span>
@@ -824,7 +868,9 @@ export function Dashboard({
           </>
         )}
       </article>
+      ) : null}
 
+      {showsAttachments ? (
       <article className="attachments-panel">
         <div className="panel-heading">
           <div>
@@ -895,10 +941,11 @@ export function Dashboard({
           </div>
         )}
       </article>
+      ) : null}
 
       {exportMessage ? <p className="detail-loading">{exportMessage}</p> : null}
 
-      {ticket.segments?.length ? (
+      {ticket?.segments?.length && showsTicketMeta ? (
         <article className="detail-card">
           <span>Onward itinerary</span>
           <strong>{`${ticket.segments.length} saved onward segment(s)`}</strong>
@@ -912,6 +959,7 @@ export function Dashboard({
         </article>
       ) : null}
 
+      {ticket && showsTicketMeta ? (
       <article className="detail-grid">
         <div className="detail-card">
           <span>Departure timezone</span>
@@ -934,6 +982,7 @@ export function Dashboard({
           </strong>
         </div>
       </article>
+      ) : null}
     </section>
   );
 }

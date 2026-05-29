@@ -804,6 +804,7 @@ export default function App() {
       </div>
       <Dashboard
         {...dashboardProps}
+        mode="journeys"
         onSelectTicket={(ticketId) => {
           setSelectedId(ticketId);
           setActiveSection("tickets");
@@ -824,6 +825,7 @@ export default function App() {
       </div>
       <Dashboard
         {...dashboardProps}
+        mode="map"
         onSelectTicket={(ticketId) => {
           setSelectedId(ticketId);
           setActiveSection("tickets");
@@ -849,6 +851,7 @@ export default function App() {
       </div>
       <Dashboard
         {...dashboardProps}
+        mode="exports"
         onSelectTicket={(ticketId) => {
           setSelectedId(ticketId);
           setActiveSection("tickets");
@@ -863,6 +866,7 @@ export default function App() {
           <HomePage
             dashboardProps={{
               ...dashboardProps,
+              mode: "overview",
               onSelectTicket: (ticketId) => {
                 setSelectedId(ticketId);
                 setActiveSection("tickets");
@@ -879,7 +883,7 @@ export default function App() {
       : activeSection === "tickets"
         ? (
             <TicketsPage
-              dashboardProps={dashboardProps}
+              dashboardProps={{ ...dashboardProps, mode: "tickets" }}
               formProps={{
                 importReview,
                 importedDraft,

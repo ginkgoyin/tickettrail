@@ -11,6 +11,7 @@
 - `NAV-002`: sidebar buttons switch local sections
 - `NAV-003`: switching sidebar sections scrolls the main workspace/content area back to the top and was manually verified
 - `ARCH-001`: initial `HomePage` and `TicketsPage` wrappers extracted and manually verified
+- `UX-003`: preview panel labels and section-specific preview scope clarified and manually verified
 
 ## 2. Implemented / Needs Checkpoint
 
@@ -26,12 +27,6 @@
 - `UX-002`
   - Overview is too long and requires scrolling to see all important content.
   - It should become a clearer dashboard with sub-section buttons/cards.
-  - Status: `Open`
-  - Priority: `High`
-
-- `UX-003`
-  - Overview, Tickets, and Exports each show a Preview sub-panel, but its meaning is unclear and the structure feels messy.
-  - The Preview concept should appear only once or be renamed/restructured.
   - Status: `Open`
   - Priority: `High`
 
