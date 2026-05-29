@@ -84,6 +84,27 @@ The current goal is not to start a large refactor immediately, but to capture th
   - Review travel insights
   - Apply relevant filters if supported later
 
+### Journeys
+
+- Purpose:
+  - Represent grouped travel records / trip collections rather than single-ticket detail screens
+- Main content:
+  - Journey Summary
+  - Journey List
+  - Journey detail later
+  - Journey-level map and statistics later
+- Main actions:
+  - Open journey summary
+  - Browse trip history
+  - Open a journey detail record
+- Confirmed direction:
+  - Journeys should be created manually first
+  - The first creation flow should let the user select/check tickets from a list
+  - Journey List should use `title` as the main title and `destination` as secondary metadata
+  - Secondary metadata should emphasize destination, date range, duration, and ticket count
+  - Companions should start as free-text names with later suggestion/autocomplete behavior
+  - The default year filter should be `All years`
+
 ### Backup / Export
 
 - Purpose:
@@ -213,6 +234,8 @@ Notes:
 - Split `Home`, `Flight Tickets`, and `Train Tickets` at the UI level
 - Keep the current data model unchanged if possible
 - Avoid a large architecture rewrite during this phase
+- Short-term Journeys work should only introduce a `Summary + List` scaffold, not a duplicate ticket-detail page
+- Short-term Journeys creation should be manual-first and ticket-list-driven
 
 ### Phase 3
 
@@ -230,6 +253,14 @@ Notes:
 
 - Revisit ticket-status semantics
 - Decide whether migration is needed for status/archive behavior
+
+### Long-term Journeys note
+
+- Journeys should eventually use a real many-to-many ticket relationship
+- One ticket may belong to multiple journeys
+- One ticket may belong to none
+- The future table direction is `journeys`, `journey_tickets`, and `journey_companions`
+- This should be handled only after the desktop ticket workflow is stable
 
 ## 9. Risks
 
