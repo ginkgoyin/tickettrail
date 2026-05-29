@@ -19,7 +19,7 @@
 ## 3. Open UX / Product Issues
 
 - `UX-001`
-  - The large top summary/hero block appears on multiple pages, but it should mainly belong to Overview.
+  - Large overview-style hero/summary still needs follow-up so that only `Overview` shows the full masthead/summary experience.
   - Status: `Open`
   - Priority: `High`
 
@@ -46,6 +46,23 @@
   - Tickets page ordering is not ideal because users need easier access to the ticket list, search, and add/edit actions.
   - Status: `Open`
   - Priority: `High`
+
+- `UX-006`
+  - Page intro text is too large and should be compacted into title + info icon / hover tooltip.
+  - Status: `Open`
+  - Priority: `Medium`
+
+- `UX-007`
+  - Page title/header should not be wrapped in large bordered cards.
+  - Titles should sit directly on the page background.
+  - Bordered cards should be used for real content modules only.
+  - Status: `Open`
+  - Priority: `Medium`
+
+- `THEME-001`
+  - Add light/day mode support later.
+  - Status: `Open`
+  - Priority: `Medium`
 
 - `OCR-001`
   - OCR should be part of the Add Ticket flow, not a permanent main-page section.

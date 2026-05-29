@@ -705,6 +705,92 @@ export default function App() {
     totalCount: tickets.length,
   };
 
+  const renderSectionHeader = () => {
+    if (activeSection === "overview") {
+      return (
+        <section className="hero">
+          <div>
+            <p className="eyebrow">Windows MVP Scaffold</p>
+            <h1>TicketTrail</h1>
+            <p className="hero-copy">
+              Capture flights and rail trips, normalize them into structured journeys,
+              preview map routes, and prepare branded ticket-stub exports.
+            </p>
+            <p className="hero-copy">
+              {loading
+                ? "Loading local archive..."
+                : `Archive ready: ${visibleTickets.length} visible ticket(s) from ${tickets.length} total.`}
+            </p>
+            {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
+          </div>
+          <div className="hero-stats">
+            <div className="stat-card">
+              <span className="stat-value">{tickets.length}</span>
+              <span className="stat-label">Stored tickets</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-value">
+                {tickets.filter((ticket) => ticket.ticketType === "flight").length}
+              </span>
+              <span className="stat-label">Flights</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-value">
+                {tickets.filter((ticket) => ticket.ticketType === "train").length}
+              </span>
+              <span className="stat-label">Rail segments</span>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    const sectionMeta: Record<Exclude<AppSection, "overview">, { title: string; copy: string }> = {
+      tickets: {
+        title: "Tickets",
+        copy: "Manage ticket records, imports, search, and selected ticket detail.",
+      },
+      journeys: {
+        title: "Journeys",
+        copy: "Review itinerary and segment-related information without the full overview header.",
+      },
+      map: {
+        title: "Map",
+        copy: "Inspect route-focused content in a dedicated section without repeating the home summary.",
+      },
+      exports: {
+        title: "Exports",
+        copy: "Manage backup, restore, archive export, and output-related actions from one compact section.",
+      },
+    };
+
+    const meta = sectionMeta[activeSection];
+
+    return (
+      <section className="section-page-header">
+        <div className="section-page-header-main">
+          <div className="section-page-title-row">
+            <h2>{meta.title}</h2>
+            <div className="section-help">
+              <button
+                aria-describedby={`section-help-${activeSection}`}
+                aria-label={`${meta.title} section info`}
+                className="section-help-trigger"
+                type="button"
+              >
+                ⓘ
+              </button>
+              <span className="section-help-tooltip" id={`section-help-${activeSection}`} role="tooltip">
+                {meta.copy}
+              </span>
+            </div>
+          </div>
+          {errorMessage ? <p className="error-banner section-page-error">{errorMessage}</p> : null}
+        </div>
+      </section>
+    );
+  };
+
   const renderJourneysSection = () => (
     <section className="section-stack">
       <div className="panel section-placeholder">
@@ -837,41 +923,8 @@ export default function App() {
       <Sidebar activeSection={activeSection} onSelectSection={setActiveSection} />
       <main className="workspace" ref={workspaceRef}>
         <AppErrorBoundary>
-          <Header />
-          <section className="hero">
-            <div>
-              <p className="eyebrow">Windows MVP Scaffold</p>
-              <h1>TicketTrail</h1>
-              <p className="hero-copy">
-                Capture flights and rail trips, normalize them into structured journeys,
-                preview map routes, and prepare branded ticket-stub exports.
-              </p>
-              <p className="hero-copy">
-                {loading
-                  ? "Loading local archive..."
-                  : `Archive ready: ${visibleTickets.length} visible ticket(s) from ${tickets.length} total.`}
-              </p>
-              {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
-            </div>
-            <div className="hero-stats">
-              <div className="stat-card">
-                <span className="stat-value">{tickets.length}</span>
-                <span className="stat-label">Stored tickets</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-value">
-                  {tickets.filter((ticket) => ticket.ticketType === "flight").length}
-                </span>
-                <span className="stat-label">Flights</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-value">
-                  {tickets.filter((ticket) => ticket.ticketType === "train").length}
-                </span>
-                <span className="stat-label">Rail segments</span>
-              </div>
-            </div>
-          </section>
+          {activeSection === "overview" ? <Header /> : null}
+          {renderSectionHeader()}
 
           {sectionContent}
         </AppErrorBoundary>

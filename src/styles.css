@@ -222,6 +222,92 @@ button {
   gap: 20px;
 }
 
+.section-page-header {
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  border-radius: 0;
+}
+
+.section-page-header-main {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.section-page-title-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.section-page-error {
+  margin-top: 8px;
+}
+
+.section-page-header h2 {
+  margin: 0;
+}
+
+.section-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.section-help-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-soft);
+  font-size: 0.92rem;
+}
+
+.section-help-trigger:hover,
+.section-help-trigger:focus-visible {
+  border-color: rgba(112, 212, 255, 0.28);
+  background: rgba(112, 212, 255, 0.08);
+  color: #ccefff;
+}
+
+.section-help-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 21, 31, 0.96);
+  color: var(--text-soft);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.24);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+}
+
+.section-help:hover .section-help-tooltip,
+.section-help:focus-within .section-help-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
 .section-placeholder {
   display: grid;
   gap: 10px;
@@ -1404,6 +1490,7 @@ textarea {
   .app-header,
   .panel-heading,
   .hero,
+  .section-page-header-main,
   .header-actions,
   .analytics-toolbar,
   .ticket-toolbar,

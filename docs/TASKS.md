@@ -297,7 +297,10 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - A first local-section implementation is now in place without a router rewrite.
   - Sticky sidebar and local section switching have now been manually verified by the user.
   - `NAV-003` scroll-to-top on sidebar section change has now been manually verified by the user.
-  - The next UI issue after that is reducing repeated hero/preview content across non-overview sections.
+  - `UX-001` limiting the large overview hero/summary to `Overview` still needs follow-up and manual verification.
+  - `UX-006` compacting long non-overview intro text behind a smaller tooltip-style help affordance still needs manual verification.
+  - `UX-007` removing large bordered title containers from non-overview page headers is now part of the same follow-up pass.
+  - The next UI issue after that is reducing repeated preview content and clarifying non-overview section structure.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.
