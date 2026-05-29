@@ -245,6 +245,68 @@ html {
   gap: 20px;
 }
 
+.journeys-page,
+.journeys-summary-grid,
+.journeys-placeholder-list,
+.journeys-archive-meta {
+  display: grid;
+  gap: 16px;
+}
+
+.journeys-subview-bar,
+.journeys-callout-top,
+.journey-list-preview-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.journeys-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 1.15fr) minmax(280px, 0.85fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.journeys-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.journeys-phase-grid {
+  grid-template-columns: minmax(360px, 1fr) minmax(280px, 0.8fr);
+}
+
+.journeys-callout {
+  gap: 12px;
+}
+
+.journeys-inline-note {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(112, 212, 255, 0.18);
+  background: rgba(112, 212, 255, 0.08);
+  color: #cfefff;
+}
+
+.journeys-placeholder-item,
+.journeys-archive-meta-item,
+.journey-list-preview-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.journeys-placeholder-item span,
+.journeys-archive-meta-item span,
+.journey-list-preview-card span {
+  color: var(--text-soft);
+}
+
 .section-page-header {
   margin: 0 0 20px;
   padding: 0;
@@ -1779,6 +1841,8 @@ textarea {
   }
 
   .content-grid,
+  .journeys-hero-grid,
+  .journeys-phase-grid,
   .hero {
     grid-template-columns: 1fr;
   }
@@ -1792,6 +1856,9 @@ textarea {
   .app-header,
   .panel-heading,
   .hero,
+  .journeys-subview-bar,
+  .journeys-callout-top,
+  .journey-list-preview-top,
   .section-page-header-main,
   .header-actions,
   .analytics-toolbar,
@@ -1822,6 +1889,7 @@ textarea {
   .import-grid,
   .detail-grid,
   .hero-stats,
+  .journeys-summary-grid,
   .analytics-summary-grid,
   .analytics-grid,
   .scope-grid,

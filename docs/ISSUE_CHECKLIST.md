@@ -30,6 +30,18 @@
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
+- `UX-004`
+  - Journeys no longer duplicate the Tickets selected-ticket detail view.
+  - Status: `Implemented / needs manual verification`
+
+- `JOURNEY-001`
+  - Journeys now default to a `Summary` scaffold instead of selected-ticket detail duplication.
+  - Status: `Implemented / needs manual verification`
+
+- `JOURNEY-002`
+  - Journeys now provide a lightweight `List` scaffold subview.
+  - Status: `Implemented / needs manual verification`
+
 - `UX-005L`
   - Ticket list pagination after `20` records is implemented.
   - It still needs manual verification with `20+` records.
@@ -73,22 +85,6 @@
   - Status: `Confirmed / design accepted`
 
 ## 4. Journey Work Not Started
-
-- `UX-004`
-  - Journeys should not duplicate Tickets detail.
-  - Journeys should become grouped travel records / trip collections rather than a selected-ticket mirror.
-  - Status: `Open`
-  - Priority: `High`
-
-- `JOURNEY-001`
-  - Journeys should open `Summary` by default instead of selected-ticket duplication.
-  - Status: `Open / needs design`
-  - Priority: `High`
-
-- `JOURNEY-002`
-  - Journeys should also provide a `List` subview for all trips.
-  - Status: `Open / needs design`
-  - Priority: `High`
 
 - `JOURNEY-003`
   - Journey list items should show compact trip-level information such as title, destination, duration, date range, and optional total distance.

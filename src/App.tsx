@@ -8,6 +8,7 @@ import { Sidebar, type AppSection } from "./components/Sidebar";
 import { TicketList, type SavedFilterView, type TicketFilters, type TicketSort } from "./components/TicketList";
 import { reviewImportedDraft, type ImportFieldReview, type ImportParseResult } from "./lib/importParser";
 import { HomePage } from "./pages/HomePage";
+import { JourneysPage } from "./pages/JourneysPage";
 import { TicketsPage } from "./pages/TicketsPage";
 import {
   addTicketAttachment,
@@ -751,7 +752,7 @@ export default function App() {
       },
       journeys: {
         title: "Journeys",
-        copy: "Review itinerary and segment-related information without the full overview header.",
+        copy: "Browse trip-level summaries and future journey records without duplicating single-ticket detail.",
       },
       map: {
         title: "Map",
@@ -789,27 +790,6 @@ export default function App() {
       </section>
     );
   };
-
-  const renderJourneysSection = () => (
-    <section className="section-stack">
-      <div className="panel section-placeholder">
-        <h3>Journey workspace is still being separated.</h3>
-        <p className="hero-copy">
-          Segment and itinerary details currently remain connected to ticket detail views. This
-          section is reserved for a later focused journey flow after the current workspace is
-          stabilized.
-        </p>
-      </div>
-      <Dashboard
-        {...dashboardProps}
-        mode="journeys"
-        onSelectTicket={(ticketId) => {
-          setSelectedId(ticketId);
-          setActiveSection("tickets");
-        }}
-      />
-    </section>
-  );
 
   const renderMapSection = () => (
     <section className="section-stack">
@@ -914,7 +894,7 @@ export default function App() {
             />
           )
         : activeSection === "journeys"
-          ? renderJourneysSection()
+          ? <JourneysPage tickets={tickets} />
           : activeSection === "map"
             ? renderMapSection()
             : renderExportsSection();

@@ -307,6 +307,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - Journey implementation should not start until the Journey design is accepted, especially because Journeys are being redefined as trip collections rather than single-ticket detail duplication.
   - Journey design decisions are now confirmed: manual-first creation, ticket-list selection flow, `title` as the main list title, free-text companions with later suggestions, `All years` as default filter, and a future many-to-many table direction.
   - Journey implementation should begin with a safe `Summary + List` scaffold only.
+  - Journeys Phase 1 scaffold is now in progress: remove ticket-detail duplication first, then keep only `Summary` and `List` placeholder states until real Journey data exists.
   - Do not implement the real Journey database schema until a later phase.
   - The next UI issue after that is redesigning the Journeys selection flow without destabilizing the current add-ticket path.
 
