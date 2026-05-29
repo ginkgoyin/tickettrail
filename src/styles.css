@@ -103,6 +103,21 @@ button {
   align-content: start;
 }
 
+.sidebar-utility {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 12px;
+}
+
+.sidebar-utility-label {
+  color: var(--text-soft);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
 .nav-item {
   border: 1px solid var(--panel-border);
   background: rgba(255, 255, 255, 0.03);
@@ -248,7 +263,8 @@ html {
 .journeys-page,
 .journeys-summary-grid,
 .journeys-placeholder-list,
-.journeys-archive-meta {
+.journeys-archive-meta,
+.settings-option-list {
   display: grid;
   gap: 16px;
 }
@@ -292,7 +308,9 @@ html {
 
 .journeys-placeholder-item,
 .journeys-archive-meta-item,
-.journey-list-preview-card {
+.journey-list-preview-card,
+.settings-option-card,
+.settings-meta-card {
   display: grid;
   gap: 6px;
   padding: 14px 16px;
@@ -303,8 +321,28 @@ html {
 
 .journeys-placeholder-item span,
 .journeys-archive-meta-item span,
-.journey-list-preview-card span {
+.journey-list-preview-card span,
+.settings-option-card span,
+.settings-meta-card span {
   color: var(--text-soft);
+}
+
+.settings-grid {
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+}
+
+.settings-intro-card {
+  max-width: 820px;
+}
+
+.settings-option-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+}
+
+.settings-option-card p {
+  margin: 6px 0 0;
 }
 
 .section-page-header {

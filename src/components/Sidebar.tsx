@@ -1,4 +1,4 @@
-export type AppSection = "overview" | "tickets" | "journeys" | "map" | "exports";
+export type AppSection = "overview" | "tickets" | "journeys" | "map" | "exports" | "settings";
 
 const navItems: Array<{ label: string; value: string; section: AppSection }> = [
   { label: "Overview", value: "01", section: "overview" },
@@ -6,6 +6,10 @@ const navItems: Array<{ label: string; value: string; section: AppSection }> = [
   { label: "Journeys", value: "03", section: "journeys" },
   { label: "Map", value: "04", section: "map" },
   { label: "Exports", value: "05", section: "exports" },
+];
+
+const utilityItems: Array<{ label: string; value: string; section: AppSection }> = [
+  { label: "Settings", value: "06", section: "settings" },
 ];
 
 interface SidebarProps {
@@ -37,6 +41,23 @@ export function Sidebar({ activeSection, onSelectSection }: SidebarProps) {
           </button>
         ))}
       </nav>
+      <div className="sidebar-utility">
+        <span className="sidebar-utility-label">Preferences</span>
+        <nav className="nav-list" aria-label="Utility navigation">
+          {utilityItems.map((item) => (
+            <button
+              aria-pressed={activeSection === item.section}
+              className={`nav-item ${activeSection === item.section ? "active" : ""}`}
+              key={item.label}
+              onClick={() => onSelectSection(item.section)}
+              type="button"
+            >
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </button>
+          ))}
+        </nav>
+      </div>
     </aside>
   );
 }

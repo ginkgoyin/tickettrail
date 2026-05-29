@@ -33,6 +33,11 @@
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
+- `SETTINGS-001`
+  - A Settings sidebar entry and safe Settings scaffold page are now in place.
+  - The page currently exposes only clearly disabled placeholder sections for Appearance, Storage, Export, and About.
+  - Status: `Implemented / needs manual verification`
+
 - `UX-005L`
   - Ticket list pagination after `20` records is implemented.
   - It still needs manual verification with `20+` records.
@@ -151,11 +156,6 @@
 
 - `BRAND-002`
   - If airline logo/color data is available later, ticket row/card theme color should use airline branding colors.
-  - Status: `Open`
-  - Priority: `Medium`
-
-- `SETTINGS-001`
-  - Add a Settings entry at the bottom of the sidebar later.
   - Status: `Open`
   - Priority: `Medium`
 

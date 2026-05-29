@@ -9,6 +9,7 @@ import { TicketList, type SavedFilterView, type TicketFilters, type TicketSort }
 import { reviewImportedDraft, type ImportFieldReview, type ImportParseResult } from "./lib/importParser";
 import { HomePage } from "./pages/HomePage";
 import { JourneysPage } from "./pages/JourneysPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { TicketsPage } from "./pages/TicketsPage";
 import {
   addTicketAttachment,
@@ -762,6 +763,10 @@ export default function App() {
         title: "Exports",
         copy: "Manage backup, restore, archive export, and output-related actions from one compact section.",
       },
+      settings: {
+        title: "Settings",
+        copy: "Review future desktop preferences, storage options, export preferences, and about information.",
+      },
     };
 
     const meta = sectionMeta[activeSection];
@@ -897,7 +902,9 @@ export default function App() {
           ? <JourneysPage tickets={tickets} />
           : activeSection === "map"
             ? renderMapSection()
-            : renderExportsSection();
+            : activeSection === "exports"
+              ? renderExportsSection()
+              : <SettingsPage />;
 
   return (
     <div className="app-shell">
