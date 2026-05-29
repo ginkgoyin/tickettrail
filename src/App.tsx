@@ -39,7 +39,7 @@ const defaultFilters: TicketFilters = {
   query: "",
   ticketType: "all",
   status: "all",
-  sort: "created_desc",
+  sort: "departure_desc",
 };
 
 const savedViewsStorageKey = "tickettrail.saved-filter-views";
@@ -71,7 +71,7 @@ function normalizeSavedViews(rawValue: unknown): SavedFilterView[] {
         query: item.filters.query ?? "",
         ticketType: item.filters.ticketType ?? "all",
         status: item.filters.status ?? "all",
-        sort: item.filters.sort ?? "created_desc",
+        sort: item.filters.sort ?? "departure_desc",
       },
       createdAt: item.createdAt ?? new Date().toISOString(),
       pinned: item.pinned ?? false,
@@ -710,7 +710,6 @@ export default function App() {
       return (
         <section className="hero">
           <div>
-            <p className="eyebrow">Windows MVP Scaffold</p>
             <h1>TicketTrail</h1>
             <p className="hero-copy">
               Capture flights and rail trips, normalize them into structured journeys,
@@ -794,7 +793,6 @@ export default function App() {
   const renderJourneysSection = () => (
     <section className="section-stack">
       <div className="panel section-placeholder">
-        <p className="eyebrow">Journeys</p>
         <h3>Journey workspace is still being separated.</h3>
         <p className="hero-copy">
           Segment and itinerary details currently remain connected to ticket detail views. This
@@ -816,7 +814,6 @@ export default function App() {
   const renderMapSection = () => (
     <section className="section-stack">
       <div className="panel section-placeholder">
-        <p className="eyebrow">Map</p>
         <h3>Map view is available and navigation is now section-aware.</h3>
         <p className="hero-copy">
           This section reuses the current dashboard map/detail experience for now. A cleaner

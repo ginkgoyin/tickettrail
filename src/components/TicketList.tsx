@@ -1,9 +1,8 @@
-import { useMemo, useState } from "react";
-import { exportTextFile } from "../lib/visualization";
+import { useEffect, useMemo, useState } from "react";
 import type { TicketRecord, TicketStatus, TicketType } from "../types/ticket";
 
 export type TicketSort = "created_desc" | "created_asc" | "departure_asc" | "departure_desc";
-type TicketListView = "cards" | "timeline";
+type TicketListView = "list" | "timeline";
 
 export interface TicketFilters {
   query: string;
@@ -41,11 +40,6 @@ interface TicketListProps {
   onUpdateStatus: (id: string, status: Exclude<TicketStatus, "draft">) => void;
 }
 
-function nextStatusOptions(status: TicketStatus): Exclude<TicketStatus, "draft">[] {
-  const statuses: Exclude<TicketStatus, "draft">[] = ["saved", "used", "archived"];
-  return statuses.filter((item) => item !== status);
-}
-
 function safeText(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
@@ -64,129 +58,43 @@ function buildTimelineLabel(ticket: TicketRecord) {
   return datePart || safeText(ticket.createdAt).slice(0, 10);
 }
 
-function buildBatchExportJson(tickets: TicketRecord[]) {
-  return JSON.stringify(tickets, null, 2);
+function transportIcon(ticketType: TicketType) {
+  return ticketType === "flight" ? "✈" : "🚆";
 }
 
-function escapeCsvCell(value: string | number) {
-  const text = String(value ?? "");
-  if (/[",\n]/.test(text)) {
-    return `"${text.replace(/"/g, "\"\"")}"`;
-  }
-  return text;
-}
-
-function buildBatchExportCsv(tickets: TicketRecord[]) {
-  const header = [
-    "id",
-    "ticketType",
-    "status",
-    "code",
-    "carrierName",
-    "routeLabel",
-    "segmentCount",
-    "departureName",
-    "departureCode",
-    "departureTimeLocal",
-    "arrivalName",
-    "arrivalCode",
-    "arrivalTimeLocal",
-    "notes",
-  ];
-
-  const rows = tickets.map((ticket) =>
-    [
-      ticket.id,
-      ticket.ticketType,
-      ticket.status,
-      ticket.code,
-      ticket.carrierName,
-      ticket.routeLabel,
-      ticket.segmentCount,
-      ticket.departure.name,
-      ticket.departure.code || "",
-      ticket.departureTimeLocal,
-      ticket.arrival.name,
-      ticket.arrival.code || "",
-      ticket.arrivalTimeLocal,
-      ticket.notes,
-    ]
-      .map(escapeCsvCell)
-      .join(","),
-  );
-
-  return [header.join(","), ...rows].join("\n");
-}
-
-function renderTicketCard(
+function renderTicketRow(
   ticket: TicketRecord,
   selectedId: string,
-  busyTicketId: string | undefined,
   onSelect: (id: string) => void,
-  onEdit: (id: string) => void,
-  onDelete: (id: string) => void,
-  onUpdateStatus: (id: string, status: Exclude<TicketStatus, "draft">) => void,
 ) {
-  const isBusy = busyTicketId === ticket.id;
-
   return (
     <button
-      className={ticket.id === selectedId ? "ticket-card selected" : "ticket-card"}
+      className={ticket.id === selectedId ? "ticket-row selected" : "ticket-row"}
       key={ticket.id}
       onClick={() => onSelect(ticket.id)}
       type="button"
     >
-      <div className="ticket-card-top">
-        <span className="ticket-kind">{ticket.ticketType}</span>
-        <span className="ticket-code">{ticket.code}</span>
+      <div className="ticket-row-icon" aria-hidden="true">
+        {transportIcon(ticket.ticketType)}
       </div>
-      <strong>{ticket.routeLabel}</strong>
-      <p>{ticket.carrierName}</p>
-      <div className="ticket-meta">
-        <span>{formatDateTime(ticket.departureTimeLocal)}</span>
-        <span>{`${ticket.segmentCount} segment(s)`}</span>
-        <span>{ticket.classInfo || "Unassigned class"}</span>
-      </div>
-      <div className="ticket-card-footer">
-        <span className={`ticket-status ticket-status-${ticket.status}`}>{ticket.status}</span>
-        <div className="ticket-card-actions">
-          <button
-            className="ghost-button compact-button"
-            disabled={isBusy}
-            onClick={(event) => {
-              event.stopPropagation();
-              onEdit(ticket.id);
-            }}
-            type="button"
-          >
-            Edit
-          </button>
-          {nextStatusOptions(ticket.status).map((status) => (
-            <button
-              className="ghost-button compact-button"
-              disabled={isBusy}
-              key={status}
-              onClick={(event) => {
-                event.stopPropagation();
-                onUpdateStatus(ticket.id, status);
-              }}
-              type="button"
-            >
-              {status}
-            </button>
-          ))}
-          <button
-            className="ghost-button compact-button danger-button"
-            disabled={isBusy}
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete(ticket.id);
-            }}
-            type="button"
-          >
-            Delete
-          </button>
+      <div className="ticket-row-main">
+        <div className="ticket-row-top">
+          <strong>{ticket.routeLabel}</strong>
+          <span className="ticket-code">{ticket.code}</span>
         </div>
+        <div className="ticket-row-meta">
+          <span>{formatDateTime(ticket.departureTimeLocal)}</span>
+          <span>→</span>
+          <span>{formatDateTime(ticket.arrivalTimeLocal)}</span>
+        </div>
+        <div className="ticket-row-submeta">
+          <span>{ticket.carrierName}</span>
+          <span>{`${ticket.departure.code || ticket.departure.name} → ${ticket.arrival.code || ticket.arrival.name}`}</span>
+        </div>
+      </div>
+      <div className="ticket-row-side">
+        <span className={`ticket-status ticket-status-${ticket.status}`}>{ticket.status}</span>
+        <small>{`${ticket.segmentCount} leg${ticket.segmentCount > 1 ? "s" : ""}`}</small>
       </div>
     </button>
   );
@@ -196,106 +104,54 @@ export function TicketList({
   tickets,
   totalCount,
   selectedId,
-  busyTicketId,
   filters,
-  savedViews,
   onFiltersChange,
   onResetFilters,
-  onSaveCurrentView,
-  onApplySavedView,
-  onUpdateSavedView,
-  onRenameSavedView,
-  onTogglePinSavedView,
-  onDeleteSavedView,
   onSelect,
-  onEdit,
-  onDelete,
-  onUpdateStatus,
 }: TicketListProps) {
-  const [viewMode, setViewMode] = useState<TicketListView>("cards");
-  const [savedViewName, setSavedViewName] = useState("");
-  const [editingSavedViewId, setEditingSavedViewId] = useState("");
+  const pageSize = 20;
+  const [viewMode, setViewMode] = useState<TicketListView>("list");
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(tickets.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageTickets = useMemo(() => tickets.slice(pageStart, pageStart + pageSize), [pageStart, pageSize, tickets]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters.query, filters.ticketType, filters.status, filters.sort]);
 
   const timelineGroups = useMemo(() => {
     const groups = new Map<string, TicketRecord[]>();
 
-    tickets.forEach((ticket) => {
+    pageTickets.forEach((ticket) => {
       const key = buildTimelineLabel(ticket);
       groups.set(key, [...(groups.get(key) ?? []), ticket]);
     });
 
     return Array.from(groups.entries());
-  }, [tickets]);
-
-  const handleBatchExport = (kind: "json" | "csv") => {
-    if (!tickets.length) {
-      return;
-    }
-
-    if (kind === "json") {
-      exportTextFile(
-        `tickettrail-batch-${tickets.length}.json`,
-        buildBatchExportJson(tickets),
-        "application/json;charset=utf-8",
-      );
-      return;
-    }
-
-    exportTextFile(
-      `tickettrail-batch-${tickets.length}.csv`,
-      buildBatchExportCsv(tickets),
-      "text/csv;charset=utf-8",
-    );
-  };
-
-  const activeSavedViewId =
-    savedViews.find(
-      (view) =>
-        view.filters.query === filters.query &&
-        view.filters.ticketType === filters.ticketType &&
-        view.filters.status === filters.status &&
-        view.filters.sort === filters.sort,
-    )?.id ?? "";
-
-  const handleSaveCurrentView = () => {
-    const normalizedName = savedViewName.trim();
-    if (!normalizedName) {
-      return;
-    }
-
-    onSaveCurrentView(normalizedName);
-    setSavedViewName("");
-  };
-
-  const handleRenameSavedView = (view: SavedFilterView) => {
-    const nextName = window.prompt("重命名筛选视图", view.name)?.trim();
-    if (!nextName || nextName === view.name) {
-      return;
-    }
-
-    onRenameSavedView(view.id, nextName);
-  };
+  }, [pageTickets]);
 
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Archive</p>
-          <h3>Ticket records</h3>
+          <h3>Ticket history</h3>
         </div>
         <span className="status-pill">
           {tickets.length} shown / {totalCount} total
         </span>
       </div>
 
-      <div className="ticket-toolbar">
+      <div className="ticket-toolbar compact-ticket-toolbar">
         <div className="theme-switcher">
           <button
-            className={viewMode === "cards" ? "theme-chip active" : "theme-chip"}
-            onClick={() => setViewMode("cards")}
+            className={viewMode === "list" ? "theme-chip active" : "theme-chip"}
+            onClick={() => setViewMode("list")}
             type="button"
           >
-            Card view
+            List
           </button>
           <button
             className={viewMode === "timeline" ? "theme-chip active" : "theme-chip"}
@@ -304,98 +160,6 @@ export function TicketList({
           >
             Timeline
           </button>
-        </div>
-        <div className="export-row">
-          <button className="ghost-button compact-button" onClick={() => handleBatchExport("json")} type="button">
-            导出当前 JSON
-          </button>
-          <button className="ghost-button compact-button" onClick={() => handleBatchExport("csv")} type="button">
-            导出当前 CSV
-          </button>
-        </div>
-      </div>
-
-      <div className="saved-views-panel">
-        <div className="saved-view-form">
-          <label>
-            保存筛选视图
-            <input
-              onChange={(event) => setSavedViewName(event.target.value)}
-              placeholder="例如：国际航班 / 日本行程"
-              value={savedViewName}
-            />
-          </label>
-          <button className="ghost-button compact-button filter-reset" onClick={handleSaveCurrentView} type="button">
-            保存当前视图
-          </button>
-        </div>
-        <div className="saved-views-row">
-          {savedViews.length === 0 ? (
-            <span className="saved-view-empty">还没有保存的常用视图</span>
-          ) : (
-            savedViews.map((view) => {
-              const isEditingSavedView = editingSavedViewId === view.id;
-
-              return (
-                <div
-                  className={view.id === activeSavedViewId ? "saved-view-chip active" : "saved-view-chip"}
-                  key={view.id}
-                >
-                  <button className="saved-view-apply" onClick={() => onApplySavedView(view.id)} type="button">
-                    <span className="saved-view-name">
-                      {view.pinned ? "置顶" : "视图"} · {view.name}
-                    </span>
-                  </button>
-                  <div className="saved-view-actions">
-                    <button
-                      aria-label={isEditingSavedView ? `完成编辑 ${view.name}` : `编辑视图 ${view.name}`}
-                      className="saved-view-action-button"
-                      onClick={() => setEditingSavedViewId(isEditingSavedView ? "" : view.id)}
-                      type="button"
-                    >
-                      {isEditingSavedView ? "完成" : "编辑"}
-                    </button>
-                    {isEditingSavedView ? (
-                      <>
-                        <button
-                          aria-label={`用当前条件更新 ${view.name}`}
-                          className="saved-view-action-button"
-                          onClick={() => onUpdateSavedView(view.id)}
-                          type="button"
-                        >
-                          更新
-                        </button>
-                        <button
-                          aria-label={view.pinned ? `取消置顶 ${view.name}` : `置顶 ${view.name}`}
-                          className="saved-view-action-button"
-                          onClick={() => onTogglePinSavedView(view.id)}
-                          type="button"
-                        >
-                          {view.pinned ? "取消置顶" : "置顶"}
-                        </button>
-                        <button
-                          aria-label={`重命名 ${view.name}`}
-                          className="saved-view-action-button"
-                          onClick={() => handleRenameSavedView(view)}
-                          type="button"
-                        >
-                          重命名
-                        </button>
-                        <button
-                          aria-label={`删除 ${view.name}`}
-                          className="saved-view-delete"
-                          onClick={() => onDeleteSavedView(view.id)}
-                          type="button"
-                        >
-                          ×
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })
-          )}
         </div>
       </div>
 
@@ -452,10 +216,10 @@ export function TicketList({
             }
             value={filters.sort}
           >
+            <option value="departure_desc">Newest departure</option>
+            <option value="departure_asc">Earliest departure</option>
             <option value="created_desc">Newest created</option>
             <option value="created_asc">Oldest created</option>
-            <option value="departure_asc">Earliest departure</option>
-            <option value="departure_desc">Latest departure</option>
           </select>
         </label>
       </div>
@@ -464,40 +228,72 @@ export function TicketList({
         Reset filters
       </button>
 
-      {viewMode === "cards" ? (
-        <div className="ticket-list">
+      {viewMode === "list" ? (
+        <div className="ticket-list compact-ticket-list">
           {tickets.length === 0 ? (
             <div className="empty-state">
               <strong>No tickets match the current filters.</strong>
-              <p>Try adjusting search terms, status filters, or import a new ticket.</p>
+              <p>Try adjusting search terms, ticket type, or travel status.</p>
             </div>
           ) : (
-            tickets.map((ticket) =>
-              renderTicketCard(ticket, selectedId, busyTicketId, onSelect, onEdit, onDelete, onUpdateStatus),
-            )
+            pageTickets.map((ticket) => renderTicketRow(ticket, selectedId, onSelect))
           )}
         </div>
       ) : (
-        <div className="timeline-list">
+        <div className="timeline-list compact-timeline-list">
           {timelineGroups.length === 0 ? (
             <div className="empty-state">
               <strong>No tickets match the current filters.</strong>
-              <p>Try adjusting search terms, status filters, or import a new ticket.</p>
+              <p>Try adjusting search terms, ticket type, or travel status.</p>
             </div>
           ) : (
             timelineGroups.map(([label, group]) => (
               <div className="timeline-group" key={label}>
                 <div className="timeline-date">{label}</div>
-                <div className="timeline-items">
-                  {group.map((ticket) =>
-                    renderTicketCard(ticket, selectedId, busyTicketId, onSelect, onEdit, onDelete, onUpdateStatus),
-                  )}
+                <div className="timeline-items compact-ticket-list">
+                  {group.map((ticket) => renderTicketRow(ticket, selectedId, onSelect))}
                 </div>
               </div>
             ))
           )}
         </div>
       )}
+
+      {tickets.length > pageSize ? (
+        <div className="pagination-bar" aria-label="Ticket list pagination">
+          <div className="pagination-summary">
+            {`${pageStart + 1}-${Math.min(pageStart + pageTickets.length, tickets.length)} of ${tickets.length}`}
+          </div>
+          <div className="pagination-controls">
+            <button
+              className="ghost-button compact-button"
+              disabled={currentPage === 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+              type="button"
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+              <button
+                className={pageNumber === currentPage ? "theme-chip active" : "theme-chip"}
+                key={`page-${pageNumber}`}
+                onClick={() => setPage(pageNumber)}
+                type="button"
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button
+              className="ghost-button compact-button"
+              disabled={currentPage === totalPages}
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+              type="button"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

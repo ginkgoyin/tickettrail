@@ -713,7 +713,6 @@ export function TicketForm({
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Capture</p>
           <h3>{mode === "edit" ? "Edit ticket record" : "Create ticket record"}</h3>
         </div>
         <span className="status-pill">
@@ -735,39 +734,8 @@ export function TicketForm({
           ))}
         </div>
 
-        <div className="form-utility-row">
-          <div className="route-summary-card">
-            <span>Route summary</span>
-            <strong>{routeSummary}</strong>
-            <small>
-              {draft.ticketType === "flight"
-                ? "Directory-backed airport and airline lookup is active."
-                : "Directory-backed station lookup is active."}
-            </small>
-            <small>{`${effectiveSegments.length} segment(s) planned in this itinerary.`}</small>
-            {segmentValidationMessages.length ? (
-              <div className="segment-warning-list">
-                {segmentValidationMessages.map((item) => (
-                  <span
-                    className={
-                      item.severity === "warning"
-                        ? "segment-warning-chip segment-warning-chip-danger"
-                        : "segment-warning-chip"
-                    }
-                    key={item.key}
-                  >
-                    {item.message}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <button className="ghost-button compact-button" onClick={handleSwapRoute} type="button">
-            Swap route
-          </button>
-        </div>
-
-        <div className="form-grid">
+        <div className="ticket-form-grid">
+          <div className="ticket-form-row ticket-form-row-primary">
           <label className={getLabelClassName("carrierName")}>
             Carrier
             <div className="autocomplete-field">
@@ -817,7 +785,9 @@ export function TicketForm({
             />
             {renderReviewNote("code")}
           </label>
+          </div>
 
+          <div className="ticket-form-row ticket-form-row-route">
           <label className={getLabelClassName("departure.name")}>
             Departure
             <div className="autocomplete-field">
@@ -844,19 +814,31 @@ export function TicketForm({
                 </div>
               ) : null}
             </div>
-            {departureMeta.length ? (
-              <div className="field-meta-list">
-                {departureMeta.map((item) => (
-                  <span className="field-meta-chip" key={`departure-${item}`}>
-                    {item}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {(draft.departure.name || draft.departure.code) && !visibleDepartureSuggestions.length ? (
-              <small className="field-directory-note">{buildLocationSummary(draft.departure)}</small>
-            ) : null}
-            {renderReviewNote("departure.name")}
+            <div className="field-helper-slot">
+              {departureMeta.length ? (
+                <div className="field-meta-list">
+                  {departureMeta.map((item) => (
+                    <span className="field-meta-chip" key={`departure-${item}`}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {(draft.departure.name || draft.departure.code) && !visibleDepartureSuggestions.length ? (
+                <small className="field-directory-note">{buildLocationSummary(draft.departure)}</small>
+              ) : null}
+              {renderReviewNote("departure.name")}
+            </div>
+          </label>
+
+          <label className={getLabelClassName("departure.code")}>
+            Departure code
+            <input
+              onChange={(event) => updateLocationField("departure", "code", event.target.value)}
+              placeholder="PVG"
+              value={draft.departure.code}
+            />
+            <div className="field-helper-slot">{renderReviewNote("departure.code")}</div>
           </label>
 
           <label className={getLabelClassName("arrival.name")}>
@@ -885,29 +867,21 @@ export function TicketForm({
                 </div>
               ) : null}
             </div>
-            {arrivalMeta.length ? (
-              <div className="field-meta-list">
-                {arrivalMeta.map((item) => (
-                  <span className="field-meta-chip" key={`arrival-${item}`}>
-                    {item}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {(draft.arrival.name || draft.arrival.code) && !visibleArrivalSuggestions.length ? (
-              <small className="field-directory-note">{buildLocationSummary(draft.arrival)}</small>
-            ) : null}
-            {renderReviewNote("arrival.name")}
-          </label>
-
-          <label className={getLabelClassName("departure.code")}>
-            Departure code
-            <input
-              onChange={(event) => updateLocationField("departure", "code", event.target.value)}
-              placeholder="PVG"
-              value={draft.departure.code}
-            />
-            {renderReviewNote("departure.code")}
+            <div className="field-helper-slot">
+              {arrivalMeta.length ? (
+                <div className="field-meta-list">
+                  {arrivalMeta.map((item) => (
+                    <span className="field-meta-chip" key={`arrival-${item}`}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {(draft.arrival.name || draft.arrival.code) && !visibleArrivalSuggestions.length ? (
+                <small className="field-directory-note">{buildLocationSummary(draft.arrival)}</small>
+              ) : null}
+              {renderReviewNote("arrival.name")}
+            </div>
           </label>
 
           <label className={getLabelClassName("arrival.code")}>
@@ -917,9 +891,11 @@ export function TicketForm({
               placeholder="SYD"
               value={draft.arrival.code}
             />
-            {renderReviewNote("arrival.code")}
+            <div className="field-helper-slot">{renderReviewNote("arrival.code")}</div>
           </label>
+          </div>
 
+          <div className="ticket-form-row ticket-form-row-times">
           <label className={getLabelClassName("departure.timezone")}>
             Departure timezone
             <input
@@ -928,16 +904,6 @@ export function TicketForm({
               value={draft.departure.timezone}
             />
             {renderReviewNote("departure.timezone")}
-          </label>
-
-          <label className={getLabelClassName("arrival.timezone")}>
-            Arrival timezone
-            <input
-              onChange={(event) => updateLocationField("arrival", "timezone", event.target.value)}
-              placeholder="Australia/Sydney"
-              value={draft.arrival.timezone}
-            />
-            {renderReviewNote("arrival.timezone")}
           </label>
 
           <label className={getLabelClassName("departureTimeLocal")}>
@@ -950,6 +916,16 @@ export function TicketForm({
             {renderReviewNote("departureTimeLocal")}
           </label>
 
+          <label className={getLabelClassName("arrival.timezone")}>
+            Arrival timezone
+            <input
+              onChange={(event) => updateLocationField("arrival", "timezone", event.target.value)}
+              placeholder="Australia/Sydney"
+              value={draft.arrival.timezone}
+            />
+            {renderReviewNote("arrival.timezone")}
+          </label>
+
           <label className={getLabelClassName("arrivalTimeLocal")}>
             Arrival time
             <input
@@ -959,7 +935,9 @@ export function TicketForm({
             />
             {renderReviewNote("arrivalTimeLocal")}
           </label>
+          </div>
 
+          <div className="ticket-form-row ticket-form-row-meta">
           <label className={getLabelClassName("classInfo")}>
             Cabin / Class
             <input
@@ -979,6 +957,7 @@ export function TicketForm({
             />
             {renderReviewNote("seatInfo")}
           </label>
+          </div>
         </div>
 
         <label className={getLabelClassName("notes")}>
@@ -994,7 +973,6 @@ export function TicketForm({
         <section className="segment-planner">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">Itinerary</p>
               <h3>Onward segments</h3>
             </div>
             <button className="ghost-button compact-button" onClick={handleAddSegment} type="button">
@@ -1277,6 +1255,38 @@ export function TicketForm({
             </div>
           )}
         </section>
+
+        <div className="form-utility-row">
+          <div className="route-summary-card">
+            <span>Route summary</span>
+            <strong>{routeSummary}</strong>
+            <small>
+              {draft.ticketType === "flight"
+                ? "Directory-backed airport and airline lookup is active."
+                : "Directory-backed station lookup is active."}
+            </small>
+            <small>{`${effectiveSegments.length} segment(s) planned in this itinerary.`}</small>
+            {segmentValidationMessages.length ? (
+              <div className="segment-warning-list">
+                {segmentValidationMessages.map((item) => (
+                  <span
+                    className={
+                      item.severity === "warning"
+                        ? "segment-warning-chip segment-warning-chip-danger"
+                        : "segment-warning-chip"
+                    }
+                    key={item.key}
+                  >
+                    {item.message}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <button className="ghost-button compact-button" onClick={handleSwapRoute} type="button">
+            Swap route
+          </button>
+        </div>
 
         <div className="form-actions">
           {mode === "edit" ? (

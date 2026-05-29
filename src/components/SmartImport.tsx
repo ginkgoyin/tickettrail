@@ -250,7 +250,6 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Import</p>
           <h3>Smart text import</h3>
         </div>
         <span className="status-pill">

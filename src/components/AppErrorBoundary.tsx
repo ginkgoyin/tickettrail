@@ -52,7 +52,6 @@ export class AppErrorBoundary extends Component<
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Recovery</p>
             <h3>Something went wrong while rendering the workspace</h3>
           </div>
         </div>

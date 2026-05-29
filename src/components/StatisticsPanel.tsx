@@ -278,7 +278,6 @@ export function StatisticsPanel({
     <section className="panel analytics-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Analytics</p>
           <h3>Travel insights</h3>
         </div>
         <span className="status-pill">

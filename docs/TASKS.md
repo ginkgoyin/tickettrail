@@ -301,7 +301,10 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - `UX-006` compacting long non-overview intro text behind a smaller tooltip-style help affordance still needs manual verification.
   - `UX-007` removing large bordered title containers from non-overview page headers is now part of the same follow-up pass.
   - `UX-003` reducing repeated preview content and clarifying non-overview section structure has now been manually verified.
-  - The next UI issue after that is improving ticket-page ordering and navigation flow without destabilizing the current add-ticket path.
+  - `UX-005` ticket workflow improvements are now manually verified for the current desktop-first phase: modal-based add flow, compact list-first browsing, local detail subview, denser form layout, reduced decorative eyebrow labels, and safe save flows for flight/train tickets.
+  - Pagination remains implemented but still needs future verification once the archive exceeds `20` records.
+  - For the current phase, desktop layout remains the primary target; responsive behavior is only a safe fallback for narrower desktop windows, not a mobile-first redesign track.
+  - The next UI issue after that is redesigning the Journeys selection flow without destabilizing the current add-ticket path.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

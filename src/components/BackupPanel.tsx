@@ -45,7 +45,6 @@ export function BackupPanel({
     <section className="panel backup-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Safety</p>
           <h3>Backups</h3>
         </div>
         <div className="backup-card-actions">

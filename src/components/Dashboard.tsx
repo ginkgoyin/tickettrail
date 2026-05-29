@@ -555,7 +555,7 @@ export function Dashboard({
       {ticket && showsSelectedHeading ? (
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">{mode === "exports" ? "Export ticket" : "Selected ticket"}</p>
+            <span className="ticket-kind">{mode === "exports" ? "Export ticket" : "Selected ticket"}</span>
             <h3>{ticket.routeLabel}</h3>
           </div>
           <span className="status-pill">{`${ticket.status} | ${ticket.segmentCount} segment(s)`}</span>
@@ -874,7 +874,6 @@ export function Dashboard({
       <article className="attachments-panel">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Attachments</p>
             <h3>Original ticket files</h3>
           </div>
           <span className="status-pill">{activeDetail?.attachments?.length ?? 0} files</span>
