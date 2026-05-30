@@ -31,6 +31,14 @@
 - `JOURNEY-001`: Journeys now default to a `Summary` scaffold instead of selected-ticket detail duplication and was manually verified
 - `JOURNEY-002`: Journeys now provide a lightweight `List` scaffold subview and this behavior was manually verified
 - `SETTINGS-001`: Settings sidebar entry and Settings scaffold page were manually verified and pushed
+- `NAV-004`: sidebar numeric labels were removed from primary navigation and were manually verified
+- `SETTINGS-002`: Settings entry now uses a gear icon in the sidebar utility area and was manually verified
+- `SETTINGS-003`: Settings is now split into `Appearance`, `Export`, and `About` subviews and was manually verified
+- `SETTINGS-004`: backup, storage placeholder, and default export location placeholder now live under `Settings > Export` and were manually verified
+- `EXPORT-002`: the standalone Exports page was removed from primary sidebar navigation and was manually verified
+- `EXPORT-003`: single-ticket JSON / CSV export buttons were removed from ticket detail and were manually verified
+- `EXPORT-004`: single-ticket route map SVG export was removed and was manually verified
+- `EXPORT-005`: ticket stub preview remains the only single-ticket export action kept in ticket detail, manually verified
 - `TICKET-EDIT-001`: ticket detail Edit now opens a working edit path and was manually verified
 - `TICKET-EDIT-002`: edit now uses the same modal/form pattern as Add ticket with selected-ticket prefill, manually verified
 - `TICKET-EDIT-003`: saving edited ticket data now refreshes the current detail view and was manually verified
@@ -43,40 +51,9 @@
 - `LOCATION-001`: Add/Edit location suggestions are now scoped by ticket type and were manually verified
 - `LOCATION-002`: flight mode now suggests only airports and train/rail mode now suggests only stations, manually verified
 - `LOCATION-003`: location input placeholders now match the selected ticket type for airport vs station wording and were manually verified
+- `FORM-002`: new ticket drafts now default `Cabin / Class` to `Economy` while edit mode preserves existing class values, and this was manually verified
 
 ## 2. Implemented / Recorded / Needs Future Verification
-
-- `NAV-004`
-  - Sidebar numeric labels were removed from primary navigation.
-  - Status: `Implemented / needs manual verification`
-
-- `SETTINGS-002`
-  - Settings entry now uses a gear icon in the sidebar utility area.
-  - Status: `Implemented / needs manual verification`
-
-- `SETTINGS-003`
-  - Settings is now split into `Appearance`, `Export`, and `About` subviews.
-  - Status: `Implemented / needs manual verification`
-
-- `SETTINGS-004`
-  - Backup, storage placeholder, and default export location placeholder now live under `Settings > Export`.
-  - Status: `Implemented / needs manual verification`
-
-- `EXPORT-002`
-  - The standalone Exports page was removed from primary sidebar navigation.
-  - Status: `Implemented / needs manual verification`
-
-- `EXPORT-003`
-  - Single-ticket JSON / CSV export buttons were removed from ticket detail.
-  - Status: `Implemented / needs manual verification`
-
-- `EXPORT-004`
-  - Single-ticket route map SVG export was removed.
-  - Status: `Implemented / needs manual verification`
-
-- `EXPORT-005`
-  - Ticket stub preview remains the only single-ticket export action kept in ticket detail.
-  - Status: `Implemented / needs manual verification`
 
 - `UX-005L`
   - Ticket list pagination after `20` records is implemented.

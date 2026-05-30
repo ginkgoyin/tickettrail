@@ -314,6 +314,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - Ticket edit modal/refresh behavior has now been manually verified: edit opens from detail, uses the shared modal/form pattern without OCR in edit mode, locks ticket type, refreshes the current detail view after save, and keeps add/list flows stable.
   - Ticket location suggestions/placeholders are now manually verified for transport-specific filtering: flight forms suggest airports only, train/rail forms suggest stations only, and placeholders reflect the selected ticket type in both add and edit flows.
   - `FORM-001` date/time confirm/apply behavior is deferred for now; keep the original/simple datetime inputs until a clearer picker direction is chosen.
+  - `FORM-002` has now been manually verified: new ticket drafts default `Cabin / Class` to `Economy`, saving without changes stores that value, and edit mode preserves existing class values instead of overwriting them.
   - English UI completion remains the current priority; language switching and Chinese localization should wait for a later Settings/i18n phase.
 
 ### [ ] Document UX direction before implementation

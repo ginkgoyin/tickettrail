@@ -26,7 +26,7 @@ function createDefaultDraft(): TicketDraft {
     },
     departureTimeLocal: "",
     arrivalTimeLocal: "",
-    classInfo: "",
+    classInfo: "Economy",
     seatInfo: "",
     notes: "",
     segments: [],
