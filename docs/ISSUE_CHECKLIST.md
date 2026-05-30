@@ -60,6 +60,7 @@
 - `MAP-DATA-002`: flight route maps now resolve coordinates by airport code from generated airport data and this was manually verified
 - `MAP-001`: map endpoint dots now align with route line endpoints and this was manually verified
 - `MAP-002`: overview/summary maps now stay label-free while keeping aligned route endpoints, and this was manually verified
+- `BL-004`: workspace render error after the latest map zoom/world-boundary attempt was fixed by restoring the last stable RouteMap behavior, and this rollback was manually verified
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
@@ -91,6 +92,18 @@
 - `MAP-005`
   - Current non-Journey-total maps now use one shared route color.
   - Status: `Implemented / needs manual verification`
+
+- `MAP-006`
+  - Zoom-aware endpoint dot sizing was attempted, but the latest attempt was reverted after it caused a workspace render error.
+  - Status: `Open / needs follow-up`
+
+- `MAP-007`
+  - Disabling repeated world copies was attempted, but the latest attempt was reverted after it caused a workspace render error.
+  - Status: `Open / needs follow-up`
+
+- `MAP-008`
+  - Constraining endless horizontal dragging was attempted, but the latest attempt was reverted after it caused a workspace render error.
+  - Status: `Open / needs follow-up`
 
 - `I18N-002`
   - The current phase should finish the English UI first before Chinese localization is implemented.
