@@ -169,11 +169,6 @@
   - Status: `Open`
   - Priority: `Medium`
 
-- `FORM-002`
-  - Default travel class should become `Economy / economy class`.
-  - Status: `Open`
-  - Priority: `Low`
-
 - `DATA-002`
   - High-speed rail / train station data is almost completely missing.
   - Status: `Open`
