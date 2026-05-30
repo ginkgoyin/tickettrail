@@ -79,6 +79,18 @@
   - Ticket list pagination after `20` records is implemented.
   - It still needs manual verification with `20+` records.
 
+- `LOCATION-001`
+  - Add/Edit location suggestions are now scoped by ticket type.
+  - Status: `Implemented / needs manual verification`
+
+- `LOCATION-002`
+  - Flight mode now suggests only airports, and train/rail mode now suggests only stations.
+  - Status: `Implemented / needs manual verification`
+
+- `LOCATION-003`
+  - Location input placeholders now match the selected ticket type for airport vs station wording.
+  - Status: `Implemented / needs manual verification`
+
 - `FORM-006`
   - The current phase is desktop-first.
   - Do not develop mobile-specific layout work in parallel.

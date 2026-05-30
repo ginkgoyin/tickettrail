@@ -125,6 +125,24 @@ function getTicketNumberLabel(ticketType: TicketType) {
   return ticketType === "train" ? "Train No." : "Flight No.";
 }
 
+function filterLocationsForTicketType(
+  locations: LocationDirectoryEntry[],
+  ticketType: TicketType,
+) {
+  return locations.filter((location) =>
+    ticketType === "train" ? location.locationType === "station" : location.locationType === "airport",
+  );
+}
+
+function getLocationNamePlaceholder(ticketType: TicketType, side: "departure" | "arrival") {
+  const prefix = side === "departure" ? "Departure" : "Arrival";
+  return ticketType === "train" ? `${prefix} station` : `${prefix} airport`;
+}
+
+function getLocationCodePlaceholder(ticketType: TicketType) {
+  return ticketType === "train" ? "Station code" : "Airport code";
+}
+
 export function TicketForm({
   isSaving,
   mode,
@@ -279,16 +297,26 @@ export function TicketForm({
         return;
       }
 
-      setDepartureSuggestions(resultsByQuery.get(mainDepartureQuery) ?? []);
-      setArrivalSuggestions(resultsByQuery.get(mainArrivalQuery) ?? []);
+      setDepartureSuggestions(
+        filterLocationsForTicketType(resultsByQuery.get(mainDepartureQuery) ?? [], draft.ticketType),
+      );
+      setArrivalSuggestions(
+        filterLocationsForTicketType(resultsByQuery.get(mainArrivalQuery) ?? [], draft.ticketType),
+      );
       setSegmentDepartureSuggestions(
         Object.fromEntries(
-          segmentLocationQueries.map((segment, index) => [index, resultsByQuery.get(segment.departure) ?? []]),
+          segmentLocationQueries.map((segment, index) => [
+            index,
+            filterLocationsForTicketType(resultsByQuery.get(segment.departure) ?? [], draft.ticketType),
+          ]),
         ),
       );
       setSegmentArrivalSuggestions(
         Object.fromEntries(
-          segmentLocationQueries.map((segment, index) => [index, resultsByQuery.get(segment.arrival) ?? []]),
+          segmentLocationQueries.map((segment, index) => [
+            index,
+            filterLocationsForTicketType(resultsByQuery.get(segment.arrival) ?? [], draft.ticketType),
+          ]),
         ),
       );
     };
@@ -298,7 +326,7 @@ export function TicketForm({
     return () => {
       isMounted = false;
     };
-  }, [mainArrivalQuery, mainDepartureQuery, segmentLocationQueries]);
+  }, [draft.ticketType, mainArrivalQuery, mainDepartureQuery, segmentLocationQueries]);
 
   const updateField = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -607,6 +635,7 @@ export function TicketForm({
     () => (activeSuggestField === "arrival.name" ? arrivalSuggestions.slice(0, 6) : []),
     [activeSuggestField, arrivalSuggestions],
   );
+  const locationCodePlaceholder = getLocationCodePlaceholder(draft.ticketType);
 
   const effectiveSegments = useMemo(
     () => [
@@ -761,7 +790,7 @@ export function TicketForm({
                 onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
                 onChange={(event) => updateLocationField("departure", "name", event.target.value)}
                 onFocus={() => setActiveSuggestField("departure.name")}
-                placeholder="Shanghai Pudong"
+                placeholder={getLocationNamePlaceholder(draft.ticketType, "departure")}
                 value={draft.departure.name}
               />
               {visibleDepartureSuggestions.length ? (
@@ -787,7 +816,7 @@ export function TicketForm({
             Departure code
             <input
               onChange={(event) => updateLocationField("departure", "code", event.target.value)}
-              placeholder="PVG"
+              placeholder={locationCodePlaceholder}
               value={draft.departure.code}
             />
             {renderReviewNote("departure.code")}
@@ -800,7 +829,7 @@ export function TicketForm({
                 onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
                 onChange={(event) => updateLocationField("arrival", "name", event.target.value)}
                 onFocus={() => setActiveSuggestField("arrival.name")}
-                placeholder="Sydney Airport"
+                placeholder={getLocationNamePlaceholder(draft.ticketType, "arrival")}
                 value={draft.arrival.name}
               />
               {visibleArrivalSuggestions.length ? (
@@ -826,7 +855,7 @@ export function TicketForm({
             Arrival code
             <input
               onChange={(event) => updateLocationField("arrival", "code", event.target.value)}
-              placeholder="SYD"
+              placeholder={locationCodePlaceholder}
               value={draft.arrival.code}
             />
             {renderReviewNote("arrival.code")}
@@ -1033,7 +1062,7 @@ export function TicketForm({
                             updateExtraSegmentLocationField(index, "departure", "name", event.target.value)
                           }
                           onFocus={() => setActiveSuggestField(`segment:${index}:departure` as SuggestField)}
-                          placeholder="Departure"
+                          placeholder={getLocationNamePlaceholder(draft.ticketType, "departure")}
                           value={segment.departure.name}
                         />
                         {activeSuggestField === (`segment:${index}:departure` as SuggestField) &&
@@ -1064,7 +1093,7 @@ export function TicketForm({
                             updateExtraSegmentLocationField(index, "arrival", "name", event.target.value)
                           }
                           onFocus={() => setActiveSuggestField(`segment:${index}:arrival` as SuggestField)}
-                          placeholder="Arrival"
+                          placeholder={getLocationNamePlaceholder(draft.ticketType, "arrival")}
                           value={segment.arrival.name}
                         />
                         {activeSuggestField === (`segment:${index}:arrival` as SuggestField) &&
@@ -1092,7 +1121,7 @@ export function TicketForm({
                         onChange={(event) =>
                           updateExtraSegmentLocationField(index, "departure", "code", event.target.value)
                         }
-                        placeholder="PVG"
+                        placeholder={locationCodePlaceholder}
                         value={segment.departure.code}
                       />
                     </label>
@@ -1103,7 +1132,7 @@ export function TicketForm({
                         onChange={(event) =>
                           updateExtraSegmentLocationField(index, "arrival", "code", event.target.value)
                         }
-                        placeholder="SYD"
+                        placeholder={locationCodePlaceholder}
                         value={segment.arrival.code}
                       />
                     </label>
