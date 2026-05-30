@@ -84,6 +84,14 @@
   - Do not develop mobile-specific layout work in parallel.
   - Keep only a safe fallback for narrower desktop windows until the desktop workflow is stable.
 
+- `MAP-004`
+  - Endpoint dots now use the same color as their corresponding route line.
+  - Status: `Implemented / needs manual verification`
+
+- `MAP-005`
+  - Current non-Journey-total maps now use one shared route color.
+  - Status: `Implemented / needs manual verification`
+
 - `I18N-002`
   - The current phase should finish the English UI first before Chinese localization is implemented.
   - Status: `Recorded / principle`
@@ -152,16 +160,6 @@
 - `MAP-003`
   - Overview map should later support all-years and selected-year filtering, aligned with Journey map year filtering.
   - Status: `Open / future`
-  - Priority: `Medium`
-
-- `MAP-004`
-  - Endpoint dots should use the same color as their corresponding route line.
-  - Status: `Open / future task`
-  - Priority: `Medium`
-
-- `MAP-005`
-  - Except for the future Journeys total map, current maps should temporarily use a single route color.
-  - Status: `Open / future task`
   - Priority: `Medium`
 
 ## 5. Future Backlog / Not Started

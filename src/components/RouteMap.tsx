@@ -11,6 +11,12 @@ interface RouteMapProps {
   variant?: "summary" | "detail";
 }
 
+// Current non-journey-total maps intentionally use a single route color.
+// Future journey-total views can introduce grouped journey colors later.
+const CURRENT_ROUTE_COLOR = "#1ca4da";
+const CURRENT_ROUTE_GLOW = "rgba(28, 164, 218, 0.28)";
+const CURRENT_ROUTE_LABEL_COLOR = "#e9f8ff";
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -430,7 +436,7 @@ export function RouteMap({
           "line-join": "round",
         },
         paint: {
-          "line-color": "rgba(112, 212, 255, 0.28)",
+          "line-color": CURRENT_ROUTE_GLOW,
           "line-width": 10,
           "line-opacity": 0.4,
         },
@@ -445,14 +451,7 @@ export function RouteMap({
           "line-join": "round",
         },
         paint: {
-          "line-color": [
-            "case",
-            ["==", ["get", "segmentIndex"], 0],
-            "#1ca4da",
-            ["==", ["%", ["get", "segmentIndex"], 2], 1],
-            "#ff9854",
-            "#76df95",
-          ],
+          "line-color": CURRENT_ROUTE_COLOR,
           "line-width": 4,
           "line-opacity": 0.92,
         },
@@ -463,15 +462,7 @@ export function RouteMap({
         source: "route-endpoints",
         paint: {
           "circle-radius": 7,
-          "circle-color": [
-            "match",
-            ["get", "kind"],
-            "origin",
-            "#1ca4da",
-            "destination",
-            "#ff9854",
-            "#76df95",
-          ],
+          "circle-color": CURRENT_ROUTE_COLOR,
           "circle-stroke-color": "#ffffff",
           "circle-stroke-width": 3,
         },
@@ -491,15 +482,7 @@ export function RouteMap({
             "text-allow-overlap": false,
           },
           paint: {
-            "text-color": [
-              "match",
-              ["get", "kind"],
-              "origin",
-              "#e9f8ff",
-              "destination",
-              "#fff3e5",
-              "#e6fff0",
-            ],
+            "text-color": CURRENT_ROUTE_LABEL_COLOR,
             "text-halo-color": "rgba(6, 24, 36, 0.94)",
             "text-halo-width": 1.4,
           },
