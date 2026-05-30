@@ -12,6 +12,7 @@
     "tauri:build": "tauri build",
     "tauri:build:windows": "tauri build --bundles nsis",
     "release:windows": "npm.cmd run build && npm.cmd run tauri:build:windows",
+    "data:generate:airports": "node scripts/generate-airports-data.mjs",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/check-release-version.mjs"
   },

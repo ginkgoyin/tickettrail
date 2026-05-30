@@ -5,6 +5,9 @@ import type {
   AirlineDirectoryEntry,
   BackupReadiness,
   BackupRecord,
+  MapPointPayload,
+  MapSegmentPayload,
+  MapViewportPayload,
   LocationDirectoryEntry,
   TicketAttachment,
   TicketAttachmentUpload,
@@ -12,14 +15,314 @@ import type {
   TicketDraft,
   TicketRecord,
   TicketSegmentDraft,
+  TicketLocation,
   TicketStatus,
+  TicketType,
 } from "../types/ticket";
 
 const STORAGE_KEY = "tickettrail.web-fallback.tickets";
 const ATTACHMENT_STORAGE_KEY = "tickettrail.web-fallback.attachments";
 const BACKUP_STORAGE_KEY = "tickettrail.web-fallback.backups";
 const AIRLINE_SEED = airlineSeedData as AirlineDirectoryEntry[];
-const LOCATION_SEED = locationSeedData as LocationDirectoryEntry[];
+const LEGACY_LOCATION_SEED = locationSeedData as LocationDirectoryEntry[];
+
+const STATION_LOCATION_SEED = LEGACY_LOCATION_SEED.filter(
+  (entry) => entry.locationType === "station",
+);
+let locationSeedPromise: Promise<LocationDirectoryEntry[]> | null = null;
+let locationLookupPromise: Promise<{
+  all: LocationDirectoryEntry[];
+  byAirportCode: Map<string, LocationDirectoryEntry>;
+  byAirportTerm: Map<string, LocationDirectoryEntry>;
+}> | null = null;
+
+async function loadLocationSeed(): Promise<LocationDirectoryEntry[]> {
+  if (!locationSeedPromise) {
+    locationSeedPromise = Promise.all([
+      import("../data/airports.generated.json"),
+      import("../data/airport-aliases.zh-CN"),
+    ]).then(([airportModule, aliasModule]) => {
+      const airportAliasesZhCN = aliasModule.default;
+      const airports = (airportModule.default as LocationDirectoryEntry[]).map((entry) => {
+        const overlay = entry.code ? airportAliasesZhCN[entry.code] : undefined;
+
+        if (!overlay) {
+          return entry;
+        }
+
+        return {
+          ...entry,
+          nameZh: overlay.nameZh ?? entry.nameZh,
+          timezone: overlay.timezone ?? entry.timezone,
+          aliases: Array.from(new Set([...entry.aliases, ...overlay.aliases])),
+        };
+      });
+
+      return [...airports, ...STATION_LOCATION_SEED];
+    });
+  }
+
+  return locationSeedPromise;
+}
+
+function normalizeLookupValue(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+async function loadLocationLookup() {
+  if (!locationLookupPromise) {
+    locationLookupPromise = loadLocationSeed().then((locations) => {
+      const byAirportCode = new Map<string, LocationDirectoryEntry>();
+      const byAirportTerm = new Map<string, LocationDirectoryEntry>();
+
+      for (const entry of locations) {
+        if (entry.locationType !== "airport") {
+          continue;
+        }
+
+        const normalizedCode = normalizeLookupValue(entry.code);
+        if (normalizedCode && !byAirportCode.has(normalizedCode)) {
+          byAirportCode.set(normalizedCode, entry);
+        }
+
+        const terms = [
+          entry.code,
+          entry.nameEn,
+          entry.nameZh,
+          ...entry.aliases,
+        ];
+
+        for (const term of terms) {
+          const normalizedTerm = normalizeLookupValue(term);
+          if (normalizedTerm && !byAirportTerm.has(normalizedTerm)) {
+            byAirportTerm.set(normalizedTerm, entry);
+          }
+        }
+      }
+
+      return {
+        all: locations,
+        byAirportCode,
+        byAirportTerm,
+      };
+    });
+  }
+
+  return locationLookupPromise;
+}
+
+function hasFiniteCoordinates(location: Pick<LocationDirectoryEntry, "latitude" | "longitude"> | null | undefined) {
+  return (
+    typeof location?.latitude === "number" &&
+    Number.isFinite(location.latitude) &&
+    typeof location?.longitude === "number" &&
+    Number.isFinite(location.longitude)
+  );
+}
+
+function hasUsableMapPoint(point: MapPointPayload | null | undefined): point is MapPointPayload {
+  return Boolean(
+    point &&
+      typeof point.label === "string" &&
+      point.label.trim().length > 0 &&
+      typeof point.timezone === "string" &&
+      point.timezone.trim().length > 0 &&
+      typeof point.latitude === "number" &&
+      Number.isFinite(point.latitude) &&
+      typeof point.longitude === "number" &&
+      Number.isFinite(point.longitude),
+  );
+}
+
+function hasUsableMapSegment(segment: MapSegmentPayload | null | undefined): segment is MapSegmentPayload {
+  return Boolean(
+    segment &&
+      hasUsableMapPoint(segment.origin) &&
+      hasUsableMapPoint(segment.destination),
+  );
+}
+
+function hasUsableDetailMap(detail: TicketDetailPayload | null | undefined) {
+  return Boolean(
+    detail?.map &&
+      hasUsableMapPoint(detail.map.origin) &&
+      hasUsableMapPoint(detail.map.destination) &&
+      detail.map.viewport &&
+      typeof detail.map.viewport.minLatitude === "number" &&
+      typeof detail.map.viewport.maxLatitude === "number" &&
+      typeof detail.map.viewport.minLongitude === "number" &&
+      typeof detail.map.viewport.maxLongitude === "number",
+  );
+}
+
+function calculateDistanceKm(origin: MapPointPayload, destination: MapPointPayload) {
+  const earthRadiusKm = 6371;
+  const latitudeDelta = ((destination.latitude - origin.latitude) * Math.PI) / 180;
+  const longitudeDelta = ((destination.longitude - origin.longitude) * Math.PI) / 180;
+  const originLatitudeRadians = (origin.latitude * Math.PI) / 180;
+  const destinationLatitudeRadians = (destination.latitude * Math.PI) / 180;
+  const haversine =
+    Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2) +
+    Math.cos(originLatitudeRadians) *
+      Math.cos(destinationLatitudeRadians) *
+      Math.sin(longitudeDelta / 2) *
+      Math.sin(longitudeDelta / 2);
+
+  return Math.round(earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine)));
+}
+
+function buildViewport(points: MapPointPayload[]): MapViewportPayload {
+  return {
+    minLatitude: Math.min(...points.map((point) => point.latitude)),
+    maxLatitude: Math.max(...points.map((point) => point.latitude)),
+    minLongitude: Math.min(...points.map((point) => point.longitude)),
+    maxLongitude: Math.max(...points.map((point) => point.longitude)),
+  };
+}
+
+async function resolveAirportLocation(location: TicketLocation) {
+  const lookup = await loadLocationLookup();
+  const normalizedCode = normalizeLookupValue(location.code);
+  if (normalizedCode) {
+    const byCode = lookup.byAirportCode.get(normalizedCode);
+    if (byCode && hasFiniteCoordinates(byCode)) {
+      return byCode;
+    }
+  }
+
+  const candidateTerms = [location.name, location.code];
+  for (const term of candidateTerms) {
+    const normalizedTerm = normalizeLookupValue(term);
+    if (!normalizedTerm) {
+      continue;
+    }
+
+    const directMatch = lookup.byAirportTerm.get(normalizedTerm);
+    if (directMatch && hasFiniteCoordinates(directMatch)) {
+      return directMatch;
+    }
+
+    const fallbackMatch = lookup.all.find(
+      (entry) =>
+        entry.locationType === "airport" &&
+        hasFiniteCoordinates(entry) &&
+        [
+          entry.code,
+          entry.nameEn,
+          entry.nameZh,
+          ...entry.aliases,
+        ].some((candidate) => normalizeLookupValue(candidate) === normalizedTerm),
+    );
+
+    if (fallbackMatch) {
+      return fallbackMatch;
+    }
+  }
+
+  return null;
+}
+
+async function resolveMapPoint(ticketType: TicketType, location: TicketLocation) {
+  if (ticketType !== "flight") {
+    return null;
+  }
+
+  const resolved = await resolveAirportLocation(location);
+  if (!resolved) {
+    return null;
+  }
+
+  const label = resolved.nameZh || resolved.nameEn || location.name;
+  const timezone = location.timezone || resolved.timezone || "";
+
+  if (!timezone || !hasFiniteCoordinates(resolved)) {
+    return null;
+  }
+
+  return {
+    label,
+    code: resolved.code || location.code,
+    timezone,
+    latitude: resolved.latitude!,
+    longitude: resolved.longitude!,
+  } satisfies MapPointPayload;
+}
+
+async function buildResolvedDetailFromAirportData(
+  ticket: TicketRecord,
+  detail: TicketDetailPayload,
+): Promise<TicketDetailPayload | null> {
+  if (ticket.ticketType !== "flight") {
+    return null;
+  }
+
+  const effectiveSegments = getEffectiveSegments(ticket);
+  const resolvedSegments = await Promise.all<MapSegmentPayload | null>(
+    effectiveSegments.map(async (segment, index): Promise<MapSegmentPayload | null> => {
+      const origin = await resolveMapPoint(ticket.ticketType, segment.departure);
+      const destination = await resolveMapPoint(ticket.ticketType, segment.arrival);
+
+      if (!origin || !destination) {
+        return null;
+      }
+
+      return {
+        segmentIndex: index,
+        ticketId: ticket.id,
+        transportType: ticket.ticketType,
+        carrierName: segment.carrierName,
+        code: segment.code,
+        lineLabel: `${segment.departure.name} -> ${segment.arrival.name}`,
+        directionHint: `${segment.departure.code || segment.departure.name} to ${segment.arrival.code || segment.arrival.name}`,
+        distanceHintKm: calculateDistanceKm(origin, destination),
+        origin,
+        destination,
+      };
+    }),
+  );
+
+  const usableSegments = resolvedSegments.filter(
+    (segment): segment is MapSegmentPayload => segment !== null,
+  );
+  if (!usableSegments.length) {
+    return null;
+  }
+
+  const firstSegment = usableSegments[0];
+  const lastSegment = usableSegments[usableSegments.length - 1];
+  const allPoints = usableSegments.flatMap((segment) => [segment.origin, segment.destination]);
+  const primaryRoute = {
+    lineLabel: ticket.routeLabel,
+    directionHint: `${ticket.departure.code || ticket.departure.name} to ${ticket.arrival.code || ticket.arrival.name}`,
+    distanceHintKm: usableSegments.reduce((sum, segment) => sum + segment.distanceHintKm, 0),
+    origin: firstSegment.origin,
+    destination: lastSegment.destination,
+    viewport: buildViewport(allPoints),
+  };
+
+  return {
+    ...detail,
+    map: primaryRoute,
+    segments: usableSegments,
+  };
+}
+
+async function finalizeTicketDetail(detail: TicketDetailPayload) {
+  const resolvedDetail = await buildResolvedDetailFromAirportData(detail.ticket, detail);
+
+  if (resolvedDetail) {
+    return resolvedDetail;
+  }
+
+  if (detail.ticket.ticketType === "flight" && !hasUsableDetailMap(detail)) {
+    return {
+      ...detail,
+      segments: detail.segments.filter(hasUsableMapSegment),
+    };
+  }
+
+  return detail;
+}
 
 function buildRouteLabel(ticket: TicketDraft) {
   const segments = getEffectiveSegments(ticket);
@@ -155,36 +458,31 @@ function getTicketAttachments(ticketId: string): TicketAttachment[] {
 }
 
 function createFallbackDetail(ticket: TicketRecord): TicketDetailPayload {
-  const originLatitude = ticket.departure.name.toLowerCase().includes("shanghai") ? 31.2304 : -33.9399;
-  const originLongitude = ticket.departure.name.toLowerCase().includes("shanghai") ? 121.4737 : 151.1753;
-  const destinationLatitude = ticket.arrival.name.toLowerCase().includes("sydney") ? -33.9399 : 31.968;
-  const destinationLongitude = ticket.arrival.name.toLowerCase().includes("sydney") ? 151.1753 : 118.806;
-
   return {
     ticket,
     map: {
       lineLabel: ticket.routeLabel,
       directionHint: `${ticket.departure.code || ticket.departure.name} to ${ticket.arrival.code || ticket.arrival.name}`,
-      distanceHintKm: 7800,
+      distanceHintKm: 0,
       origin: {
         label: ticket.departure.name,
         code: ticket.departure.code,
         timezone: ticket.departure.timezone,
-        latitude: originLatitude,
-        longitude: originLongitude,
+        latitude: Number.NaN,
+        longitude: Number.NaN,
       },
       destination: {
         label: ticket.arrival.name,
         code: ticket.arrival.code,
         timezone: ticket.arrival.timezone,
-        latitude: destinationLatitude,
-        longitude: destinationLongitude,
+        latitude: Number.NaN,
+        longitude: Number.NaN,
       },
       viewport: {
-        minLatitude: Math.min(originLatitude, destinationLatitude),
-        maxLatitude: Math.max(originLatitude, destinationLatitude),
-        minLongitude: Math.min(originLongitude, destinationLongitude),
-        maxLongitude: Math.max(originLongitude, destinationLongitude),
+        minLatitude: Number.NaN,
+        maxLatitude: Number.NaN,
+        minLongitude: Number.NaN,
+        maxLongitude: Number.NaN,
       },
     },
     segments: getEffectiveSegments(ticket).map((segment, index) => ({
@@ -194,20 +492,20 @@ function createFallbackDetail(ticket: TicketRecord): TicketDetailPayload {
       code: segment.code,
       lineLabel: `${segment.departure.name} -> ${segment.arrival.name}`,
       directionHint: `${segment.departure.code || segment.departure.name} to ${segment.arrival.code || segment.arrival.name}`,
-      distanceHintKm: index === 0 ? 7800 : 920,
+      distanceHintKm: 0,
       origin: {
         label: segment.departure.name,
         code: segment.departure.code,
         timezone: segment.departure.timezone,
-        latitude: index === 0 ? originLatitude : destinationLatitude,
-        longitude: index === 0 ? originLongitude : destinationLongitude,
+        latitude: Number.NaN,
+        longitude: Number.NaN,
       },
       destination: {
         label: segment.arrival.name,
         code: segment.arrival.code,
         timezone: segment.arrival.timezone,
-        latitude: destinationLatitude,
-        longitude: destinationLongitude,
+        latitude: Number.NaN,
+        longitude: Number.NaN,
       },
     })),
     stub: {
@@ -383,10 +681,10 @@ export async function deleteTicketAttachment(attachmentId: string, ticketId: str
 export async function getTicketDetail(ticketId: string): Promise<TicketDetailPayload> {
   if (supportsTauri()) {
     const detail = await invoke<TicketDetailPayload>("get_ticket_detail", { ticketId });
-    return {
+    return finalizeTicketDetail({
       ...detail,
       attachments: detail.attachments.map(normalizeAttachmentSource),
-    };
+    });
   }
 
   const ticket = readFallbackTickets().find((item) => item.id === ticketId);
@@ -394,7 +692,7 @@ export async function getTicketDetail(ticketId: string): Promise<TicketDetailPay
     throw new Error("Ticket detail not found.");
   }
 
-  return createFallbackDetail(ticket);
+  return finalizeTicketDetail(createFallbackDetail(ticket));
 }
 
 function matchesAirlineQuery(entry: AirlineDirectoryEntry, query: string) {
@@ -441,11 +739,8 @@ function matchesLocationQuery(entry: LocationDirectoryEntry, query: string) {
 }
 
 export async function searchLocations(query: string): Promise<LocationDirectoryEntry[]> {
-  if (supportsTauri()) {
-    return invoke<LocationDirectoryEntry[]>("search_locations", { query });
-  }
-
-  return LOCATION_SEED.filter((entry) => matchesLocationQuery(entry, query)).slice(0, 8);
+  const locationSeed = await loadLocationSeed();
+  return locationSeed.filter((entry) => matchesLocationQuery(entry, query)).slice(0, 8);
 }
 
 export async function listBackups(): Promise<BackupRecord[]> {

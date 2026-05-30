@@ -52,6 +52,12 @@
 - `LOCATION-002`: flight mode now suggests only airports and train/rail mode now suggests only stations, manually verified
 - `LOCATION-003`: location input placeholders now match the selected ticket type for airport vs station wording and were manually verified
 - `FORM-002`: new ticket drafts now default `Cabin / Class` to `Economy` while edit mode preserves existing class values, and this was manually verified
+- `DATA-001`: global airport data support now uses a generated OurAirports-based dataset instead of only a small manual starter list, and this was manually verified
+- `DATA-004`: airport data generation from a maintained external source with documented filtering/regeneration was implemented and manually verified
+- `DATA-005`: Chinese airport aliases now supplement global airport data for better Chinese search, and this was manually verified
+- `DATA-006`: generated airport data now preserves latitude/longitude for route-map usage, and this was manually verified
+- `MAP-DATA-001`: generated airport suggestion data is now connected to map coordinate resolution and was manually verified
+- `MAP-DATA-002`: flight route maps now resolve coordinates by airport code from generated airport data and this was manually verified
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
@@ -168,11 +174,6 @@
   - Status: `Open`
   - Priority: `Low`
 
-- `DATA-001`
-  - Chinese airport data is incomplete, including missing `CSX` and `XMN`.
-  - Status: `Open`
-  - Priority: `Medium`
-
 - `DATA-002`
   - High-speed rail / train station data is almost completely missing.
   - Status: `Open`
@@ -194,12 +195,22 @@
   - Priority: `Medium`
 
 - `MAP-001`
-  - Map marker points do not visually align well with route line endpoints.
+  - Map marker dots/labels should be visually connected to route line endpoints.
   - Status: `Open`
   - Priority: `Medium`
 
 - `MAP-002`
-  - Overview map should avoid large markers for every route and prefer endpoint dots plus route lines.
+  - Overview map should show route lines and endpoint dots only, without large labels/popups for every point.
+  - Status: `Open`
+  - Priority: `Medium`
+
+- `JOURNEY-MAP-001`
+  - Single journey detail maps should show labels for each point.
+  - Status: `Open`
+  - Priority: `Medium`
+
+- `JOURNEY-MAP-002`
+  - Journey summary/total maps should behave like the Overview map and not show point labels by default.
   - Status: `Open`
   - Priority: `Medium`
 

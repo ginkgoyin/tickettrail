@@ -315,6 +315,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - Ticket location suggestions/placeholders are now manually verified for transport-specific filtering: flight forms suggest airports only, train/rail forms suggest stations only, and placeholders reflect the selected ticket type in both add and edit flows.
   - `FORM-001` date/time confirm/apply behavior is deferred for now; keep the original/simple datetime inputs until a clearer picker direction is chosen.
   - `FORM-002` has now been manually verified: new ticket drafts default `Cabin / Class` to `Economy`, saving without changes stores that value, and edit mode preserves existing class values instead of overwriting them.
+  - Global airport coverage is now backed by an OurAirports-based generation pipeline plus a small Chinese alias overlay, and this airport data is now manually verified as connected to route-map coordinate resolution for flight tickets.
+  - The next map task should be visual only: endpoint marker/label presentation for Overview vs Journey maps, not more airport data/model work.
   - English UI completion remains the current priority; language switching and Chinese localization should wait for a later Settings/i18n phase.
 
 ### [ ] Document UX direction before implementation
@@ -428,4 +430,4 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Create `docs/TEST_PLAN.md` next, then continue with a smaller functional task such as `FORM-002` or data coverage work `DATA-001` / `DATA-002`.
+Continue next with the separate map marker/label visual requirements or the future station-expansion task `DATA-002`, but keep those as distinct follow-up tasks.
