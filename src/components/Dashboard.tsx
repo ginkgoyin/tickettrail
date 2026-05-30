@@ -4,7 +4,6 @@ import {
   buildStubSvg,
   exportPng,
   exportSvg,
-  exportTextFile,
   type StubTheme,
   visualizationSizes,
 } from "../lib/visualization";
@@ -20,7 +19,7 @@ import type {
 
 const RouteMap = lazy(async () => import("./RouteMap").then((module) => ({ default: module.RouteMap })));
 
-export type DashboardMode = "overview" | "tickets" | "journeys" | "map" | "exports";
+export type DashboardMode = "overview" | "tickets" | "journeys" | "map";
 
 interface DashboardProps {
   detail: TicketDetailPayload | null;
@@ -116,54 +115,6 @@ function hasRenderableStub(detail: TicketDetailPayload | null) {
       typeof detail.stub?.departureTimeLocal === "string" &&
       typeof detail.stub?.arrivalTimeLocal === "string",
   );
-}
-
-function buildTicketExportJson(detail: TicketDetailPayload) {
-  return JSON.stringify(detail, null, 2);
-}
-
-function escapeCsvCell(value: string | number) {
-  const text = String(value ?? "");
-  if (/[",\n]/.test(text)) {
-    return `"${text.replace(/"/g, "\"\"")}"`;
-  }
-  return text;
-}
-
-function buildTicketExportCsv(detail: TicketDetailPayload) {
-  const header = [
-    "segmentIndex",
-    "transportType",
-    "carrierName",
-    "code",
-    "departureLabel",
-    "departureCode",
-    "departureTimezone",
-    "arrivalLabel",
-    "arrivalCode",
-    "arrivalTimezone",
-    "distanceHintKm",
-  ];
-
-  const rows = detail.segments.map((segment) =>
-    [
-      segment.segmentIndex + 1,
-      segment.transportType,
-      segment.carrierName,
-      segment.code,
-      segment.origin.label,
-      segment.origin.code || "",
-      segment.origin.timezone,
-      segment.destination.label,
-      segment.destination.code || "",
-      segment.destination.timezone,
-      segment.distanceHintKm,
-    ]
-      .map(escapeCsvCell)
-      .join(","),
-  );
-
-  return [header.join(","), ...rows].join("\n");
 }
 
 function buildScopeMapPayload(details: TicketDetailPayload[]) {
@@ -463,29 +414,6 @@ export function Dashboard({
     }
   };
 
-  const handleExportStructured = (kind: "json" | "csv") => {
-    if (!activeDetail) {
-      return;
-    }
-
-    if (kind === "json") {
-      exportTextFile(
-        `${activeDetail.ticket.code}-itinerary.json`,
-        buildTicketExportJson(activeDetail),
-        "application/json;charset=utf-8",
-      );
-      setExportMessage("行程 JSON 已导出。");
-      return;
-    }
-
-    exportTextFile(
-      `${activeDetail.ticket.code}-itinerary.csv`,
-      buildTicketExportCsv(activeDetail),
-      "text/csv;charset=utf-8",
-    );
-    setExportMessage("行程 CSV 已导出。");
-  };
-
   const handleExportScopeMap = () => {
     if (!scopeMap) {
       return;
@@ -529,23 +457,21 @@ export function Dashboard({
     ? ["ledger", "boarding", "night"]
     : ["boarding", "ledger", "night"];
   const showsScopeContent = mode === "overview" || mode === "map";
-  const showsSelectedSummary = mode === "tickets" || mode === "journeys" || mode === "exports";
-  const showsActiveRoute = mode === "tickets" || mode === "journeys" || mode === "map" || mode === "exports";
-  const showsStubPreview = mode === "tickets" || mode === "exports";
+  const showsSelectedSummary = mode === "tickets" || mode === "journeys";
+  const showsActiveRoute = mode === "tickets" || mode === "journeys" || mode === "map";
+  const showsStubPreview = mode === "tickets";
   const showsAttachments = mode === "tickets";
   const showsTicketMeta = mode === "tickets" || mode === "journeys";
-  const showsSelectedHeading = mode === "tickets" || mode === "journeys" || mode === "exports";
-  const mapModuleLabel =
-    mode === "exports" ? "Route map export" : mode === "map" ? "Selected route" : "Route map";
+  const showsSelectedHeading = mode === "tickets" || mode === "journeys";
+  const mapModuleLabel = mode === "map" ? "Selected route" : "Route map";
   const stubModuleLabel = "Ticket stub preview";
-  const detailModuleLabel =
-    mode === "exports" ? "Export data" : mode === "journeys" ? "Journey detail" : "Ticket detail";
+  const detailModuleLabel = mode === "journeys" ? "Journey detail" : "Ticket detail";
   const showsScopeFallback = showsScopeContent && !scopeSummary && !scopeMap && !scopeLoading;
 
   if (!ticket && !showsScopeContent) {
     return (
       <section className="panel dashboard">
-        <h3>{mode === "exports" ? "Select a ticket to export" : "No ticket selected"}</h3>
+        <h3>No ticket selected</h3>
       </section>
     );
   }
@@ -555,7 +481,7 @@ export function Dashboard({
       {ticket && showsSelectedHeading ? (
         <div className="panel-heading">
           <div>
-            <span className="ticket-kind">{mode === "exports" ? "Export ticket" : "Selected ticket"}</span>
+            <span className="ticket-kind">Selected ticket</span>
             <h3>{ticket.routeLabel}</h3>
           </div>
           <span className="status-pill">{`${ticket.status} | ${ticket.segmentCount} segment(s)`}</span>
@@ -585,14 +511,6 @@ export function Dashboard({
               <span>Last arrival</span>
               <strong>{itinerarySummary.lastArrival}</strong>
             </div>
-          </div>
-          <div className="export-row">
-            <button className="ghost-button" onClick={() => handleExportStructured("json")} type="button">
-              导出 JSON
-            </button>
-            <button className="ghost-button" onClick={() => handleExportStructured("csv")} type="button">
-              导出 CSV
-            </button>
           </div>
         </article>
       ) : null}
@@ -743,12 +661,7 @@ export function Dashboard({
             <Suspense fallback={<p className="detail-loading">正在加载真实地图组件...</p>}>
               <RouteMap route={activeDetail.map} segments={activeDetail.segments} />
             </Suspense>
-            <div className="export-row">
-              <button className="ghost-button" onClick={() => handleExportSvg("map")} type="button">
-                导出路线 SVG
-              </button>
-            </div>
-            {activeDetail.segments.length > 1 && mode !== "exports" ? (
+            {activeDetail.segments.length > 1 ? (
               <div className="segment-stack">
                 {activeDetail.segments.map((segment) => (
                   <article className="segment-card" key={`${segment.code}-${segment.segmentIndex}`}>

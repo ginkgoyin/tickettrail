@@ -105,32 +105,24 @@ The current goal is not to start a large refactor immediately, but to capture th
   - Companions should start as free-text names with later suggestion/autocomplete behavior
   - The default year filter should be `All years`
 
-### Backup / Export
+### Settings
 
 - Purpose:
-  - Group all data safety and output actions into one operational area.
+  - Hold configuration, preferences, backup/export-related settings, and app information after the main flows are stable.
 - Main content:
-  - Backup
-  - Restore
-  - Archive import/export
-  - Ticket stub export
-  - CSV/JSON/SVG/PNG export entry points
-- Main actions:
-  - Create backup
-  - Restore backup
-  - Export/import archive
-  - Export ticket outputs
-
-### Settings (later)
-
-- Purpose:
-  - Hold configuration and preferences only if needed after the main flows are stable.
-- Main content:
-  - Optional future settings such as defaults, appearance, and data-path-related preferences
+  - Appearance
+  - Export
+  - About
+  - Optional future defaults and data-path-related preferences
 - Main actions:
   - Adjust application preferences
+  - Review backup/export configuration
+  - Review app/software information
 - Notes:
-  - This is lower priority than core usability and does not need to be part of the immediate redesign scope.
+  - Backup now belongs under `Settings > Export`, rather than a standalone primary sidebar section.
+  - Storage placeholder and default export location placeholder also belong under `Settings > Export`.
+  - Ticket stub export should remain in Ticket detail / Ticket stub preview where it is directly useful.
+  - A standalone Exports page should not remain a primary sidebar section.
 
 ## 4. Add Ticket Flow Redesign
 
@@ -248,6 +240,14 @@ Notes:
 - Expand airport and train-station data
 - Improve map marker/line rendering
 - Reduce overview-map clutter
+
+### Settings / Export IA note
+
+- Backup should live under `Settings > Export`
+- Storage placeholder should live under `Settings > Export`
+- Default export location placeholder should live under `Settings > Export`
+- Ticket stub export should remain in Ticket detail / Ticket stub preview
+- Standalone Exports should not remain a primary sidebar destination
 
 ### Phase 5
 

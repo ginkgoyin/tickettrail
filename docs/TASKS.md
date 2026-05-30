@@ -303,14 +303,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - `UX-003` reducing repeated preview content and clarifying non-overview section structure has now been manually verified.
   - `UX-005` ticket workflow improvements are now manually verified for the current desktop-first phase: modal-based add flow, compact list-first browsing, local detail subview, denser form layout, reduced decorative eyebrow labels, and safe save flows for flight/train tickets.
   - Pagination remains implemented but still needs future verification once the archive exceeds `20` records.
-  - `SETTINGS-001` can now move as a safe UI scaffold: add a bottom sidebar entry and a non-functional Settings page for Appearance, Storage, Export, and About placeholders only.
+  - `SETTINGS-001` is now in place as a safe UI scaffold: a bottom sidebar entry and a non-functional Settings page for Appearance, Export, and About placeholders.
+  - Sidebar / Settings / Exports IA cleanup should now keep backup/export placeholders under `Settings > Export`, keep standalone `Exports` out of primary navigation, and leave ticket-edit behavior for a separate task.
   - For the current phase, desktop layout remains the primary target; responsive behavior is only a safe fallback for narrower desktop windows, not a mobile-first redesign track.
   - Journey implementation should not start until the Journey design is accepted, especially because Journeys are being redefined as trip collections rather than single-ticket detail duplication.
   - Journey design decisions are now confirmed: manual-first creation, ticket-list selection flow, `title` as the main list title, free-text companions with later suggestions, `All years` as default filter, and a future many-to-many table direction.
   - Journey implementation should begin with a safe `Summary + List` scaffold only.
   - Journeys Phase 1 scaffold has now been manually verified: `Journeys` opens `Summary` by default, `Summary / List` switching works, and the section no longer duplicates Tickets single-ticket detail.
   - Do not implement the real Journey database schema until a later phase.
-  - The next UI issue after that is redesigning the Journeys selection flow without destabilizing the current add-ticket path.
+  - Ticket edit modal/refresh behavior should remain the next separate task after this IA cleanup, without mixing it into Sidebar / Settings / Exports restructuring.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

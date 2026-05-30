@@ -1,7 +1,6 @@
 ﻿import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { useRef } from "react";
-import { BackupPanel } from "./components/BackupPanel";
 import { Dashboard } from "./components/Dashboard";
 import { Header } from "./components/Header";
 import { Sidebar, type AppSection } from "./components/Sidebar";
@@ -746,7 +745,9 @@ export default function App() {
       );
     }
 
-    const sectionMeta: Record<Exclude<AppSection, "overview">, { title: string; copy: string }> = {
+    const sectionKey = activeSection === "exports" ? "settings" : activeSection;
+
+    const sectionMeta: Record<Exclude<AppSection, "overview" | "exports">, { title: string; copy: string }> = {
       tickets: {
         title: "Tickets",
         copy: "Manage ticket records, imports, search, and selected ticket detail.",
@@ -759,17 +760,13 @@ export default function App() {
         title: "Map",
         copy: "Inspect route-focused content in a dedicated section without repeating the home summary.",
       },
-      exports: {
-        title: "Exports",
-        copy: "Manage backup, restore, archive export, and output-related actions from one compact section.",
-      },
       settings: {
         title: "Settings",
-        copy: "Review future desktop preferences, storage options, export preferences, and about information.",
+        copy: "Review future desktop preferences, backup/export placeholders, and app information.",
       },
     };
 
-    const meta = sectionMeta[activeSection];
+    const meta = sectionMeta[sectionKey];
 
     return (
       <section className="section-page-header">
@@ -808,32 +805,6 @@ export default function App() {
       <Dashboard
         {...dashboardProps}
         mode="map"
-        onSelectTicket={(ticketId) => {
-          setSelectedId(ticketId);
-          setActiveSection("tickets");
-        }}
-      />
-    </section>
-  );
-
-  const renderExportsSection = () => (
-    <section className="content-grid">
-      <div className="panel-stack">
-        <BackupPanel
-          backups={backups}
-          readiness={backupReadiness}
-          isBusy={backupBusy}
-          onCreateBackup={handleCreateBackup}
-          onExportArchiveBundle={handleExportArchiveBundle}
-          onImportArchiveBundle={handleImportArchiveBundle}
-          onExportBackup={handleExportBackup}
-          onRestoreBackup={handleRestoreBackup}
-          statusMessage={backupNotice || backupStatusMessage}
-        />
-      </div>
-      <Dashboard
-        {...dashboardProps}
-        mode="exports"
         onSelectTicket={(ticketId) => {
           setSelectedId(ticketId);
           setActiveSection("tickets");
@@ -902,9 +873,22 @@ export default function App() {
           ? <JourneysPage tickets={tickets} />
           : activeSection === "map"
             ? renderMapSection()
-            : activeSection === "exports"
-              ? renderExportsSection()
-              : <SettingsPage />;
+            : (
+                <SettingsPage
+                  backupPanelProps={{
+                    backups,
+                    readiness: backupReadiness,
+                    isBusy: backupBusy,
+                    onCreateBackup: handleCreateBackup,
+                    onExportArchiveBundle: handleExportArchiveBundle,
+                    onImportArchiveBundle: handleImportArchiveBundle,
+                    onExportBackup: handleExportBackup,
+                    onRestoreBackup: handleRestoreBackup,
+                    statusMessage: backupNotice || backupStatusMessage,
+                  }}
+                  initialSubview={activeSection === "exports" ? "export" : "appearance"}
+                />
+              );
 
   return (
     <div className="app-shell">

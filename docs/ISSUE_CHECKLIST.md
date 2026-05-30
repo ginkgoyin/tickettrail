@@ -30,12 +30,40 @@
 - `UX-004`: Journeys no longer duplicate the Tickets selected-ticket detail view and was manually verified
 - `JOURNEY-001`: Journeys now default to a `Summary` scaffold instead of selected-ticket detail duplication and was manually verified
 - `JOURNEY-002`: Journeys now provide a lightweight `List` scaffold subview and this behavior was manually verified
+- `SETTINGS-001`: Settings sidebar entry and Settings scaffold page were manually verified and pushed
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
-- `SETTINGS-001`
-  - A Settings sidebar entry and safe Settings scaffold page are now in place.
-  - The page currently exposes only clearly disabled placeholder sections for Appearance, Storage, Export, and About.
+- `NAV-004`
+  - Sidebar numeric labels were removed from primary navigation.
+  - Status: `Implemented / needs manual verification`
+
+- `SETTINGS-002`
+  - Settings entry now uses a gear icon in the sidebar utility area.
+  - Status: `Implemented / needs manual verification`
+
+- `SETTINGS-003`
+  - Settings is now split into `Appearance`, `Export`, and `About` subviews.
+  - Status: `Implemented / needs manual verification`
+
+- `SETTINGS-004`
+  - Backup, storage placeholder, and default export location placeholder now live under `Settings > Export`.
+  - Status: `Implemented / needs manual verification`
+
+- `EXPORT-002`
+  - The standalone Exports page was removed from primary sidebar navigation.
+  - Status: `Implemented / needs manual verification`
+
+- `EXPORT-003`
+  - Single-ticket JSON / CSV export buttons were removed from ticket detail.
+  - Status: `Implemented / needs manual verification`
+
+- `EXPORT-004`
+  - Single-ticket route map SVG export was removed.
+  - Status: `Implemented / needs manual verification`
+
+- `EXPORT-005`
+  - Ticket stub preview remains the only single-ticket export action kept in ticket detail.
   - Status: `Implemented / needs manual verification`
 
 - `UX-005L`
@@ -178,6 +206,21 @@
   - Current statuses `saved` / `used` / `archived` remain unclear and need a later semantic redesign.
   - Status: `Needs decision`
   - Priority: `Medium`
+
+- `TICKET-EDIT-001`
+  - Ticket detail Edit currently does not properly edit information.
+  - Status: `Open / future task`
+  - Priority: `High`
+
+- `TICKET-EDIT-002`
+  - Edit should open the same modal/form pattern as Add ticket, prefilled with current ticket data.
+  - Status: `Open / future task`
+  - Priority: `High`
+
+- `TICKET-EDIT-003`
+  - After saving edited ticket data, the current detail page should refresh and show updated information.
+  - Status: `Open / future task`
+  - Priority: `High`
 
 - `THEME-001`
   - Add light/day mode support later.
