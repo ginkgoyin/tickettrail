@@ -461,7 +461,17 @@ export function RouteMap({
         type: "circle",
         source: "route-endpoints",
         paint: {
-          "circle-radius": 7,
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            1.5,
+            3,
+            3,
+            4.5,
+            6,
+            6,
+          ],
           "circle-color": CURRENT_ROUTE_COLOR,
           "circle-stroke-color": "#ffffff",
           "circle-stroke-width": 3,

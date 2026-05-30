@@ -94,8 +94,8 @@
   - Status: `Implemented / needs manual verification`
 
 - `MAP-006`
-  - Zoom-aware endpoint dot sizing was attempted, but the latest attempt was reverted after it caused a workspace render error.
-  - Status: `Open / needs follow-up`
+  - Endpoint dots now scale down at low zoom so they do not block route lines as aggressively.
+  - Status: `Implemented / needs manual verification`
 
 - `MAP-007`
   - Disabling repeated world copies was attempted, but the latest attempt was reverted after it caused a workspace render error.
