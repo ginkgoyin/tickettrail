@@ -82,10 +82,27 @@
   - Ticket list pagination after `20` records is implemented.
   - It still needs manual verification with `20+` records.
 
+- `FORM-001`
+  - Clear confirm/apply behavior for date/time inputs is deferred for now.
+  - Status: `Deferred / not implementing now`
+
+- `FORM-001A`
+  - In-picker confirmation inside a date/time popover is deferred for now.
+  - Status: `Deferred / not implementing now`
+
+- `FORM-001B`
+  - Replacing native `datetime-local` with a lightweight custom popover is deferred for now.
+  - Status: `Deferred / not implementing now`
+
 - `FORM-006`
   - The current phase is desktop-first.
   - Do not develop mobile-specific layout work in parallel.
   - Keep only a safe fallback for narrower desktop windows until the desktop workflow is stable.
+
+- `I18N-002`
+  - The current phase should finish the English UI first before Chinese localization is implemented.
+  - Status: `Recorded / principle`
+  - Priority: `Medium`
 
 - `IA-001`
   - The app should follow the three-click principle and Miller's Law / `7+/-2` principle as ongoing design guidance.
@@ -169,11 +186,6 @@
   - Status: `Open`
   - Priority: `Medium`
 
-- `FORM-001`
-  - Date/time picker still needs a clear confirm/apply behavior.
-  - Status: `Open`
-  - Priority: `Medium`
-
 - `FORM-002`
   - Default travel class should become `Economy / economy class`.
   - Status: `Open`
@@ -222,4 +234,9 @@
 - `THEME-001`
   - Add light/day mode support later.
   - Status: `Open`
+  - Priority: `Medium`
+
+- `I18N-001`
+  - Settings should later support language switching between English and Chinese.
+  - Status: `Open / future`
   - Priority: `Medium`
