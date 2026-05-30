@@ -8,6 +8,7 @@ interface RouteMapProps {
   points?: MapPointPayload[];
   onSegmentSelect?: (segment: MapSegmentPayload) => void;
   onPointSelect?: (point: MapPointPayload) => void;
+  variant?: "summary" | "detail";
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -38,27 +39,6 @@ function hasUsableRoute(route: MapRoutePayload | null | undefined) {
   );
 }
 
-function createMarkerElement(kind: "origin" | "destination" | "waypoint", label: string, code?: string) {
-  const marker = document.createElement("div");
-  marker.className = `route-marker route-marker-${kind}`;
-
-  const dot = document.createElement("span");
-  dot.className = "route-marker-dot";
-
-  const card = document.createElement("span");
-  card.className = "route-marker-card";
-
-  const title = document.createElement("strong");
-  title.textContent = code ?? label;
-
-  const subtitle = document.createElement("small");
-  subtitle.textContent = label;
-
-  card.append(title, subtitle);
-  marker.append(dot, card);
-  return marker;
-}
-
 function buildActiveSegments(route: MapRoutePayload, segments: MapSegmentPayload[]) {
   if (segments.length) {
     return segments;
@@ -79,17 +59,66 @@ function buildActiveSegments(route: MapRoutePayload, segments: MapSegmentPayload
   ] satisfies MapSegmentPayload[];
 }
 
+interface EndpointRecord {
+  key: string;
+  point: MapPointPayload;
+  kind: "origin" | "destination" | "waypoint";
+}
+
+function buildEndpointRecords(
+  route: MapRoutePayload,
+  segments: MapSegmentPayload[],
+  points: MapPointPayload[],
+) {
+  const activeSegments = buildActiveSegments(route, segments);
+  const endpointMap = new Map<string, EndpointRecord>();
+  const pointLookup = new Map<string, MapPointPayload>();
+
+  points.forEach((point) => {
+    pointLookup.set(`${point.longitude}:${point.latitude}`, point);
+  });
+
+  const registerPoint = (
+    point: MapPointPayload,
+    kind: "origin" | "destination" | "waypoint",
+  ) => {
+    const key = `${point.longitude}:${point.latitude}`;
+    const enrichedPoint = pointLookup.get(key) ?? point;
+    const existing = endpointMap.get(key);
+
+    if (!existing) {
+      endpointMap.set(key, { key, point: enrichedPoint, kind });
+      return;
+    }
+
+    if (existing.kind === "waypoint" && kind !== "waypoint") {
+      endpointMap.set(key, { key, point: enrichedPoint, kind });
+    }
+  };
+
+  activeSegments.forEach((segment, index) => {
+    registerPoint(segment.origin, index === 0 ? "origin" : "waypoint");
+    registerPoint(
+      segment.destination,
+      index === activeSegments.length - 1 ? "destination" : "waypoint",
+    );
+  });
+
+  return Array.from(endpointMap.values());
+}
+
 export function RouteMap({
   route,
   segments = [],
   points = [],
   onSegmentSelect,
   onPointSelect,
+  variant = "detail",
 }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const markerRefs = useRef<maplibregl.Marker[]>([]);
   const disposedRef = useRef(false);
+  const endpointLookupRef = useRef(new Map<string, MapPointPayload>());
   const originLatitude = hasUsableMapPoint(route?.origin) ? route.origin.latitude : 0;
   const originLongitude = hasUsableMapPoint(route?.origin) ? route.origin.longitude : 0;
   const hasRenderableRoute =
@@ -98,6 +127,7 @@ export function RouteMap({
       (segment) => hasUsableMapPoint(segment.origin) && hasUsableMapPoint(segment.destination),
     ) &&
     (!points.length || points.every(hasUsableMapPoint));
+  const showLabels = variant === "detail";
   const [loadMessage, setLoadMessage] = useState("Loading route map...");
 
   const getActiveMap = () => {
@@ -164,6 +194,16 @@ export function RouteMap({
           },
         });
       }
+
+      if (!map.getSource("route-endpoints")) {
+        map.addSource("route-endpoints", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: [],
+          },
+        });
+      }
     };
 
     const handleError = () => {
@@ -181,8 +221,7 @@ export function RouteMap({
 
     return () => {
       disposedRef.current = true;
-      markerRefs.current.forEach((marker) => marker.remove());
-      markerRefs.current = [];
+      endpointLookupRef.current.clear();
       map.off("load", handleLoad);
       map.off("error", handleError);
       map.remove();
@@ -194,11 +233,15 @@ export function RouteMap({
   }, [hasRenderableRoute, originLatitude, originLongitude, route]);
 
   useEffect(() => {
-    if (!onSegmentSelect || !hasRenderableRoute) {
+    if (!hasRenderableRoute) {
       return;
     }
 
-    const handleClick = (event: maplibregl.MapLayerMouseEvent) => {
+    const handleSegmentClick = (event: maplibregl.MapLayerMouseEvent) => {
+      if (!onSegmentSelect) {
+        return;
+      }
+
       const segmentIndex = Number(event.features?.[0]?.properties?.segmentIndex);
       const activeSegment = buildActiveSegments(route, segments).find(
         (segment) => segment.segmentIndex === segmentIndex,
@@ -206,6 +249,18 @@ export function RouteMap({
 
       if (activeSegment) {
         onSegmentSelect(activeSegment);
+      }
+    };
+
+    const handlePointClick = (event: maplibregl.MapLayerMouseEvent) => {
+      if (!onPointSelect) {
+        return;
+      }
+
+      const pointKey = String(event.features?.[0]?.properties?.pointKey || "");
+      const point = endpointLookupRef.current.get(pointKey);
+      if (point) {
+        onPointSelect(point);
       }
     };
 
@@ -233,9 +288,23 @@ export function RouteMap({
         return;
       }
 
-      map.on("click", "route-line-layer", handleClick);
+      if (onSegmentSelect) {
+        map.on("click", "route-line-layer", handleSegmentClick);
+      }
       map.on("mouseenter", "route-line-layer", handleEnter);
       map.on("mouseleave", "route-line-layer", handleLeave);
+
+      if (onPointSelect && map.getLayer("route-endpoint-circle-layer")) {
+        map.on("click", "route-endpoint-circle-layer", handlePointClick);
+        map.on("mouseenter", "route-endpoint-circle-layer", handleEnter);
+        map.on("mouseleave", "route-endpoint-circle-layer", handleLeave);
+      }
+
+      if (onPointSelect && map.getLayer("route-endpoint-label-layer")) {
+        map.on("click", "route-endpoint-label-layer", handlePointClick);
+        map.on("mouseenter", "route-endpoint-label-layer", handleEnter);
+        map.on("mouseleave", "route-endpoint-label-layer", handleLeave);
+      }
     };
 
     const unbindLayerEvents = () => {
@@ -244,9 +313,23 @@ export function RouteMap({
         return;
       }
 
-      map.off("click", "route-line-layer", handleClick);
+      if (onSegmentSelect) {
+        map.off("click", "route-line-layer", handleSegmentClick);
+      }
       map.off("mouseenter", "route-line-layer", handleEnter);
       map.off("mouseleave", "route-line-layer", handleLeave);
+
+      if (map.getLayer("route-endpoint-circle-layer")) {
+        map.off("click", "route-endpoint-circle-layer", handlePointClick);
+        map.off("mouseenter", "route-endpoint-circle-layer", handleEnter);
+        map.off("mouseleave", "route-endpoint-circle-layer", handleLeave);
+      }
+
+      if (map.getLayer("route-endpoint-label-layer")) {
+        map.off("click", "route-endpoint-label-layer", handlePointClick);
+        map.off("mouseenter", "route-endpoint-label-layer", handleEnter);
+        map.off("mouseleave", "route-endpoint-label-layer", handleLeave);
+      }
       map.getCanvas().style.cursor = "";
     };
 
@@ -266,7 +349,7 @@ export function RouteMap({
       activeMap?.off("load", bindLayerEvents);
       unbindLayerEvents();
     };
-  }, [hasRenderableRoute, onSegmentSelect, route, segments]);
+  }, [hasRenderableRoute, onPointSelect, onSegmentSelect, route, segments]);
 
   useEffect(() => {
     if (!hasRenderableRoute) {
@@ -281,12 +364,13 @@ export function RouteMap({
       }
 
       const activeSegments = buildActiveSegments(route, segments);
-      const source = map.getSource("route-line") as maplibregl.GeoJSONSource | undefined;
-      if (!source) {
+      const lineSource = map.getSource("route-line") as maplibregl.GeoJSONSource | undefined;
+      const endpointSource = map.getSource("route-endpoints") as maplibregl.GeoJSONSource | undefined;
+      if (!lineSource || !endpointSource) {
         return;
       }
 
-      source.setData({
+      lineSource.setData({
         type: "FeatureCollection",
         features: activeSegments.map((segment) => ({
           type: "Feature",
@@ -303,12 +387,38 @@ export function RouteMap({
           },
         })),
       });
+      const endpointRecords = buildEndpointRecords(route, activeSegments, points);
+      endpointLookupRef.current = new Map(
+        endpointRecords.map((record) => [record.key, record.point]),
+      );
+      endpointSource.setData({
+        type: "FeatureCollection",
+        features: endpointRecords.map((record) => ({
+          type: "Feature",
+          properties: {
+            pointKey: record.key,
+            kind: record.kind,
+            code: record.point.code || record.point.label,
+            label: record.point.label,
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [record.point.longitude, record.point.latitude],
+          },
+        })),
+      });
 
       if (map.getLayer("route-line-layer")) {
         map.removeLayer("route-line-layer");
       }
       if (map.getLayer("route-line-glow-layer")) {
         map.removeLayer("route-line-glow-layer");
+      }
+      if (map.getLayer("route-endpoint-label-layer")) {
+        map.removeLayer("route-endpoint-label-layer");
+      }
+      if (map.getLayer("route-endpoint-circle-layer")) {
+        map.removeLayer("route-endpoint-circle-layer");
       }
 
       map.addLayer({
@@ -347,40 +457,54 @@ export function RouteMap({
           "line-opacity": 0.92,
         },
       });
-
-      markerRefs.current.forEach((marker) => marker.remove());
-      markerRefs.current = [];
-
-      const markerPoints = points.length
-        ? points.map((point, index) => ({
-            kind:
-              index === 0
-                ? ("origin" as const)
-                : index === points.length - 1
-                  ? ("destination" as const)
-                  : ("waypoint" as const),
-            point,
-          }))
-        : [
-            { kind: "origin" as const, point: route.origin },
-            { kind: "destination" as const, point: route.destination },
-          ];
-
-      markerRefs.current = markerPoints.map(({ kind, point }) => {
-        const element = createMarkerElement(kind, point.label, point.code);
-
-        if (onPointSelect) {
-          element.style.cursor = "pointer";
-          element.addEventListener("click", () => onPointSelect(point));
-        }
-
-        return new maplibregl.Marker({
-          element,
-          anchor: "bottom",
-        })
-          .setLngLat([point.longitude, point.latitude])
-          .addTo(map);
+      map.addLayer({
+        id: "route-endpoint-circle-layer",
+        type: "circle",
+        source: "route-endpoints",
+        paint: {
+          "circle-radius": 7,
+          "circle-color": [
+            "match",
+            ["get", "kind"],
+            "origin",
+            "#1ca4da",
+            "destination",
+            "#ff9854",
+            "#76df95",
+          ],
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 3,
+        },
       });
+
+      if (showLabels) {
+        map.addLayer({
+          id: "route-endpoint-label-layer",
+          type: "symbol",
+          source: "route-endpoints",
+          layout: {
+            "text-field": ["get", "code"],
+            "text-font": ["Noto Sans Regular", "Arial Unicode MS Regular"],
+            "text-size": 12,
+            "text-offset": [0, -1.8],
+            "text-anchor": "bottom",
+            "text-allow-overlap": false,
+          },
+          paint: {
+            "text-color": [
+              "match",
+              ["get", "kind"],
+              "origin",
+              "#e9f8ff",
+              "destination",
+              "#fff3e5",
+              "#e6fff0",
+            ],
+            "text-halo-color": "rgba(6, 24, 36, 0.94)",
+            "text-halo-width": 1.4,
+          },
+        });
+      }
 
       const bounds = new LngLatBounds(
         [route.viewport.minLongitude, route.viewport.minLatitude],
@@ -409,7 +533,7 @@ export function RouteMap({
       const activeMap = getActiveMap();
       activeMap?.off("load", syncRoute);
     };
-  }, [hasRenderableRoute, onPointSelect, points, route, segments]);
+  }, [hasRenderableRoute, onPointSelect, points, route, segments, showLabels]);
 
   return (
     <div className="route-map-shell">

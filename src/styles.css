@@ -1767,53 +1767,6 @@ textarea {
   margin: 0;
 }
 
-.route-marker {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transform: translateY(-8px);
-}
-
-.route-marker-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  border: 3px solid #ffffff;
-  box-shadow: 0 0 0 4px rgba(6, 24, 36, 0.24);
-}
-
-.route-marker-origin .route-marker-dot {
-  background: #1ca4da;
-}
-
-.route-marker-destination .route-marker-dot {
-  background: #ff9854;
-}
-
-.route-marker-waypoint .route-marker-dot {
-  background: #76df95;
-}
-
-.route-marker-card {
-  display: grid;
-  gap: 2px;
-  padding: 8px 10px;
-  min-width: 96px;
-  border-radius: 12px;
-  background: rgba(6, 24, 36, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #eef3f6;
-}
-
-.route-marker-card strong {
-  font-size: 0.9rem;
-}
-
-.route-marker-card small {
-  color: var(--text-soft);
-  font-size: 0.75rem;
-}
-
 .map-grid {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

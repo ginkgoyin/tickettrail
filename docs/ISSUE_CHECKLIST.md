@@ -58,6 +58,8 @@
 - `DATA-006`: generated airport data now preserves latitude/longitude for route-map usage, and this was manually verified
 - `MAP-DATA-001`: generated airport suggestion data is now connected to map coordinate resolution and was manually verified
 - `MAP-DATA-002`: flight route maps now resolve coordinates by airport code from generated airport data and this was manually verified
+- `MAP-001`: map endpoint dots now align with route line endpoints and this was manually verified
+- `MAP-002`: overview/summary maps now stay label-free while keeping aligned route endpoints, and this was manually verified
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
@@ -152,6 +154,16 @@
   - Status: `Open / future`
   - Priority: `Medium`
 
+- `MAP-004`
+  - Endpoint dots should use the same color as their corresponding route line.
+  - Status: `Open / future task`
+  - Priority: `Medium`
+
+- `MAP-005`
+  - Except for the future Journeys total map, current maps should temporarily use a single route color.
+  - Status: `Open / future task`
+  - Priority: `Medium`
+
 ## 5. Future Backlog / Not Started
 
 - `UX-002`
@@ -189,16 +201,6 @@
   - Status: `Open`
   - Priority: `Medium`
 
-- `MAP-001`
-  - Map marker dots/labels should be visually connected to route line endpoints.
-  - Status: `Open`
-  - Priority: `Medium`
-
-- `MAP-002`
-  - Overview map should show route lines and endpoint dots only, without large labels/popups for every point.
-  - Status: `Open`
-  - Priority: `Medium`
-
 - `JOURNEY-MAP-001`
   - Single journey detail maps should show labels for each point.
   - Status: `Open`
@@ -206,8 +208,28 @@
 
 - `JOURNEY-MAP-002`
   - Journey summary/total maps should behave like the Overview map and not show point labels by default.
-  - Status: `Open`
+  - Status: `Documented / prepared`
   - Priority: `Medium`
+
+- `JOURNEY-MAP-003`
+  - Only the future Journeys total map should use journey-based color grouping.
+  - Status: `Open / future journey map task`
+  - Priority: `Medium`
+
+- `TICKET-DELETE-001`
+  - Ticket detail should provide a delete action.
+  - Status: `Open / future task`
+  - Priority: `High`
+
+- `TICKET-DELETE-002`
+  - Delete action should be a red trash icon beside the edit button.
+  - Status: `Open / future task`
+  - Priority: `High`
+
+- `TICKET-DELETE-003`
+  - After deleting a ticket, return to the list and refresh selected/list state safely.
+  - Status: `Open / future task`
+  - Priority: `High`
 
 - `STATUS-001`
   - Current statuses `saved` / `used` / `archived` remain unclear and need a later semantic redesign.

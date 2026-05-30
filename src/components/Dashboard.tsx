@@ -691,6 +691,7 @@ export function Dashboard({
               points={scopeMap.points}
               route={scopeMap.route}
               segments={scopeMap.segments}
+              variant="summary"
             />
           </Suspense>
           <div className="map-summary">
@@ -735,7 +736,7 @@ export function Dashboard({
           canRenderActiveMap ? (
             <>
             <Suspense fallback={<p className="detail-loading">正在加载真实地图组件...</p>}>
-              <RouteMap route={activeDetail.map} segments={activeDetail.segments} />
+              <RouteMap route={activeDetail.map} segments={activeDetail.segments} variant="detail" />
             </Suspense>
             {activeDetail.segments.length > 1 ? (
               <div className="segment-stack">
