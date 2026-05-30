@@ -179,6 +179,7 @@ export function RouteMap({
       },
       center: [route.origin.longitude, route.origin.latitude],
       zoom: 2.2,
+      renderWorldCopies: false,
       attributionControl: {
         compact: true,
       },

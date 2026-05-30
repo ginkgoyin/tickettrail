@@ -98,8 +98,8 @@
   - Status: `Implemented / needs manual verification`
 
 - `MAP-007`
-  - Disabling repeated world copies was attempted, but the latest attempt was reverted after it caused a workspace render error.
-  - Status: `Open / needs follow-up`
+  - Repeated world copies are now disabled at the MapLibre runtime level for current route maps.
+  - Status: `Implemented / needs manual verification`
 
 - `MAP-008`
   - Constraining endless horizontal dragging was attempted, but the latest attempt was reverted after it caused a workspace render error.
