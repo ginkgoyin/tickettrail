@@ -98,22 +98,36 @@ The parser reads each `@...` station entry and maps:
 - Generated output: [C:\yx\00app\ticket\src\data\rail-stations.generated.json](C:/yx/00app/ticket/src/data/rail-stations.generated.json)
 - Official source file currently stored in-repo:
   - [C:\yx\00app\ticket\data-sources\12306\station_name.js](C:/yx/00app/ticket/data-sources/12306/station_name.js)
+- Official source URL:
+  - [https://kyfw.12306.cn/otn/resources/js/framework/station_name.js](https://kyfw.12306.cn/otn/resources/js/framework/station_name.js)
 - Validation sample source:
   - [C:\yx\00app\ticket\data-sources\12306\station_name.sample.js](C:/yx/00app/ticket/data-sources/12306/station_name.sample.js)
 
-Run with the full 12306 source file:
+Automatic download + regenerate:
+
+```powershell
+npm.cmd run generate:rail-stations
+```
+
+Direct script usage with download:
+
+```powershell
+node scripts/generate-rail-stations-data.mjs --download
+```
+
+Direct script usage with download + explicit paths:
+
+```powershell
+node scripts/generate-rail-stations-data.mjs --download --source data-sources\12306\station_name.js --out src\data\rail-stations.generated.json
+```
+
+Existing local-source usage is still supported:
 
 ```powershell
 node scripts/generate-rail-stations-data.mjs data-sources\12306\station_name.js
 ```
 
-Optional explicit output path:
-
-```powershell
-node scripts/generate-rail-stations-data.mjs data-sources\12306\station_name.js src\data\rail-stations.generated.json
-```
-
-If the source file is encoded differently, the generator also supports:
+If the local source file is encoded differently, the generator also supports:
 
 ```powershell
 node scripts/generate-rail-stations-data.mjs data-sources\12306\station_name.js --encoding=gbk
@@ -145,8 +159,22 @@ The generated records are normalized to the app's `LocationDirectoryEntry`-compa
   - generated rail station records
   - legacy station seed entries that still carry a few existing aliases/coordinates
 - This means the suggestion pipeline is now using generated nationwide rail station data, while still keeping a small legacy station fallback for previously hardcoded aliases/coordinates.
+- The generator can now also download the current official 12306 source locally before regenerating output, so the project can later choose not to commit the raw source file.
 
-## 9. Rail Coordinates
+## 9. Provenance And Redistribution Warning
+
+- The 12306 source URL above is a publicly accessible official static resource.
+- Public accessibility does **not** automatically mean the data is openly licensed for redistribution.
+- Explicit open-data / redistribution permission for:
+  - the raw `station_name.js`
+  - the derived `rail-stations.generated.json`
+  is **not currently confirmed** in this repository.
+- Before any broader public release, the project should review whether it is appropriate to keep committing:
+  - [C:\yx\00app\ticket\data-sources\12306\station_name.js](C:/yx/00app/ticket/data-sources/12306/station_name.js)
+  - [C:\yx\00app\ticket\src\data\rail-stations.generated.json](C:/yx/00app/ticket/src/data/rail-stations.generated.json)
+- Because the local regeneration script now exists, the repository can later choose to stop committing the raw source file and regenerate locally when needed.
+
+## 10. Rail Coordinates
 
 - This 12306 station-name pipeline does **not** provide coordinates.
 - No rail station coordinates are guessed in this pipeline.

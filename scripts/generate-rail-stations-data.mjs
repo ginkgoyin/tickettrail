@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+const DEFAULT_SOURCE_URL = "https://kyfw.12306.cn/otn/resources/js/framework/station_name.js";
 const DEFAULT_INPUT = path.resolve("data-sources/12306/station_name.js");
 const DEFAULT_OUTPUT = path.resolve("src/data/rail-stations.generated.json");
 const SUPPORTED_ENCODINGS = ["utf8", "gbk", "gb18030"];
@@ -15,6 +16,82 @@ function normalizeCode(value) {
 
 function normalizeName(value) {
   return normalizeText(value).replace(/\s+/g, "");
+}
+
+function parseArgs(argv) {
+  const args = {
+    download: false,
+    sourceUrl: DEFAULT_SOURCE_URL,
+    sourcePath: DEFAULT_INPUT,
+    outputPath: DEFAULT_OUTPUT,
+    encoding: "",
+  };
+
+  const positional = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+
+    if (value === "--download") {
+      args.download = true;
+      continue;
+    }
+
+    if (value === "--source" && argv[index + 1]) {
+      args.sourcePath = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("--source=")) {
+      args.sourcePath = path.resolve(value.slice("--source=".length));
+      continue;
+    }
+
+    if (value === "--out" && argv[index + 1]) {
+      args.outputPath = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("--out=")) {
+      args.outputPath = path.resolve(value.slice("--out=".length));
+      continue;
+    }
+
+    if (value === "--encoding" && argv[index + 1]) {
+      args.encoding = normalizeText(argv[index + 1]).toLowerCase();
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("--encoding=")) {
+      args.encoding = normalizeText(value.slice("--encoding=".length)).toLowerCase();
+      continue;
+    }
+
+    if (value === "--url" && argv[index + 1]) {
+      args.sourceUrl = normalizeText(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("--url=")) {
+      args.sourceUrl = normalizeText(value.slice("--url=".length));
+      continue;
+    }
+
+    positional.push(value);
+  }
+
+  if (positional[0]) {
+    args.sourcePath = path.resolve(positional[0]);
+  }
+
+  if (positional[1]) {
+    args.outputPath = path.resolve(positional[1]);
+  }
+
+  return args;
 }
 
 function decodeBuffer(buffer, explicitEncoding) {
@@ -136,14 +213,23 @@ function sortStations(left, right) {
   );
 }
 
-async function main() {
-  const positionalArgs = process.argv.slice(2).filter((value) => !value.startsWith("--encoding="));
-  const encodingArg = process.argv.find((value) => value.startsWith("--encoding="));
-  const explicitEncoding = encodingArg ? normalizeText(encodingArg.split("=")[1]).toLowerCase() : "";
-  const inputPath = path.resolve(positionalArgs[0] ?? DEFAULT_INPUT);
-  const outputPath = path.resolve(positionalArgs[1] ?? DEFAULT_OUTPUT);
-  const sourceBuffer = await readFile(inputPath);
-  const payload = extractStationPayload(decodeBuffer(sourceBuffer, explicitEncoding || undefined));
+async function downloadSourceFile(sourceUrl, sourcePath) {
+  const response = await fetch(sourceUrl);
+
+  if (!response.ok) {
+    throw new Error(`Failed to download 12306 station source: ${response.status} ${response.statusText}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  await mkdir(path.dirname(sourcePath), { recursive: true });
+  await writeFile(sourcePath, Buffer.from(arrayBuffer));
+
+  return sourcePath;
+}
+
+async function generateStations({ sourcePath, outputPath, encoding }) {
+  const sourceBuffer = await readFile(sourcePath);
+  const payload = extractStationPayload(decodeBuffer(sourceBuffer, encoding || undefined));
   const stations = dedupeStations(parseStationEntries(payload)).sort(sortStations);
 
   if (!stations.length) {
@@ -153,7 +239,20 @@ async function main() {
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(stations, null, 2)}\n`, "utf8");
 
-  console.log(`Generated ${stations.length} rail station records -> ${outputPath}`);
+  return stations.length;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.download) {
+    console.log(`Downloading 12306 station source from ${args.sourceUrl}`);
+    await downloadSourceFile(args.sourceUrl, args.sourcePath);
+    console.log(`Saved 12306 station source -> ${args.sourcePath}`);
+  }
+
+  const count = await generateStations(args);
+  console.log(`Generated ${count} rail station records -> ${args.outputPath}`);
 }
 
 await main();

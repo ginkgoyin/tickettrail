@@ -204,10 +204,20 @@
   - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
+- `DATA-002C`
+  - Rail station data can now be downloaded from the official 12306 source and regenerated locally through a script.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
 - `DATA-008`
   - Train/rail station coordinates are a separate future task and must not be guessed from 12306 station-name data.
   - Status: `Open / future`
   - Priority: `Medium`
+
+- `DATA-009`
+  - Before public release, review whether the raw 12306 source file and the derived generated rail-station data can be redistributed.
+  - Status: `Open / release-blocking review`
+  - Priority: `High`
 
 - `BRAND-001`
   - Airline logo/icon data is missing.

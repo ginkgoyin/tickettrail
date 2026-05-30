@@ -14,6 +14,7 @@
     "release:windows": "npm.cmd run build && npm.cmd run tauri:build:windows",
     "data:generate:airports": "node scripts/generate-airports-data.mjs",
     "data:generate:rail-stations": "node scripts/generate-rail-stations-data.mjs",
+    "generate:rail-stations": "node scripts/generate-rail-stations-data.mjs --download",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/check-release-version.mjs"
   },
