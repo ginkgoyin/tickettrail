@@ -40,6 +40,9 @@
 - `FORM-007`: unclear blue helper chips were removed/hidden from forms acceptably and were manually verified
 - `FORM-008`: unclear form mode/status pills were removed and manually verified
 - `TICKET-DETAIL-001`: ticket detail now shows fuller ticket information, including seat/class/timezone where available, and was manually verified
+- `LOCATION-001`: Add/Edit location suggestions are now scoped by ticket type and were manually verified
+- `LOCATION-002`: flight mode now suggests only airports and train/rail mode now suggests only stations, manually verified
+- `LOCATION-003`: location input placeholders now match the selected ticket type for airport vs station wording and were manually verified
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
@@ -78,18 +81,6 @@
 - `UX-005L`
   - Ticket list pagination after `20` records is implemented.
   - It still needs manual verification with `20+` records.
-
-- `LOCATION-001`
-  - Add/Edit location suggestions are now scoped by ticket type.
-  - Status: `Implemented / needs manual verification`
-
-- `LOCATION-002`
-  - Flight mode now suggests only airports, and train/rail mode now suggests only stations.
-  - Status: `Implemented / needs manual verification`
-
-- `LOCATION-003`
-  - Location input placeholders now match the selected ticket type for airport vs station wording.
-  - Status: `Implemented / needs manual verification`
 
 - `FORM-006`
   - The current phase is desktop-first.
