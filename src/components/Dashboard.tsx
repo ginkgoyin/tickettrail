@@ -58,6 +58,10 @@ function formatDateTime(value: unknown) {
   return text.replace("T", " ").slice(0, 16) || text;
 }
 
+function getTicketNumberLabel(ticketType: TicketRecord["ticketType"]) {
+  return ticketType === "train" ? "Train No." : "Flight No.";
+}
+
 function formatCoordinate(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
 }
@@ -486,6 +490,78 @@ export function Dashboard({
           </div>
           <span className="status-pill">{`${ticket.status} | ${ticket.segmentCount} segment(s)`}</span>
         </div>
+      ) : null}
+      {ticket && showsTicketMeta ? (
+        <article className="detail-card detail-facts-card">
+          <div className="panel-heading">
+            <div>
+              <span>Ticket information</span>
+              <strong>{ticket.routeLabel}</strong>
+            </div>
+          </div>
+          <div className="detail-grid detail-facts-grid">
+            <div className="detail-card">
+              <span>Carrier / Operator</span>
+              <strong>{safeText(ticket.carrierName, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>{getTicketNumberLabel(ticket.ticketType)}</span>
+              <strong>{safeText(ticket.code, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Status</span>
+              <strong>{safeText(ticket.status, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Segments</span>
+              <strong>{ticket.segmentCount}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Departure</span>
+              <strong>{safeText(ticket.departure?.name, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Departure code</span>
+              <strong>{safeText(ticket.departure?.code, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Departure time</span>
+              <strong>{formatDateTime(ticket.departureTimeLocal)}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Departure timezone</span>
+              <strong>{safeText(ticket.departure?.timezone, "Unknown")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Arrival</span>
+              <strong>{safeText(ticket.arrival?.name, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Arrival code</span>
+              <strong>{safeText(ticket.arrival?.code, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Arrival time</span>
+              <strong>{formatDateTime(ticket.arrivalTimeLocal)}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Arrival timezone</span>
+              <strong>{safeText(ticket.arrival?.timezone, "Unknown")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Cabin / Class</span>
+              <strong>{safeText(ticket.classInfo, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Seat</span>
+              <strong>{safeText(ticket.seatInfo, "--")}</strong>
+            </div>
+            <div className="detail-card detail-card-wide">
+              <span>Notes</span>
+              <strong>{safeText(ticket.notes, "No notes yet") || "No notes yet"}</strong>
+            </div>
+          </div>
+        </article>
       ) : null}
 
       {isLoading ? <p className="detail-loading">正在加载路线、票根和附件数据...</p> : null}

@@ -31,6 +31,15 @@
 - `JOURNEY-001`: Journeys now default to a `Summary` scaffold instead of selected-ticket detail duplication and was manually verified
 - `JOURNEY-002`: Journeys now provide a lightweight `List` scaffold subview and this behavior was manually verified
 - `SETTINGS-001`: Settings sidebar entry and Settings scaffold page were manually verified and pushed
+- `TICKET-EDIT-001`: ticket detail Edit now opens a working edit path and was manually verified
+- `TICKET-EDIT-002`: edit now uses the same modal/form pattern as Add ticket with selected-ticket prefill, manually verified
+- `TICKET-EDIT-003`: saving edited ticket data now refreshes the current detail view and was manually verified
+- `TICKET-EDIT-004`: edit modal no longer includes OCR/import and was manually verified
+- `TICKET-EDIT-005`: edit mode now locks the existing ticket type and was manually verified
+- `TICKET-EDIT-006`: ticket number labels now reflect the selected type and were manually verified
+- `FORM-007`: unclear blue helper chips were removed/hidden from forms acceptably and were manually verified
+- `FORM-008`: unclear form mode/status pills were removed and manually verified
+- `TICKET-DETAIL-001`: ticket detail now shows fuller ticket information, including seat/class/timezone where available, and was manually verified
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
@@ -206,21 +215,6 @@
   - Current statuses `saved` / `used` / `archived` remain unclear and need a later semantic redesign.
   - Status: `Needs decision`
   - Priority: `Medium`
-
-- `TICKET-EDIT-001`
-  - Ticket detail Edit currently does not properly edit information.
-  - Status: `Open / future task`
-  - Priority: `High`
-
-- `TICKET-EDIT-002`
-  - Edit should open the same modal/form pattern as Add ticket, prefilled with current ticket data.
-  - Status: `Open / future task`
-  - Priority: `High`
-
-- `TICKET-EDIT-003`
-  - After saving edited ticket data, the current detail page should refresh and show updated information.
-  - Status: `Open / future task`
-  - Priority: `High`
 
 - `THEME-001`
   - Add light/day mode support later.

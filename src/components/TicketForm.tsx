@@ -98,10 +98,6 @@ function joinLocationMeta(location: LocationDirectoryEntry) {
     .join(" | ");
 }
 
-function buildLocationSummary(location: TicketDraft["departure"]) {
-  return [location.name, location.code || "", location.timezone || ""].filter(Boolean).join(" | ");
-}
-
 function buildSegmentRouteLabel(segment: TicketSegmentDraft) {
   return `${segment.departure.name || "Departure"} -> ${segment.arrival.name || "Arrival"}`;
 }
@@ -123,6 +119,10 @@ function formatDateTimeLocal(timestamp: number) {
   const hours = `${date.getHours()}`.padStart(2, "0");
   const minutes = `${date.getMinutes()}`.padStart(2, "0");
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function getTicketNumberLabel(ticketType: TicketType) {
+  return ticketType === "train" ? "Train No." : "Flight No.";
 }
 
 export function TicketForm({
@@ -608,28 +608,6 @@ export function TicketForm({
     [activeSuggestField, arrivalSuggestions],
   );
 
-  const departureMeta = useMemo(
-    () => [draft.departure.code || "", draft.departure.timezone || ""].filter(Boolean),
-    [draft.departure.code, draft.departure.timezone],
-  );
-  const arrivalMeta = useMemo(
-    () => [draft.arrival.code || "", draft.arrival.timezone || ""].filter(Boolean),
-    [draft.arrival.code, draft.arrival.timezone],
-  );
-  const matchedAirline = useMemo(() => {
-    const normalized = draft.carrierName.trim().toLowerCase();
-    if (!normalized) {
-      return null;
-    }
-
-    return (
-      airlineSuggestions.find((airline) =>
-        [airline.nameEn, airline.nameZh || "", airline.iataCode, airline.icaoCode || ""]
-          .filter(Boolean)
-          .some((value) => value.toLowerCase() === normalized),
-      ) ?? null
-    );
-  }, [airlineSuggestions, draft.carrierName]);
   const effectiveSegments = useMemo(
     () => [
       {
@@ -715,24 +693,23 @@ export function TicketForm({
         <div>
           <h3>{mode === "edit" ? "Edit ticket record" : "Create ticket record"}</h3>
         </div>
-        <span className="status-pill">
-          {isSaving ? "Saving..." : mode === "edit" ? "Update mode" : importedDraft ? "Imported draft" : "SQLite flow"}
-        </span>
       </div>
 
       <form className="ticket-form" onSubmit={handleSubmit}>
-        <div className="toggle-group" role="tablist" aria-label="Ticket type">
-          {(["flight", "train"] as TicketType[]).map((type) => (
-            <button
-              key={type}
-              className={draft.ticketType === type ? "toggle active" : "toggle"}
-              onClick={() => updateField("ticketType", type)}
-              type="button"
-            >
-              {type}
-            </button>
-          ))}
-        </div>
+        {mode === "create" ? (
+          <div className="toggle-group" role="tablist" aria-label="Ticket type">
+            {(["flight", "train"] as TicketType[]).map((type) => (
+              <button
+                key={type}
+                className={draft.ticketType === type ? "toggle active" : "toggle"}
+                onClick={() => updateField("ticketType", type)}
+                type="button"
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="ticket-form-grid">
           <div className="ticket-form-row ticket-form-row-primary">
@@ -762,22 +739,11 @@ export function TicketForm({
                 </div>
               ) : null}
             </div>
-            {matchedAirline ? (
-              <div className="field-meta-list">
-                <span className="field-meta-chip">{matchedAirline.iataCode}</span>
-                {matchedAirline.icaoCode ? (
-                  <span className="field-meta-chip">{matchedAirline.icaoCode}</span>
-                ) : null}
-                {matchedAirline.countryCode ? (
-                  <span className="field-meta-chip">{matchedAirline.countryCode}</span>
-                ) : null}
-              </div>
-            ) : null}
             {renderReviewNote("carrierName")}
           </label>
 
           <label className={getLabelClassName("code")}>
-            Flight / Train No.
+            {getTicketNumberLabel(draft.ticketType)}
             <input
               onChange={(event) => updateField("code", event.target.value)}
               placeholder="MU561"
@@ -814,21 +780,7 @@ export function TicketForm({
                 </div>
               ) : null}
             </div>
-            <div className="field-helper-slot">
-              {departureMeta.length ? (
-                <div className="field-meta-list">
-                  {departureMeta.map((item) => (
-                    <span className="field-meta-chip" key={`departure-${item}`}>
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {(draft.departure.name || draft.departure.code) && !visibleDepartureSuggestions.length ? (
-                <small className="field-directory-note">{buildLocationSummary(draft.departure)}</small>
-              ) : null}
-              {renderReviewNote("departure.name")}
-            </div>
+            {renderReviewNote("departure.name")}
           </label>
 
           <label className={getLabelClassName("departure.code")}>
@@ -838,7 +790,7 @@ export function TicketForm({
               placeholder="PVG"
               value={draft.departure.code}
             />
-            <div className="field-helper-slot">{renderReviewNote("departure.code")}</div>
+            {renderReviewNote("departure.code")}
           </label>
 
           <label className={getLabelClassName("arrival.name")}>
@@ -867,21 +819,7 @@ export function TicketForm({
                 </div>
               ) : null}
             </div>
-            <div className="field-helper-slot">
-              {arrivalMeta.length ? (
-                <div className="field-meta-list">
-                  {arrivalMeta.map((item) => (
-                    <span className="field-meta-chip" key={`arrival-${item}`}>
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {(draft.arrival.name || draft.arrival.code) && !visibleArrivalSuggestions.length ? (
-                <small className="field-directory-note">{buildLocationSummary(draft.arrival)}</small>
-              ) : null}
-              {renderReviewNote("arrival.name")}
-            </div>
+            {renderReviewNote("arrival.name")}
           </label>
 
           <label className={getLabelClassName("arrival.code")}>
@@ -891,7 +829,7 @@ export function TicketForm({
               placeholder="SYD"
               value={draft.arrival.code}
             />
-            <div className="field-helper-slot">{renderReviewNote("arrival.code")}</div>
+            {renderReviewNote("arrival.code")}
           </label>
           </div>
 
@@ -1078,7 +1016,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Flight / Train No.
+                      {getTicketNumberLabel(draft.ticketType)}
                       <input
                         onChange={(event) => updateExtraSegmentField(index, "code", event.target.value)}
                         placeholder="MU561"
@@ -1115,9 +1053,6 @@ export function TicketForm({
                           </div>
                         ) : null}
                       </div>
-                      {(segment.departure.name || segment.departure.code) ? (
-                        <small className="field-directory-note">{buildLocationSummary(segment.departure)}</small>
-                      ) : null}
                     </label>
 
                     <label>
@@ -1149,9 +1084,6 @@ export function TicketForm({
                           </div>
                         ) : null}
                       </div>
-                      {(segment.arrival.name || segment.arrival.code) ? (
-                        <small className="field-directory-note">{buildLocationSummary(segment.arrival)}</small>
-                      ) : null}
                     </label>
 
                     <label>

@@ -1874,6 +1874,19 @@ textarea {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.detail-facts-card {
+  display: grid;
+  gap: 14px;
+}
+
+.detail-facts-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.detail-card-wide {
+  grid-column: span 2;
+}
+
 @media (max-width: 1100px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1892,7 +1905,8 @@ textarea {
   .content-grid,
   .journeys-hero-grid,
   .journeys-phase-grid,
-  .hero {
+  .hero,
+  .detail-facts-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1937,6 +1951,7 @@ textarea {
   .ticket-form-row,
   .import-grid,
   .detail-grid,
+  .detail-facts-grid,
   .hero-stats,
   .journeys-summary-grid,
   .analytics-summary-grid,

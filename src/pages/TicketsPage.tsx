@@ -81,6 +81,7 @@ export function TicketsPage({
 
   const handleCancelComposer = () => {
     setShowComposer(false);
+    setComposerTab("form");
     formProps.onCancelEdit?.();
   };
 
@@ -113,6 +114,60 @@ export function TicketsPage({
     setComposerTab("form");
   };
 
+  const composerModal = showComposer ? (
+    <div className="modal-backdrop" role="presentation">
+      <div
+        aria-label={formProps.mode === "edit" ? "Edit ticket dialog" : "Add ticket dialog"}
+        aria-modal="true"
+        className="modal-shell tickets-modal"
+        role="dialog"
+      >
+        <div className="tickets-modal-header">
+          <h3>{formProps.mode === "edit" ? "Edit ticket record" : "Add ticket"}</h3>
+          <button
+            aria-label={formProps.mode === "edit" ? "Close edit ticket" : "Close add ticket"}
+            className="modal-close-button"
+            onClick={handleCancelComposer}
+            type="button"
+          >
+            X
+          </button>
+        </div>
+
+        {formProps.mode === "create" ? (
+          <div className="tickets-modal-tabs">
+            <button
+              className={composerTab === "form" ? "theme-chip active" : "theme-chip"}
+              onClick={() => setComposerTab("form")}
+              type="button"
+            >
+              Ticket form
+            </button>
+            <button
+              className={composerTab === "import" ? "theme-chip active" : "theme-chip"}
+              onClick={() => setComposerTab("import")}
+              type="button"
+            >
+              OCR / import
+            </button>
+          </div>
+        ) : null}
+
+        <div className="tickets-modal-body">
+          {formProps.mode === "edit" || composerTab === "form" ? (
+            <TicketForm
+              {...formProps}
+              onCancelEdit={handleCancelComposer}
+              onSubmitTicket={handleSubmitTicket}
+            />
+          ) : (
+            <SmartImport {...importProps} onApplyImport={handleApplyImport} />
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (subview === "detail" && dashboardProps.ticket) {
     return (
       <section className="section-stack tickets-detail-view">
@@ -126,11 +181,12 @@ export function TicketsPage({
               <h3>{detailTitle}</h3>
             </div>
             <button className="ghost-button compact-button" onClick={handleEditSelectedTicket} type="button">
-              ✎ Edit
+              Edit
             </button>
           </div>
         </div>
         <Dashboard {...dashboardProps} mode="tickets" />
+        {composerModal}
       </section>
     );
   }
@@ -164,58 +220,7 @@ export function TicketsPage({
       </div>
 
       <TicketList {...listProps} onSelect={handleSelectTicket} />
-
-      {showComposer ? (
-        <div className="modal-backdrop" role="presentation">
-          <div
-            aria-label={formProps.mode === "edit" ? "Edit ticket dialog" : "Add ticket dialog"}
-            aria-modal="true"
-            className="modal-shell tickets-modal"
-            role="dialog"
-          >
-            <div className="tickets-modal-header">
-              <h3>{formProps.mode === "edit" ? "Edit ticket" : "Add ticket"}</h3>
-              <button
-                aria-label={formProps.mode === "edit" ? "Close edit ticket" : "Close add ticket"}
-                className="modal-close-button"
-                onClick={handleCancelComposer}
-                type="button"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="tickets-modal-tabs">
-              <button
-                className={composerTab === "form" ? "theme-chip active" : "theme-chip"}
-                onClick={() => setComposerTab("form")}
-                type="button"
-              >
-                Ticket form
-              </button>
-              <button
-                className={composerTab === "import" ? "theme-chip active" : "theme-chip"}
-                onClick={() => setComposerTab("import")}
-                type="button"
-              >
-                OCR / import
-              </button>
-            </div>
-
-            <div className="tickets-modal-body">
-              {composerTab === "form" ? (
-                <TicketForm
-                  {...formProps}
-                  onCancelEdit={handleCancelComposer}
-                  onSubmitTicket={handleSubmitTicket}
-                />
-              ) : (
-                <SmartImport {...importProps} onApplyImport={handleApplyImport} />
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {composerModal}
     </section>
   );
 }

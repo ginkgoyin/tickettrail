@@ -311,7 +311,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - Journey implementation should begin with a safe `Summary + List` scaffold only.
   - Journeys Phase 1 scaffold has now been manually verified: `Journeys` opens `Summary` by default, `Summary / List` switching works, and the section no longer duplicates Tickets single-ticket detail.
   - Do not implement the real Journey database schema until a later phase.
-  - Ticket edit modal/refresh behavior should remain the next separate task after this IA cleanup, without mixing it into Sidebar / Settings / Exports restructuring.
+  - Ticket edit modal/refresh behavior has now been manually verified: edit opens from detail, uses the shared modal/form pattern without OCR in edit mode, locks ticket type, refreshes the current detail view after save, and keeps add/list flows stable.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.
