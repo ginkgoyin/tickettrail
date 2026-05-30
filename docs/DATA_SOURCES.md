@@ -74,8 +74,83 @@ Optional explicit output path:
 node scripts/generate-airports-data.mjs path\to\airports.csv src\data\airports.generated.json
 ```
 
-## 6. Station Data
+## 6. Rail Station Source Format
 
-- Train/rail station data remains separate from this airport pipeline.
-- Global or nationwide station coverage is still a later task.
-- See `DATA-002` for future train/rail station expansion work.
+- Train/rail station suggestion data is generated from the official 12306 `station_name.js` style format.
+- Expected source file location:
+  - [C:\yx\00app\ticket\data-sources\12306\station_name.js](C:/yx/00app/ticket/data-sources/12306/station_name.js)
+- This source may be either:
+  - a full JS assignment such as `var station_names ='@bjb|北京北|VAP|beijingbei|bjb|0@...'`
+  - or the raw station payload string that starts with `@`
+
+The parser reads each `@...` station entry and maps:
+
+- field 1: short pinyin slug
+- field 2: Chinese station name
+- field 3: 12306 railway station telecode
+- field 4: full pinyin
+- field 5: short pinyin
+- field 6: station index
+
+## 7. Rail Station Generator
+
+- Generator script: [C:\yx\00app\ticket\scripts\generate-rail-stations-data.mjs](C:/yx/00app/ticket/scripts/generate-rail-stations-data.mjs)
+- Generated output: [C:\yx\00app\ticket\src\data\rail-stations.generated.json](C:/yx/00app/ticket/src/data/rail-stations.generated.json)
+- Official source file currently stored in-repo:
+  - [C:\yx\00app\ticket\data-sources\12306\station_name.js](C:/yx/00app/ticket/data-sources/12306/station_name.js)
+- Validation sample source:
+  - [C:\yx\00app\ticket\data-sources\12306\station_name.sample.js](C:/yx/00app/ticket/data-sources/12306/station_name.sample.js)
+
+Run with the full 12306 source file:
+
+```powershell
+node scripts/generate-rail-stations-data.mjs data-sources\12306\station_name.js
+```
+
+Optional explicit output path:
+
+```powershell
+node scripts/generate-rail-stations-data.mjs data-sources\12306\station_name.js src\data\rail-stations.generated.json
+```
+
+If the source file is encoded differently, the generator also supports:
+
+```powershell
+node scripts/generate-rail-stations-data.mjs data-sources\12306\station_name.js --encoding=gbk
+```
+
+The generated records are normalized to the app's `LocationDirectoryEntry`-compatible shape:
+
+- `id`
+- `locationType = "station"`
+- `code` (12306 telecode)
+- `nameZh`
+- `nameEn` (12306 pinyin string)
+- `pinyin`
+- `shortPinyin`
+- `stationIndex`
+- `aliases`
+- `countryCode = "CN"`
+
+## 8. Current Repository State For Rail Data
+
+- The repository now includes:
+  - the 12306 generator
+  - the runtime wiring
+  - a validation sample fixture
+  - the full downloaded `station_name.js` source file
+  - a generated nationwide rail-station dataset
+- The current generated file was produced from the downloaded 12306 source and currently contains `3339` rail station records.
+- The runtime currently merges:
+  - generated rail station records
+  - legacy station seed entries that still carry a few existing aliases/coordinates
+- This means the suggestion pipeline is now using generated nationwide rail station data, while still keeping a small legacy station fallback for previously hardcoded aliases/coordinates.
+
+## 9. Rail Coordinates
+
+- This 12306 station-name pipeline does **not** provide coordinates.
+- No rail station coordinates are guessed in this pipeline.
+- Train route-map coordinates remain a separate future task and require:
+  - a separate source
+  - a separate validation pass
+  - a separate license review if needed

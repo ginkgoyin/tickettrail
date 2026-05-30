@@ -195,8 +195,18 @@
   - Priority: `Medium`
 
 - `DATA-002`
-  - High-speed rail / train station data is almost completely missing.
-  - Status: `Open`
+  - Train/rail suggestions now use generated nationwide 12306 `station_name.js` data with telecode and pinyin support.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
+- `DATA-002A`
+  - A 12306 `station_name.js`-format rail station generator and app wiring should provide the nationwide station suggestion pipeline.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
+- `DATA-008`
+  - Train/rail station coordinates are a separate future task and must not be guessed from 12306 station-name data.
+  - Status: `Open / future`
   - Priority: `Medium`
 
 - `BRAND-001`

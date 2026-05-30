@@ -316,6 +316,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - `FORM-001` date/time confirm/apply behavior is deferred for now; keep the original/simple datetime inputs until a clearer picker direction is chosen.
   - `FORM-002` has now been manually verified: new ticket drafts default `Cabin / Class` to `Economy`, saving without changes stores that value, and edit mode preserves existing class values instead of overwriting them.
   - Global airport coverage is now backed by an OurAirports-based generation pipeline plus a small Chinese alias overlay, and this airport data is now manually verified as connected to route-map coordinate resolution for flight tickets.
+  - Rail station suggestion expansion now uses a real 12306 `station_name.js` generator path, and the current repository has already generated a nationwide rail-station suggestion dataset from the downloaded source file.
   - Map endpoint alignment is now manually verified: summary/overview maps stay label-free, endpoint dots sit on the exact route endpoints, and detail labels may offset visually without moving dot coordinates.
   - Current map color work should stay simple: non-Journey-total maps use one shared route color, endpoint dots match the route line color, and only the future Journeys total map should introduce journey-based color grouping.
   - Endpoint alignment and label cleanup remain stable. `MAP-006` is now a small, isolated zoom-aware dot-sizing pass, `MAP-007` is limited to disabling repeated world copies only, and `MAP-008` is deferred for the current phase because manual verification no longer reproduces the problematic endless horizontal dragging behavior after `MAP-007`.
@@ -433,4 +434,4 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Continue next with the separate map marker/label visual requirements or the future station-expansion task `DATA-002`, but keep those as distinct follow-up tasks.
+Continue next with a manual verification pass for the new nationwide 12306 station suggestion dataset, and keep future station-coordinate work (`DATA-008`) separate from the name/code/pinyin pipeline.

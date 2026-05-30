@@ -26,7 +26,7 @@ const BACKUP_STORAGE_KEY = "tickettrail.web-fallback.backups";
 const AIRLINE_SEED = airlineSeedData as AirlineDirectoryEntry[];
 const LEGACY_LOCATION_SEED = locationSeedData as LocationDirectoryEntry[];
 
-const STATION_LOCATION_SEED = LEGACY_LOCATION_SEED.filter(
+const LEGACY_STATION_LOCATION_SEED = LEGACY_LOCATION_SEED.filter(
   (entry) => entry.locationType === "station",
 );
 let locationSeedPromise: Promise<LocationDirectoryEntry[]> | null = null;
@@ -41,7 +41,8 @@ async function loadLocationSeed(): Promise<LocationDirectoryEntry[]> {
     locationSeedPromise = Promise.all([
       import("../data/airports.generated.json"),
       import("../data/airport-aliases.zh-CN"),
-    ]).then(([airportModule, aliasModule]) => {
+      import("../data/rail-stations.generated.json"),
+    ]).then(([airportModule, aliasModule, railModule]) => {
       const airportAliasesZhCN = aliasModule.default;
       const airports = (airportModule.default as LocationDirectoryEntry[]).map((entry) => {
         const overlay = entry.code ? airportAliasesZhCN[entry.code] : undefined;
@@ -58,7 +59,10 @@ async function loadLocationSeed(): Promise<LocationDirectoryEntry[]> {
         };
       });
 
-      return [...airports, ...STATION_LOCATION_SEED];
+      const generatedRailStations = railModule.default as LocationDirectoryEntry[];
+      const stations = mergeStationLocationSeed(generatedRailStations, LEGACY_STATION_LOCATION_SEED);
+
+      return [...airports, ...stations];
     });
   }
 
@@ -67,6 +71,83 @@ async function loadLocationSeed(): Promise<LocationDirectoryEntry[]> {
 
 function normalizeLookupValue(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
+}
+
+function normalizeStationNameKey(value: string | null | undefined) {
+  return normalizeLookupValue(value).replace(/站$/u, "");
+}
+
+function buildStationMergeKey(entry: Pick<LocationDirectoryEntry, "code" | "nameZh" | "nameEn">) {
+  const normalizedCode = normalizeLookupValue(entry.code);
+  const normalizedNameZh = normalizeStationNameKey(entry.nameZh);
+  const normalizedNameEn = normalizeLookupValue(entry.nameEn);
+
+  return [
+    normalizedCode ? `code:${normalizedCode}` : "",
+    normalizedNameZh ? `name:${normalizedNameZh}` : "",
+    normalizedNameEn ? `pinyin:${normalizedNameEn}` : "",
+  ].filter(Boolean);
+}
+
+function mergeStationLocationSeed(
+  generatedStations: LocationDirectoryEntry[],
+  legacyStations: LocationDirectoryEntry[],
+) {
+  const legacyByKey = new Map<string, LocationDirectoryEntry>();
+
+  for (const station of legacyStations) {
+    for (const key of buildStationMergeKey(station)) {
+      if (!legacyByKey.has(key)) {
+        legacyByKey.set(key, station);
+      }
+    }
+  }
+
+  const consumedLegacyIds = new Set<string>();
+  const mergedStations = generatedStations.map((station) => {
+    const matchedLegacy = buildStationMergeKey(station)
+      .map((key) => legacyByKey.get(key))
+      .find(Boolean);
+
+    if (matchedLegacy) {
+      consumedLegacyIds.add(matchedLegacy.id);
+    }
+
+    return {
+      ...matchedLegacy,
+      ...station,
+      locationType: "station",
+      nameEn: station.nameEn || matchedLegacy?.nameEn,
+      aliases: Array.from(
+        new Set([
+          ...(station.aliases ?? []),
+          ...(matchedLegacy?.aliases ?? []),
+          matchedLegacy?.code ?? "",
+        ].filter(Boolean)),
+      ),
+      latitude: station.latitude ?? matchedLegacy?.latitude,
+      longitude: station.longitude ?? matchedLegacy?.longitude,
+      timezone: station.timezone ?? matchedLegacy?.timezone,
+      countryCode: station.countryCode ?? matchedLegacy?.countryCode ?? "CN",
+      pinyin: station.pinyin ?? matchedLegacy?.pinyin,
+      shortPinyin: station.shortPinyin ?? matchedLegacy?.shortPinyin,
+      stationIndex: station.stationIndex ?? matchedLegacy?.stationIndex,
+    } satisfies LocationDirectoryEntry;
+  });
+
+  const untouchedLegacyStations = legacyStations.filter((station) => !consumedLegacyIds.has(station.id));
+  const dedupedStations = new Map<string, LocationDirectoryEntry>();
+
+  for (const station of [...mergedStations, ...untouchedLegacyStations]) {
+    const [primaryKey] = buildStationMergeKey(station);
+    const fallbackKey = `name:${normalizeStationNameKey(station.nameZh || station.nameEn)}`;
+    const dedupeKey = primaryKey || fallbackKey;
+    if (!dedupedStations.has(dedupeKey)) {
+      dedupedStations.set(dedupeKey, station);
+    }
+  }
+
+  return Array.from(dedupedStations.values());
 }
 
 async function loadLocationLookup() {

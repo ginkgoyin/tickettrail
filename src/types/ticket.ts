@@ -77,6 +77,9 @@ export interface LocationDirectoryEntry {
   nameZh?: string;
   nameEn?: string;
   aliases: string[];
+  pinyin?: string;
+  shortPinyin?: string;
+  stationIndex?: string;
   latitude?: number;
   longitude?: number;
   timezone?: string;
