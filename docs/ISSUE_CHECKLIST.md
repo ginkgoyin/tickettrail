@@ -102,8 +102,10 @@
   - Status: `Implemented / needs manual verification`
 
 - `MAP-008`
-  - Constraining endless horizontal dragging was attempted, but the latest attempt was reverted after it caused a workspace render error.
-  - Status: `Open / needs follow-up`
+  - A dedicated endless-horizontal-dragging fix is deferred for the current phase.
+  - After `MAP-007` disabled repeated world copies, manual verification no longer reproduced the problematic endless horizontal dragging behavior.
+  - Revisit only if the issue returns.
+  - Status: `Deferred / not needed for current phase`
 
 - `I18N-002`
   - The current phase should finish the English UI first before Chinese localization is implemented.
@@ -229,17 +231,17 @@
 
 - `TICKET-DELETE-001`
   - Ticket detail should provide a delete action.
-  - Status: `Open / future task`
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `TICKET-DELETE-002`
   - Delete action should be a red trash icon beside the edit button.
-  - Status: `Open / future task`
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `TICKET-DELETE-003`
   - After deleting a ticket, return to the list and refresh selected/list state safely.
-  - Status: `Open / future task`
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `STATUS-001`

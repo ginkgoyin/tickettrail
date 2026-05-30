@@ -369,7 +369,7 @@ export default function App() {
   const handleDeleteTicket = async (ticketId: string) => {
     const ticket = tickets.find((item) => item.id === ticketId);
     if (!ticket || !window.confirm(`Delete ticket ${ticket.code} (${ticket.routeLabel})?`)) {
-      return;
+      return false;
     }
 
     setBusyTicketId(ticketId);
@@ -384,8 +384,10 @@ export default function App() {
         setEditingId((current) => (current === ticketId ? "" : current));
         setDetailVersion((current) => current + 1);
       });
+      return true;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to delete ticket.");
+      return false;
     } finally {
       setBusyTicketId("");
     }

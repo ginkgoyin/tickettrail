@@ -1142,9 +1142,30 @@ textarea {
   width: 100%;
 }
 
+.tickets-subview-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .tickets-subview-header h3 {
   margin: 4px 0 0;
   font-size: 1.6rem;
+}
+
+.ticket-delete-button {
+  padding-inline: 12px;
+}
+
+.ticket-delete-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.ticket-delete-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
 }
 
 .compact-ticket-toolbar {

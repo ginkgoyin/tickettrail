@@ -318,8 +318,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - Global airport coverage is now backed by an OurAirports-based generation pipeline plus a small Chinese alias overlay, and this airport data is now manually verified as connected to route-map coordinate resolution for flight tickets.
   - Map endpoint alignment is now manually verified: summary/overview maps stay label-free, endpoint dots sit on the exact route endpoints, and detail labels may offset visually without moving dot coordinates.
   - Current map color work should stay simple: non-Journey-total maps use one shared route color, endpoint dots match the route line color, and only the future Journeys total map should introduce journey-based color grouping.
-  - Endpoint alignment and label cleanup remain stable. `MAP-006` is now a small, isolated zoom-aware dot-sizing pass, `MAP-007` is limited to disabling repeated world copies only, and `MAP-008` remains deferred until a safer world-boundary follow-up.
-  - Ticket detail delete should be handled as a separate follow-up task: restore a visible delete action beside edit, styled as a red trash icon, and keep delete/list refresh behavior safe.
+  - Endpoint alignment and label cleanup remain stable. `MAP-006` is now a small, isolated zoom-aware dot-sizing pass, `MAP-007` is limited to disabling repeated world copies only, and `MAP-008` is deferred for the current phase because manual verification no longer reproduces the problematic endless horizontal dragging behavior after `MAP-007`.
+  - Ticket detail delete is now implemented as a focused follow-up: the detail header restores a visible delete action beside edit, uses destructive confirmation, and should return safely to the list after successful deletion once manually verified.
   - English UI completion remains the current priority; language switching and Chinese localization should wait for a later Settings/i18n phase.
 
 ### [ ] Document UX direction before implementation

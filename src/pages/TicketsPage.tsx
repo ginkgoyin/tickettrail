@@ -114,6 +114,19 @@ export function TicketsPage({
     setComposerTab("form");
   };
 
+  const handleDeleteSelectedTicket = async () => {
+    if (!dashboardProps.ticket) {
+      return;
+    }
+
+    const deleted = await Promise.resolve(listProps.onDelete(dashboardProps.ticket.id));
+    if (deleted) {
+      setShowComposer(false);
+      setComposerTab("form");
+      setSubview("browse");
+    }
+  };
+
   const composerModal = showComposer ? (
     <div className="modal-backdrop" role="presentation">
       <div
@@ -169,6 +182,8 @@ export function TicketsPage({
   ) : null;
 
   if (subview === "detail" && dashboardProps.ticket) {
+    const isDeleting = listProps.busyTicketId === dashboardProps.ticket.id;
+
     return (
       <section className="section-stack tickets-detail-view">
         <div className="tickets-subview-header">
@@ -180,9 +195,26 @@ export function TicketsPage({
               <span className="ticket-kind">Selected ticket</span>
               <h3>{detailTitle}</h3>
             </div>
-            <button className="ghost-button compact-button" onClick={handleEditSelectedTicket} type="button">
-              Edit
-            </button>
+            <div className="tickets-subview-actions">
+              <button className="ghost-button compact-button" onClick={handleEditSelectedTicket} type="button">
+                Edit
+              </button>
+              <button
+                aria-label="Delete ticket"
+                className="ghost-button compact-button danger-button ticket-delete-button"
+                disabled={isDeleting}
+                onClick={() => void handleDeleteSelectedTicket()}
+                title="Delete ticket"
+                type="button"
+              >
+                <svg aria-hidden="true" className="ticket-delete-icon" viewBox="0 0 24 24">
+                  <path
+                    d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v8h-2V9Zm4 0h2v8h-2V9ZM7 9h2v8H7V9Zm1 11a2 2 0 0 1-2-2V8h12v10a2 2 0 0 1-2 2H8Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         <Dashboard {...dashboardProps} mode="tickets" />

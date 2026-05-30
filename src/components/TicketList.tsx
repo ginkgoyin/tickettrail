@@ -36,7 +36,7 @@ interface TicketListProps {
   onDeleteSavedView: (id: string) => void;
   onSelect: (id: string) => void;
   onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => void | Promise<boolean>;
   onUpdateStatus: (id: string, status: Exclude<TicketStatus, "draft">) => void;
 }
 
