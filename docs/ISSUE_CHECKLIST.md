@@ -61,6 +61,10 @@
 - `MAP-001`: map endpoint dots now align with route line endpoints and this was manually verified
 - `MAP-002`: overview/summary maps now stay label-free while keeping aligned route endpoints, and this was manually verified
 - `BL-004`: workspace render error after the latest map zoom/world-boundary attempt was fixed by restoring the last stable RouteMap behavior, and this rollback was manually verified
+- `TICKET-DATA-001`: flight tickets now support optional `departureTerminal` / `arrivalTerminal` fields without breaking existing tickets, and this was manually verified
+- `TICKET-DATA-001A`: optional departure/arrival terminal fields were added to the ticket data model and manually verified
+- `TICKET-DATA-001B`: Add/Edit forms now support flight terminal fields while keeping train/rail forms unchanged, manually verified
+- `TICKET-DATA-001C`: Ticket detail now displays flight terminal information compactly and this was manually verified
 
 ## 2. Implemented / Recorded / Needs Future Verification
 
@@ -247,7 +251,7 @@
   - Any future richer ticket-detail route-map labeling should be handled as a dedicated redesign task instead of mixed into routine detail cleanup.
   - Status: `Open / future route-map design`
 
-- `TICKET-DATA-001`
+- `TICKET-DATA-002`
   - Supporting a true `Cancelled` ticket status would require a separate data/semantics decision beyond the current `saved` / `used` / `archived` persistence model.
   - Status: `Open / future data decision`
 
@@ -259,9 +263,24 @@
   - The current detail refinement phase remains English-first; do not add Chinese localization yet.
   - Status: `Recorded / principle`
 
+- `I18N-001`
+  - Settings should include a language switch between English and Chinese.
+  - Status: `Open / next task`
+  - Priority: `Medium`
+
 - `I18N-002`
   - The current phase should finish the English UI first before Chinese localization is implemented.
   - Status: `Recorded / principle`
+  - Priority: `Medium`
+
+- `I18N-003`
+  - UI labels should support English / Chinese switching through the language setting.
+  - Status: `Open / future i18n task`
+  - Priority: `Medium`
+
+- `I18N-004`
+  - User-entered ticket data and airport/station names should not be automatically translated.
+  - Status: `Open / future i18n rule`
   - Priority: `Medium`
 
 - `IA-001`

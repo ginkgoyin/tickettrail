@@ -24,6 +24,8 @@ function createDefaultDraft(): TicketDraft {
       code: "",
       timezone: "Australia/Sydney",
     },
+    departureTerminal: "",
+    arrivalTerminal: "",
     departureTimeLocal: "",
     arrivalTimeLocal: "",
     classInfo: "Economy",
@@ -141,6 +143,10 @@ function getLocationNamePlaceholder(ticketType: TicketType, side: "departure" | 
 
 function getLocationCodePlaceholder(ticketType: TicketType) {
   return ticketType === "train" ? "Station code" : "Airport code";
+}
+
+function shouldShowTerminalFields(ticketType: TicketType) {
+  return ticketType === "flight";
 }
 
 export function TicketForm({
@@ -861,6 +867,28 @@ export function TicketForm({
             {renderReviewNote("arrival.code")}
           </label>
           </div>
+
+          {shouldShowTerminalFields(draft.ticketType) ? (
+            <div className="ticket-form-row ticket-form-row-terminals">
+              <label>
+                Departure terminal
+                <input
+                  onChange={(event) => updateField("departureTerminal", event.target.value)}
+                  placeholder="T1"
+                  value={draft.departureTerminal ?? ""}
+                />
+              </label>
+
+              <label>
+                Arrival terminal
+                <input
+                  onChange={(event) => updateField("arrivalTerminal", event.target.value)}
+                  placeholder="T2"
+                  value={draft.arrivalTerminal ?? ""}
+                />
+              </label>
+            </div>
+          ) : null}
 
           <div className="ticket-form-row ticket-form-row-times">
           <label className={getLabelClassName("departure.timezone")}>

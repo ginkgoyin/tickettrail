@@ -77,6 +77,21 @@ function getArrivalLabel(ticketType: TicketRecord["ticketType"]) {
   return ticketType === "train" ? "Arrival station" : "Arrival";
 }
 
+function formatLocationWithTerminal(
+  ticketType: TicketRecord["ticketType"],
+  locationName: unknown,
+  terminal: unknown,
+) {
+  const base = safeText(locationName, "--");
+  const normalizedTerminal = safeText(terminal).trim();
+
+  if (ticketType !== "flight" || !normalizedTerminal) {
+    return base;
+  }
+
+  return `${base} · ${normalizedTerminal}`;
+}
+
 function getStatusLabel(status: TicketStatus) {
   switch (status) {
     case "saved":
@@ -646,7 +661,13 @@ export function Dashboard({
           <div className="detail-grid detail-facts-row detail-facts-row-3">
             <div className="detail-card">
               <span>{getDepartureLabel(ticket.ticketType)}</span>
-              <strong>{safeText(ticket.departure?.name, "--")}</strong>
+              <strong>
+                {formatLocationWithTerminal(
+                  ticket.ticketType,
+                  ticket.departure?.name,
+                  ticket.departureTerminal,
+                )}
+              </strong>
             </div>
             <div className="detail-card">
               <span>Departure code</span>
@@ -663,7 +684,13 @@ export function Dashboard({
           <div className="detail-grid detail-facts-row detail-facts-row-3">
             <div className="detail-card">
               <span>{getArrivalLabel(ticket.ticketType)}</span>
-              <strong>{safeText(ticket.arrival?.name, "--")}</strong>
+              <strong>
+                {formatLocationWithTerminal(
+                  ticket.ticketType,
+                  ticket.arrival?.name,
+                  ticket.arrivalTerminal,
+                )}
+              </strong>
             </div>
             <div className="detail-card">
               <span>Arrival code</span>

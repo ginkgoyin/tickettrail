@@ -413,6 +413,7 @@ function buildFlightStubSvg(stub: StubPreviewPayload, theme: StubTheme, segments
   const arrivalCode = safeText(stub.arrivalLabel).slice(0, 3).toUpperCase();
   const primaryCode = safeText(stub.primaryCode);
   const gate = `G${(primaryCode.length % 9) + 1}${String.fromCharCode(65 + (primaryCode.length % 5))}`;
+  const departureTerminal = safeText(stub.departureTerminal);
   const boardingTime = safeText(stub.departureTimeLocal).replace("T", " ").slice(5);
   const manifest = buildSegmentManifest(segments, 52, 404, 654, true);
 
@@ -447,8 +448,8 @@ function buildFlightStubSvg(stub: StubPreviewPayload, theme: StubTheme, segments
     <rect x="724" y="70" width="182" height="360" rx="18" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.1)" />
     <text x="754" y="120" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans SC, sans-serif">SEAT</text>
     <text x="754" y="160" fill="${tokens.primary}" font-size="34" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(stub.seatLabel)}</text>
-    <text x="754" y="224" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans SC, sans-serif">GATE</text>
-    <text x="754" y="264" fill="${tokens.primary}" font-size="34" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(gate)}</text>
+    <text x="754" y="224" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(departureTerminal ? "TERMINAL" : "GATE")}</text>
+    <text x="754" y="264" fill="${tokens.primary}" font-size="34" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(departureTerminal || gate)}</text>
     <text x="754" y="328" fill="${tokens.muted}" font-size="16" letter-spacing="2" font-family="Segoe UI, Noto Sans SC, sans-serif">BOARDING</text>
     <text x="754" y="368" fill="${tokens.primary}" font-size="30" font-weight="700" font-family="Segoe UI, Noto Sans SC, sans-serif">${escapeXml(boardingTime)}</text>
     ${manifest}

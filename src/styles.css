@@ -705,6 +705,10 @@ html {
     minmax(180px, 1.25fr);
 }
 
+.ticket-form-row-terminals {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .ticket-form-row-meta {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

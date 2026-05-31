@@ -108,6 +108,8 @@ function createDefaultDraft(ticketType: TicketType): TicketDraft {
       code: "",
       timezone: ticketType === "train" ? "Asia/Shanghai" : "Australia/Sydney",
     },
+    departureTerminal: "",
+    arrivalTerminal: "",
     departureTimeLocal: "",
     arrivalTimeLocal: "",
     classInfo: "",

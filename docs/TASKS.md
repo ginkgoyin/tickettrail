@@ -329,6 +329,9 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - The current visual cleanup should now use two desktop detail rows with safe responsive stacking: `Ticket information` left of `Route map`, then `Ticket stub preview` left of `Original ticket files`, separated by only a lightweight divider instead of another boxed wrapper.
   - Ticket-detail text cleanup for this phase should stay English-first and replace any mojibake labels in stub-preview and attachment actions with clear English button text.
   - When a ticket has notes, the notes block should now live inside `Ticket information` as its final row instead of floating above the detail modules as a separate card.
+  - The next focused ticket-data improvement is optional flight terminal support only: add `departureTerminal` / `arrivalTerminal`, surface them in Add/Edit for flights, show them compactly in ticket detail, and optionally use departure terminal on the ticket stub without expanding into gate/platform/carriage work.
+  - Flight terminal fields are now manually verified. The next language-related work should stay separate: add a Settings language switch later, let UI labels switch between English and Chinese, and keep user-entered ticket data / airport-station names untranslated.
+  - Keep OCR terminal extraction and any real `Cancelled` persistence work as separate future tasks.
   - English UI completion remains the current priority; language switching and Chinese localization should wait for a later Settings/i18n phase.
 
 ### [ ] Document UX direction before implementation

@@ -25,6 +25,8 @@ export interface TicketDraft {
   code: string;
   departure: TicketLocation;
   arrival: TicketLocation;
+  departureTerminal?: string;
+  arrivalTerminal?: string;
   departureTimeLocal: string;
   arrivalTimeLocal: string;
   classInfo: string;
@@ -129,8 +131,10 @@ export interface StubPreviewPayload {
   transportBadge: string;
   primaryCode: string;
   departureLabel: string;
+  departureTerminal?: string;
   departureTimeLocal: string;
   arrivalLabel: string;
+  arrivalTerminal?: string;
   arrivalTimeLocal: string;
   carrierName: string;
   seatLabel: string;
