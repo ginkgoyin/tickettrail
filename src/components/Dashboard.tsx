@@ -15,6 +15,7 @@ import type {
   TicketAttachment,
   TicketDetailPayload,
   TicketRecord,
+  TicketStatus,
 } from "../types/ticket";
 
 const RouteMap = lazy(async () => import("./RouteMap").then((module) => ({ default: module.RouteMap })));
@@ -33,9 +34,11 @@ interface DashboardProps {
     status: "all" | "saved" | "used" | "archived";
     sort: string;
   };
+  busyTicketId?: string;
   attachmentBusy: boolean;
   onAddAttachment: (file: File) => Promise<void>;
   onDeleteAttachment: (attachmentId: string) => Promise<void>;
+  onUpdateStatus?: (ticketId: string, status: Exclude<TicketStatus, "draft">) => Promise<void>;
   onSelectTicket: (ticketId: string) => void;
   onApplyArchiveFilter: (query: string) => void;
   mode?: DashboardMode;
@@ -60,6 +63,108 @@ function formatDateTime(value: unknown) {
 
 function getTicketNumberLabel(ticketType: TicketRecord["ticketType"]) {
   return ticketType === "train" ? "Train No." : "Flight No.";
+}
+
+function getOperatorLabel(ticketType: TicketRecord["ticketType"]) {
+  return ticketType === "train" ? "Operator" : "Carrier / Operator";
+}
+
+function getDepartureLabel(ticketType: TicketRecord["ticketType"]) {
+  return ticketType === "train" ? "Departure station" : "Departure";
+}
+
+function getArrivalLabel(ticketType: TicketRecord["ticketType"]) {
+  return ticketType === "train" ? "Arrival station" : "Arrival";
+}
+
+function getStatusLabel(status: TicketStatus) {
+  switch (status) {
+    case "saved":
+      return "Upcoming";
+    case "used":
+      return "Completed";
+    case "archived":
+      return "Archived";
+    default:
+      return status;
+  }
+}
+
+function getAutoDerivedStatus(ticket: TicketRecord, currentTimeMs: number) {
+  const candidate = safeText(ticket.arrivalTimeLocal).trim() || safeText(ticket.departureTimeLocal);
+  const timestamp = Date.parse(candidate);
+  if (!Number.isFinite(timestamp)) {
+    return "Upcoming";
+  }
+
+  return timestamp < currentTimeMs ? "Completed" : "Upcoming";
+}
+
+function formatDuration(milliseconds: number) {
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) {
+    return "--";
+  }
+
+  const totalMinutes = Math.round(milliseconds / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) {
+    return `${minutes}m`;
+  }
+
+  if (minutes === 0) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h ${minutes}m`;
+}
+
+function getTravelDurationLabel(departureTimeLocal: unknown, arrivalTimeLocal: unknown) {
+  const departureTimestamp = Date.parse(safeText(departureTimeLocal));
+  const arrivalTimestamp = Date.parse(safeText(arrivalTimeLocal));
+
+  if (!Number.isFinite(departureTimestamp) || !Number.isFinite(arrivalTimestamp)) {
+    return "--";
+  }
+
+  if (arrivalTimestamp < departureTimestamp) {
+    return "--";
+  }
+
+  return formatDuration(arrivalTimestamp - departureTimestamp);
+}
+
+function getStatusDisplayMeta(ticket: TicketRecord, currentTimeMs: number) {
+  const autoLabel = getAutoDerivedStatus(ticket, currentTimeMs);
+  if (ticket.status === "saved") {
+    return {
+      label: autoLabel,
+      dropdownAutoLabel: `Auto: ${autoLabel}`,
+    };
+  }
+
+  return {
+    label: getStatusLabel(ticket.status),
+    dropdownAutoLabel: `Auto: ${autoLabel}`,
+  };
+}
+
+function formatTimeWithTimezone(value: unknown, timezone: unknown) {
+  const dateTime = formatDateTime(value);
+  const zone = safeText(timezone).trim();
+
+  if (!zone || dateTime === "--") {
+    return {
+      primary: dateTime,
+      secondary: "",
+    };
+  }
+
+  return {
+    primary: dateTime,
+    secondary: zone,
+  };
 }
 
 function formatCoordinate(value: unknown) {
@@ -189,9 +294,11 @@ export function Dashboard({
   ticketsInView,
   totalCount,
   activeArchiveContext,
+  busyTicketId,
   attachmentBusy,
   onAddAttachment,
   onDeleteAttachment,
+  onUpdateStatus,
   onSelectTicket,
   onApplyArchiveFilter,
   mode = "tickets",
@@ -200,6 +307,7 @@ export function Dashboard({
   const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
   const [scopeDetails, setScopeDetails] = useState<TicketDetailPayload[]>([]);
   const [scopeLoading, setScopeLoading] = useState(false);
+  const [statusClockMs, setStatusClockMs] = useState(() => Date.now());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scopeDetailCacheRef = useRef(new Map<string, TicketDetailPayload>());
   const activeDetail = ticket && detail?.ticket.id === ticket.id ? detail : null;
@@ -225,6 +333,21 @@ export function Dashboard({
 
     setStubTheme(isTrainTicket ? "ledger" : "boarding");
   }, [isTrainTicket, ticket]);
+
+  useEffect(() => {
+    if (mode !== "tickets" || !ticket || ticket.status !== "saved") {
+      return;
+    }
+
+    setStatusClockMs(Date.now());
+    const timer = window.setInterval(() => {
+      setStatusClockMs(Date.now());
+    }, 60000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [mode, ticket]);
 
   useEffect(() => {
     let isMounted = true;
@@ -383,7 +506,7 @@ export function Dashboard({
         return;
       }
       exportSvg(`${activeDetail.ticket.code}-route-map.svg`, mapSvg);
-      setExportMessage("路线 SVG 已导出。");
+      setExportMessage("Route map SVG exported.");
       return;
     }
 
@@ -392,7 +515,7 @@ export function Dashboard({
       return;
     }
     exportSvg(`${activeDetail.ticket.code}-ticket-stub.svg`, stubSvg);
-    setExportMessage("票根 SVG 已导出。");
+    setExportMessage("Stub SVG exported.");
   };
 
   const handleExportPng = async () => {
@@ -412,9 +535,9 @@ export function Dashboard({
         visualizationSizes.stub.width,
         visualizationSizes.stub.height,
       );
-      setExportMessage("票根 PNG 已导出。");
+      setExportMessage("Stub PNG exported.");
     } catch (error) {
-      setExportMessage(error instanceof Error ? error.message : "PNG 导出失败。");
+      setExportMessage(error instanceof Error ? error.message : "Stub PNG export failed.");
     }
   };
 
@@ -424,7 +547,7 @@ export function Dashboard({
     }
 
     exportSvg(`tickettrail-scope-${ticketsInView.length}-routes.svg`, scopeMapSvg);
-    setExportMessage("当前筛选范围路线 SVG 已导出。");
+    setExportMessage("Current scope map SVG exported.");
   };
 
   const handleSelectScopeSegment = (segment: MapSegmentPayload) => {
@@ -433,13 +556,13 @@ export function Dashboard({
     }
 
     onSelectTicket(segment.ticketId);
-    setExportMessage(`已切换到 ${segment.lineLabel} 对应票据。`);
+    setExportMessage(`Switched to the ticket for ${segment.lineLabel}.`);
   };
 
   const handleSelectScopePoint = (point: MapPointPayload) => {
     const nextQuery = point.code || point.label;
     onApplyArchiveFilter(nextQuery);
-    setExportMessage(`已按 ${point.label}${point.code ? ` (${point.code})` : ""} 筛选票据。`);
+    setExportMessage(`Filtered tickets by ${point.label}${point.code ? ` (${point.code})` : ""}.`);
   };
 
   const handleChooseAttachment = () => {
@@ -461,16 +584,333 @@ export function Dashboard({
     ? ["ledger", "boarding", "night"]
     : ["boarding", "ledger", "night"];
   const showsScopeContent = mode === "overview" || mode === "map";
-  const showsSelectedSummary = mode === "tickets" || mode === "journeys";
+  const showsSelectedSummary = mode === "journeys";
   const showsActiveRoute = mode === "tickets" || mode === "journeys" || mode === "map";
   const showsStubPreview = mode === "tickets";
   const showsAttachments = mode === "tickets";
   const showsTicketMeta = mode === "tickets" || mode === "journeys";
-  const showsSelectedHeading = mode === "tickets" || mode === "journeys";
-  const mapModuleLabel = mode === "map" ? "Selected route" : "Route map";
+  const showsSelectedHeading = mode === "journeys";
+  const mapModuleLabel = "Route map";
   const stubModuleLabel = "Ticket stub preview";
   const detailModuleLabel = mode === "journeys" ? "Journey detail" : "Ticket detail";
   const showsScopeFallback = showsScopeContent && !scopeSummary && !scopeMap && !scopeLoading;
+  const travelDurationLabel = ticket ? getTravelDurationLabel(ticket.departureTimeLocal, ticket.arrivalTimeLocal) : "--";
+  const canUpdateTicketStatus = Boolean(ticket && mode === "tickets" && onUpdateStatus);
+  const statusBusy = Boolean(ticket && busyTicketId === ticket.id);
+  const statusDisplayMeta = ticket ? getStatusDisplayMeta(ticket, statusClockMs) : null;
+  const departureTimeDisplay = ticket
+    ? formatTimeWithTimezone(ticket.departureTimeLocal, ticket.departure?.timezone)
+    : { primary: "--", secondary: "" };
+  const arrivalTimeDisplay = ticket
+    ? formatTimeWithTimezone(ticket.arrivalTimeLocal, ticket.arrival?.timezone)
+    : { primary: "--", secondary: "" };
+  const ticketInformationModule =
+    ticket && showsTicketMeta ? (
+      <article className="detail-facts-card detail-module-shell">
+        <div className="panel-heading">
+          <div>
+            <h3 className="detail-module-title">Ticket information</h3>
+          </div>
+        </div>
+        <div className="detail-facts-rows">
+          <div className="detail-grid detail-facts-row detail-facts-row-3">
+            <div className="detail-card">
+              <span>{getOperatorLabel(ticket.ticketType)}</span>
+              <strong>{safeText(ticket.carrierName, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>{getTicketNumberLabel(ticket.ticketType)}</span>
+              <strong>{safeText(ticket.code, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Status</span>
+              {canUpdateTicketStatus ? (
+                <select
+                  aria-label="Ticket status"
+                  className="detail-status-select"
+                  disabled={statusBusy}
+                  onChange={(event) =>
+                    void onUpdateStatus?.(ticket.id, event.target.value as Exclude<TicketStatus, "draft">)
+                  }
+                  value={ticket.status}
+                >
+                  <option value="saved">{statusDisplayMeta?.dropdownAutoLabel ?? "Auto: Upcoming"}</option>
+                  <option value="used">Completed</option>
+                  <option value="archived">Archived</option>
+                </select>
+              ) : (
+                <strong>{statusDisplayMeta?.label ?? getStatusLabel(ticket.status)}</strong>
+              )}
+            </div>
+          </div>
+          <div className="detail-grid detail-facts-row detail-facts-row-3">
+            <div className="detail-card">
+              <span>{getDepartureLabel(ticket.ticketType)}</span>
+              <strong>{safeText(ticket.departure?.name, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Departure code</span>
+              <strong>{safeText(ticket.departure?.code, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Departure time</span>
+              <strong>{departureTimeDisplay.primary}</strong>
+              {departureTimeDisplay.secondary ? (
+                <small className="detail-helper-text">{departureTimeDisplay.secondary}</small>
+              ) : null}
+            </div>
+          </div>
+          <div className="detail-grid detail-facts-row detail-facts-row-3">
+            <div className="detail-card">
+              <span>{getArrivalLabel(ticket.ticketType)}</span>
+              <strong>{safeText(ticket.arrival?.name, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Arrival code</span>
+              <strong>{safeText(ticket.arrival?.code, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Arrival time</span>
+              <strong>{arrivalTimeDisplay.primary}</strong>
+              {arrivalTimeDisplay.secondary ? (
+                <small className="detail-helper-text">{arrivalTimeDisplay.secondary}</small>
+              ) : null}
+            </div>
+          </div>
+          <div className="detail-grid detail-facts-row detail-facts-row-4">
+            <div className="detail-card">
+              <span>Cabin / Class</span>
+              <strong>{safeText(ticket.classInfo, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Seat</span>
+              <strong>{safeText(ticket.seatInfo, "--")}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Duration</span>
+              <strong>{travelDurationLabel}</strong>
+            </div>
+            <div className="detail-card">
+              <span>Route legs</span>
+              <strong>{ticket.segmentCount}</strong>
+            </div>
+          </div>
+        </div>
+      </article>
+    ) : null;
+  const stubPreviewModule =
+    ticket && showsStubPreview ? (
+      <article className="stub-preview detail-module-shell">
+        <div className="panel-heading">
+          <div>
+            <h3 className="detail-module-title">{stubModuleLabel}</h3>
+          </div>
+        </div>
+        {activeDetail && canRenderActiveStub ? (
+          <>
+            <div className="theme-switcher">
+              {themeOptions.map((theme) => (
+                <button
+                  key={theme}
+                  className={stubTheme === theme ? "theme-chip active" : "theme-chip"}
+                  onClick={() => setStubTheme(theme)}
+                  type="button"
+                >
+                  {theme === "boarding"
+                    ? "Boarding pass"
+                    : theme === "ledger"
+                      ? "Reimbursement voucher"
+                      : "Red-eye flight"}
+                </button>
+              ))}
+            </div>
+            <div className="svg-frame stub-canvas" dangerouslySetInnerHTML={{ __html: stubSvg }} />
+            <div className="export-row">
+              <button className="ghost-button" onClick={() => handleExportSvg("stub")} type="button">
+                Export stub SVG
+              </button>
+              <button className="primary-button" onClick={() => void handleExportPng()} type="button">
+                Export stub PNG
+              </button>
+            </div>
+          </>
+        ) : activeDetail ? (
+          <div className="empty-state">
+            <strong>Ticket stub preview is unavailable</strong>
+            <p>The saved ticket data is incomplete, so the stub preview was skipped safely.</p>
+          </div>
+        ) : (
+          <>
+            <div className="stub-body">
+              <div>
+                <span>{safeText(ticket?.departure?.name, "Departure")}</span>
+                <strong>{formatDateTime(ticket?.departureTimeLocal)}</strong>
+              </div>
+              <div>
+                <span>{safeText(ticket?.arrival?.name, "Arrival")}</span>
+                <strong>{formatDateTime(ticket?.arrivalTimeLocal)}</strong>
+              </div>
+            </div>
+            <footer>
+              <span>{safeText(ticket?.carrierName, "Carrier")}</span>
+              <span>{`${safeText(ticket?.classInfo, "TBD") || "TBD"} / ${safeText(ticket?.seatInfo, "TBD") || "TBD"}`}</span>
+            </footer>
+          </>
+        )}
+      </article>
+    ) : null;
+  const attachmentsModule =
+    showsAttachments ? (
+      <article className="attachments-panel">
+        <div className="panel-heading">
+          <div>
+            <h3 className="detail-module-title">Original ticket files</h3>
+          </div>
+          <span className="status-pill">{activeDetail?.attachments?.length ?? 0} files</span>
+        </div>
+        <input
+          accept="image/*,application/pdf"
+          className="hidden-file-input"
+          onChange={(event) => void handleFileChange(event)}
+          ref={fileInputRef}
+          type="file"
+        />
+        <div className="export-row">
+          <button
+            className="primary-button"
+            disabled={!activeDetail || attachmentBusy}
+            onClick={handleChooseAttachment}
+            type="button"
+          >
+            {attachmentBusy ? "Adding file..." : "Add file"}
+          </button>
+        </div>
+        {activeDetail?.attachments?.length ? (
+          <div className="attachment-grid">
+            {(activeDetail?.attachments ?? []).map((attachment) => (
+              <article className="attachment-card" key={attachment.id}>
+                {isImageAttachment(attachment) && attachment.previewUrl ? (
+                  <img alt={attachment.fileName} className="attachment-preview" src={attachment.previewUrl} />
+                ) : (
+                  <div className="attachment-fallback">
+                    <strong>{safeText(attachment.mimeType).includes("pdf") ? "PDF" : "FILE"}</strong>
+                  </div>
+                )}
+                <div className="attachment-meta">
+                  <strong>{safeText(attachment.fileName, "Attachment")}</strong>
+                  <span>{Math.max(1, Math.round(attachment.fileSize / 1024))} KB</span>
+                  <span>{formatDateTime(attachment.createdAt)}</span>
+                </div>
+                <div className="attachment-actions">
+                  {attachment.previewUrl ? (
+                    <a className="ghost-button compact-button" href={attachment.previewUrl} rel="noreferrer" target="_blank">
+                      Open
+                    </a>
+                  ) : null}
+                  <button
+                    className="ghost-button compact-button danger-button"
+                    disabled={attachmentBusy}
+                    onClick={() => void onDeleteAttachment(attachment.id)}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <strong>No attachments yet</strong>
+            <p>Upload screenshots, scanned tickets, or PDF reimbursement files for this record.</p>
+          </div>
+        )}
+      </article>
+    ) : null;
+  const routeMapModule =
+    ticket && showsActiveRoute ? (
+      <article className="route-map-card detail-module-shell">
+        <div className="panel-heading route-map-header">
+          <div>
+            <h3 className="detail-module-title route-map-title">{mapModuleLabel}</h3>
+          </div>
+          {activeDetail && canRenderActiveMap ? (
+            <span className="status-pill">{`${activeDetail.map.distanceHintKm} km`}</span>
+          ) : null}
+        </div>
+        {activeDetail ? (
+          canRenderActiveMap ? (
+            <>
+              <Suspense fallback={<p className="detail-loading">Loading route map...</p>}>
+                <RouteMap route={activeDetail.map} segments={activeDetail.segments} variant="detail" />
+              </Suspense>
+              {activeDetail.segments.length > 1 ? (
+                <div className="segment-stack">
+                  {activeDetail.segments.map((segment) => (
+                    <article className="segment-card" key={`${segment.code}-${segment.segmentIndex}`}>
+                      <div className="segment-card-top">
+                        <div>
+                          <span className="ticket-kind">{`Segment ${segment.segmentIndex + 1}`}</span>
+                          <strong>{segment.lineLabel}</strong>
+                        </div>
+                        <span className="status-pill">{segment.distanceHintKm} km</span>
+                      </div>
+                      <div className="ticket-meta">
+                        <span>{segment.code || "--"}</span>
+                        <span>{segment.carrierName}</span>
+                        <span>{segment.directionHint}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="empty-state">
+              <strong>Route preview is unavailable</strong>
+              <p>The saved ticket data is incomplete, so the route preview was skipped safely.</p>
+            </div>
+          )
+        ) : (
+          <div className="map-grid">
+            <div className="map-node">
+              <span>FROM</span>
+              <strong>{ticket.departure.code || "--"}</strong>
+              <p>{ticket.departure.name}</p>
+            </div>
+            <div className="map-line">
+              <span className="line-dot" />
+              <span className="line-path" />
+              <span className="line-arrow">{"->"}</span>
+            </div>
+            <div className="map-node">
+              <span>TO</span>
+              <strong>{ticket.arrival.code || "--"}</strong>
+              <p>{ticket.arrival.name}</p>
+            </div>
+          </div>
+        )}
+        {activeDetail && canRenderActiveMap ? (
+          <div className="map-summary route-map-footer">
+            <span>
+              <strong>Origin coordinate</strong>
+              {`${formatCoordinate(activeDetail.map.origin.latitude)}, ${formatCoordinate(activeDetail.map.origin.longitude)}`}
+            </span>
+            <span>
+              <strong>Duration</strong>
+              {travelDurationLabel}
+            </span>
+            <span>
+              <strong>Distance</strong>
+              {`${activeDetail.map.distanceHintKm} km`}
+            </span>
+          </div>
+        ) : null}
+      </article>
+    ) : null;
+  const shouldShowFirstDetailRow = Boolean(ticket && (showsTicketMeta || showsActiveRoute));
+  const shouldShowSecondDetailRow = Boolean(ticket && (showsStubPreview || showsAttachments));
+  const shouldShowDetailRowDivider = shouldShowFirstDetailRow && shouldShowSecondDetailRow;
 
   if (!ticket && !showsScopeContent) {
     return (
@@ -480,91 +920,27 @@ export function Dashboard({
     );
   }
 
+  const dashboardClassName = mode === "tickets" ? "dashboard dashboard-detail" : "panel dashboard";
+
   return (
-    <section className="panel dashboard">
+    <section className={dashboardClassName}>
       {ticket && showsSelectedHeading ? (
         <div className="panel-heading">
           <div>
             <span className="ticket-kind">Selected ticket</span>
             <h3>{ticket.routeLabel}</h3>
           </div>
-          <span className="status-pill">{`${ticket.status} | ${ticket.segmentCount} segment(s)`}</span>
+          <span className="status-pill">{`${getStatusLabel(ticket.status)} | ${ticket.segmentCount} segment(s)`}</span>
         </div>
       ) : null}
-      {ticket && showsTicketMeta ? (
-        <article className="detail-card detail-facts-card">
-          <div className="panel-heading">
-            <div>
-              <span>Ticket information</span>
-              <strong>{ticket.routeLabel}</strong>
-            </div>
-          </div>
-          <div className="detail-grid detail-facts-grid">
-            <div className="detail-card">
-              <span>Carrier / Operator</span>
-              <strong>{safeText(ticket.carrierName, "--")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>{getTicketNumberLabel(ticket.ticketType)}</span>
-              <strong>{safeText(ticket.code, "--")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Status</span>
-              <strong>{safeText(ticket.status, "--")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Segments</span>
-              <strong>{ticket.segmentCount}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Departure</span>
-              <strong>{safeText(ticket.departure?.name, "--")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Departure code</span>
-              <strong>{safeText(ticket.departure?.code, "--")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Departure time</span>
-              <strong>{formatDateTime(ticket.departureTimeLocal)}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Departure timezone</span>
-              <strong>{safeText(ticket.departure?.timezone, "Unknown")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Arrival</span>
-              <strong>{safeText(ticket.arrival?.name, "--")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Arrival code</span>
-              <strong>{safeText(ticket.arrival?.code, "--")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Arrival time</span>
-              <strong>{formatDateTime(ticket.arrivalTimeLocal)}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Arrival timezone</span>
-              <strong>{safeText(ticket.arrival?.timezone, "Unknown")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Cabin / Class</span>
-              <strong>{safeText(ticket.classInfo, "--")}</strong>
-            </div>
-            <div className="detail-card">
-              <span>Seat</span>
-              <strong>{safeText(ticket.seatInfo, "--")}</strong>
-            </div>
-            <div className="detail-card detail-card-wide">
-              <span>Notes</span>
-              <strong>{safeText(ticket.notes, "No notes yet") || "No notes yet"}</strong>
-            </div>
-          </div>
+      {ticket?.notes && showsTicketMeta ? (
+        <article className="detail-card detail-notes-card">
+          <span>Notes</span>
+          <p>{ticket.notes}</p>
         </article>
       ) : null}
 
-      {isLoading ? <p className="detail-loading">正在加载路线、票根和附件数据...</p> : null}
+      {isLoading ? <p className="detail-loading">Loading route, stub, and attachment data...</p> : null}
 
       {itinerarySummary && showsSelectedSummary ? (
         <article className="detail-card itinerary-overview-card">
@@ -684,7 +1060,7 @@ export function Dashboard({
               Showing the full visible archive on the collection map.
             </p>
           )}
-          <Suspense fallback={<p className="detail-loading">正在加载筛选范围路线地图...</p>}>
+          <Suspense fallback={<p className="detail-loading">Loading scope route map...</p>}>
             <RouteMap
               onPointSelect={handleSelectScopePoint}
               onSegmentSelect={handleSelectScopeSegment}
@@ -701,13 +1077,13 @@ export function Dashboard({
           </div>
           <div className="export-row">
             <button className="ghost-button" onClick={handleExportScopeMap} type="button">
-              导出范围路线 SVG
+              Export scope map SVG
             </button>
           </div>
         </article>
       ) : scopeLoading && showsScopeContent ? (
         <article className="map-preview scope-map-preview">
-          <p className="detail-loading">正在汇总当前筛选范围的路线地图...</p>
+          <p className="detail-loading">Loading the current scope map...</p>
         </article>
       ) : null}
 
@@ -721,215 +1097,20 @@ export function Dashboard({
         </article>
       ) : null}
 
-      {ticket && showsActiveRoute ? (
-      <article className="map-preview">
-        <div className="panel-heading">
-          <div>
-            <span>{mapModuleLabel}</span>
-            <strong>{activeDetail?.map.directionHint || ticket.routeLabel}</strong>
-          </div>
-          {activeDetail && canRenderActiveMap ? (
-            <span className="status-pill">{`${activeDetail.map.distanceHintKm} km`}</span>
-          ) : null}
+      {shouldShowFirstDetailRow ? (
+        <div className="detail-ticket-module-row detail-ticket-module-row-top">
+          {ticketInformationModule}
+          {routeMapModule}
         </div>
-        {activeDetail ? (
-          canRenderActiveMap ? (
-            <>
-            <Suspense fallback={<p className="detail-loading">正在加载真实地图组件...</p>}>
-              <RouteMap route={activeDetail.map} segments={activeDetail.segments} variant="detail" />
-            </Suspense>
-            {activeDetail.segments.length > 1 ? (
-              <div className="segment-stack">
-                {activeDetail.segments.map((segment) => (
-                  <article className="segment-card" key={`${segment.code}-${segment.segmentIndex}`}>
-                    <div className="segment-card-top">
-                      <div>
-                        <span className="ticket-kind">{`Segment ${segment.segmentIndex + 1}`}</span>
-                        <strong>{segment.lineLabel}</strong>
-                      </div>
-                      <span className="status-pill">{segment.distanceHintKm} km</span>
-                    </div>
-                    <div className="ticket-meta">
-                      <span>{segment.code || "--"}</span>
-                      <span>{segment.carrierName}</span>
-                      <span>{segment.directionHint}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : null}
-            </>
-          ) : (
-            <div className="empty-state">
-              <strong>Route preview is unavailable</strong>
-              <p>The saved ticket data is incomplete, so the route preview was skipped safely.</p>
-            </div>
-          )
-        ) : (
-          <div className="map-grid">
-            <div className="map-node">
-              <span>FROM</span>
-              <strong>{ticket.departure.code || "--"}</strong>
-              <p>{ticket.departure.name}</p>
-            </div>
-            <div className="map-line">
-              <span className="line-dot" />
-              <span className="line-path" />
-              <span className="line-arrow">{"->"}</span>
-            </div>
-            <div className="map-node">
-              <span>TO</span>
-              <strong>{ticket.arrival.code || "--"}</strong>
-              <p>{ticket.arrival.name}</p>
-            </div>
-          </div>
-        )}
-        {activeDetail && canRenderActiveMap ? (
-          <div className="map-summary">
-            <span>{activeDetail.map.directionHint}</span>
-            <span>{activeDetail.map.distanceHintKm} km</span>
-            <span>
-              {formatCoordinate(activeDetail.map.viewport.minLatitude)} /{" "}
-              {formatCoordinate(activeDetail.map.viewport.maxLatitude)} lat
-            </span>
-          </div>
-        ) : null}
-      </article>
       ) : null}
 
-      {ticket && showsStubPreview ? (
-      <article className="stub-preview">
-        <div className="panel-heading">
-          <div>
-            <span>{stubModuleLabel}</span>
-            <strong>{safeText(ticket.code, "--")}</strong>
-          </div>
-          <span className="status-pill">{safeText(ticket.ticketType, "ticket").toUpperCase()}</span>
-        </div>
-        {activeDetail && canRenderActiveStub ? (
-          <>
-            <div className="theme-switcher">
-              {themeOptions.map((theme) => (
-                <button
-                  key={theme}
-                  className={stubTheme === theme ? "theme-chip active" : "theme-chip"}
-                  onClick={() => setStubTheme(theme)}
-                  type="button"
-                >
-                  {theme === "boarding"
-                    ? "登机牌"
-                    : theme === "ledger"
-                      ? "报销凭证"
-                      : "夜间霓虹"}
-                </button>
-              ))}
-            </div>
-            <div className="svg-frame stub-canvas" dangerouslySetInnerHTML={{ __html: stubSvg }} />
-            <div className="export-row">
-              <button className="ghost-button" onClick={() => handleExportSvg("stub")} type="button">
-                导出票根 SVG
-              </button>
-              <button className="primary-button" onClick={() => void handleExportPng()} type="button">
-                导出票根 PNG
-              </button>
-            </div>
-          </>
-        ) : activeDetail ? (
-          <div className="empty-state">
-            <strong>Ticket stub preview is unavailable</strong>
-            <p>The saved ticket data is incomplete, so the stub preview was skipped safely.</p>
-          </div>
-        ) : (
-          <>
-            <div className="stub-body">
-              <div>
-                <span>{safeText(ticket.departure?.name, "Departure")}</span>
-                <strong>{formatDateTime(ticket.departureTimeLocal)}</strong>
-              </div>
-              <div>
-                <span>{safeText(ticket.arrival?.name, "Arrival")}</span>
-                <strong>{formatDateTime(ticket.arrivalTimeLocal)}</strong>
-              </div>
-            </div>
-            <footer>
-              <span>{safeText(ticket.carrierName, "Carrier")}</span>
-              <span>{`${safeText(ticket.classInfo, "TBD") || "TBD"} / ${safeText(ticket.seatInfo, "TBD") || "TBD"}`}</span>
-            </footer>
-          </>
-        )}
-      </article>
-      ) : null}
+      {shouldShowDetailRowDivider ? <div aria-hidden="true" className="detail-section-divider" /> : null}
 
-      {showsAttachments ? (
-      <article className="attachments-panel">
-        <div className="panel-heading">
-          <div>
-            <h3>Original ticket files</h3>
-          </div>
-          <span className="status-pill">{activeDetail?.attachments?.length ?? 0} files</span>
+      {shouldShowSecondDetailRow ? (
+        <div className="detail-ticket-module-row detail-ticket-module-row-bottom">
+          {stubPreviewModule}
+          {attachmentsModule}
         </div>
-        <input
-          accept="image/*,application/pdf"
-          className="hidden-file-input"
-          onChange={(event) => void handleFileChange(event)}
-          ref={fileInputRef}
-          type="file"
-        />
-        <div className="export-row">
-          <button
-            className="primary-button"
-            disabled={!activeDetail || attachmentBusy}
-            onClick={handleChooseAttachment}
-            type="button"
-          >
-            {attachmentBusy ? "正在处理附件..." : "添加附件"}
-          </button>
-        </div>
-        {activeDetail?.attachments?.length ? (
-          <div className="attachment-grid">
-            {(activeDetail.attachments ?? []).map((attachment) => (
-              <article className="attachment-card" key={attachment.id}>
-                {isImageAttachment(attachment) && attachment.previewUrl ? (
-                  <img
-                    alt={attachment.fileName}
-                    className="attachment-preview"
-                    src={attachment.previewUrl}
-                  />
-                ) : (
-                  <div className="attachment-fallback">
-                    <strong>{safeText(attachment.mimeType).includes("pdf") ? "PDF" : "FILE"}</strong>
-                  </div>
-                )}
-                <div className="attachment-meta">
-                  <strong>{safeText(attachment.fileName, "Attachment")}</strong>
-                  <span>{Math.max(1, Math.round(attachment.fileSize / 1024))} KB</span>
-                  <span>{formatDateTime(attachment.createdAt)}</span>
-                </div>
-                <div className="attachment-actions">
-                  {attachment.previewUrl ? (
-                    <a className="ghost-button compact-button" href={attachment.previewUrl} target="_blank" rel="noreferrer">
-                      Open
-                    </a>
-                  ) : null}
-                  <button
-                    className="ghost-button compact-button danger-button"
-                    disabled={attachmentBusy}
-                    onClick={() => void onDeleteAttachment(attachment.id)}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state">
-            <strong>No attachments yet</strong>
-            <p>Upload screenshots, scanned tickets, or PDF reimbursement files for this record.</p>
-          </div>
-        )}
-      </article>
       ) : null}
 
       {exportMessage ? <p className="detail-loading">{exportMessage}</p> : null}
@@ -948,30 +1129,6 @@ export function Dashboard({
         </article>
       ) : null}
 
-      {ticket && showsTicketMeta ? (
-      <article className="detail-grid">
-        <div className="detail-card">
-          <span>Departure timezone</span>
-          <strong>{safeText(ticket.departure?.timezone, "Unknown")}</strong>
-        </div>
-        <div className="detail-card">
-          <span>Arrival timezone</span>
-          <strong>{safeText(ticket.arrival?.timezone, "Unknown")}</strong>
-        </div>
-        <div className="detail-card">
-          <span>Notes</span>
-          <strong>{safeText(activeDetail?.stub.notes || ticket.notes, "No notes yet") || "No notes yet"}</strong>
-        </div>
-        <div className="detail-card">
-          <span>起点坐标</span>
-          <strong>
-            {activeDetail && hasUsableMapRoute(activeDetail.map)
-              ? `${formatCoordinate(activeDetail.map.origin.latitude)}, ${formatCoordinate(activeDetail.map.origin.longitude)}`
-              : "Pending"}
-          </strong>
-        </div>
-      </article>
-      ) : null}
     </section>
   );
 }

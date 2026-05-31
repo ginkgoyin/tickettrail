@@ -107,6 +107,154 @@
   - Revisit only if the issue returns.
   - Status: `Deferred / not needed for current phase`
 
+- `TICKET-DETAIL-002`
+  - Ticket detail should stop repeating large route titles once the local detail header already provides the context.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-003`
+  - The older overlapping ticket-detail summary module should not keep rendering for the current ticket-detail flow.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-004`
+  - Ticket information should stay compact and prioritize the main trip facts, including a computed duration.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-005`
+  - Original ticket files and ticket stub preview should sit side-by-side on wider desktop layouts.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-006`
+  - Low-value detail fields such as duplicated timezones, notes in the main grid, and raw coordinate cards should be removed from the main ticket-information layout.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-007`
+  - Ticket information should use an explicit row order instead of a loose auto-grid so the desktop detail layout stays predictable.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-008`
+  - Ticket detail should use a lightweight sticky action bar with Back, a centered title block, and Edit/Delete actions in one row.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-009`
+  - The top `Tickets` page title and info icon should not stay visible while viewing ticket detail.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-010`
+  - Ticket detail should use a simplified route title plus a subtler code subtitle in the sticky action bar.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-011`
+  - `Route legs` explanation via an info icon is deferred for the current phase.
+  - Status: `Deferred / not needed for current phase`
+
+- `TICKET-DETAIL-012`
+  - Unnecessary outer bordered/background wrappers around Ticket information, Route map, and Ticket stub preview should be removed so the detail page feels lighter.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-013`
+  - Remove the Route legs info icon/helper and keep the field visually clean.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-014`
+  - Remove only the extra outer wrapper around detail modules while keeping the modules themselves intact.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-015`
+  - Ticket-detail module titles should use one consistent Route-map-style title treatment across Ticket information, Route map, Ticket stub preview, and Original ticket files.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-016`
+  - The earlier single-row desktop layout idea for Ticket information plus Ticket stub preview was replaced by a clearer two-row ticket-detail layout.
+  - Status: `Superseded by TICKET-DETAIL-016A / TICKET-DETAIL-016B`
+
+- `TICKET-DETAIL-016A`
+  - The first desktop detail row should place Ticket information on the left and Route map on the right.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-016B`
+  - The second desktop detail row should place Ticket stub preview on the left and Original ticket files on the right.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-DETAIL-017`
+  - Keep a subtle divider between the first detail row (Ticket information + Route map) and the second detail row (Ticket stub preview + Original ticket files) without reintroducing a large bordered wrapper.
+  - Status: `Implemented / needs manual verification`
+
+- `STATUS-001`
+  - Ticket detail should allow inline status updates from the Ticket information card.
+  - Status: `Implemented / needs manual verification`
+
+- `STATUS-002`
+  - Current ticket-detail status labels should use clearer wording such as `Upcoming`, `Completed`, and `Archived` for the existing persisted states.
+  - Status: `Implemented / needs manual verification`
+
+- `STATUS-004`
+  - Ticket detail status explanation via an info icon is deferred for the current phase.
+  - Status: `Deferred / not needed for current phase`
+
+- `STATUS-005`
+  - When the ticket still uses the default auto status, the displayed status should derive from the current time as `Upcoming` or `Completed`.
+  - Status: `Implemented / needs manual verification`
+
+- `STATUS-006`
+  - Ticket detail status dropdown should still allow manual override of the current persisted status model.
+  - Status: `Implemented / needs manual verification`
+
+- `STATUS-007`
+  - Automatic/default status should continue to update over time based on current time when the ticket remains in auto mode.
+  - Status: `Implemented / needs manual verification`
+
+- `STATUS-008`
+  - Remove the Status info icon/helper and keep the Ticket information layout visually clean.
+  - Status: `Implemented / needs manual verification`
+
+- `ROUTE-MAP-001`
+  - Ticket detail route map should avoid repeating the route title once the header already provides the context.
+  - Status: `Implemented / needs manual verification`
+
+- `ROUTE-MAP-002`
+  - Route map footer should use clearer field labels for origin coordinate, duration, and distance.
+  - Status: `Implemented / needs manual verification`
+
+- `ROUTE-MAP-003`
+  - Route map footer spacing should stay compact but more readable, without adding extra endpoint arrows or time/timezone labels.
+  - Status: `Implemented / needs manual verification`
+
+- `ROUTE-MAP-006`
+  - Route map header and distance badge should have more breathing room before the map container.
+  - Status: `Implemented / needs manual verification`
+
+- `ROUTE-MAP-007`
+  - Route map title and distance badge should align cleanly in one header row, with a slightly larger title.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-STUB-001`
+  - Redundant ticket number text under the Ticket stub preview title should be removed.
+  - Status: `Implemented / needs manual verification`
+
+- `TICKET-STUB-002`
+  - Unnecessary transport type tags such as `FLIGHT` should be removed from the Ticket stub preview header.
+  - Status: `Implemented / needs manual verification`
+
+- `ROUTE-MAP-004`
+  - Do not reintroduce endpoint time/timezone labels on ticket detail maps unless a separate map-UX task proves they improve readability.
+  - Status: `Open / future route-map design`
+
+- `ROUTE-MAP-005`
+  - Any future richer ticket-detail route-map labeling should be handled as a dedicated redesign task instead of mixed into routine detail cleanup.
+  - Status: `Open / future route-map design`
+
+- `TICKET-DATA-001`
+  - Supporting a true `Cancelled` ticket status would require a separate data/semantics decision beyond the current `saved` / `used` / `archived` persistence model.
+  - Status: `Open / future data decision`
+
+- `UI-ENCODING-001`
+  - Garbled or mojibake button/tab text in Ticket stub preview and Original ticket files should be replaced with clear English labels.
+  - Status: `Implemented / needs manual verification`
+
+- `UI-LANGUAGE-001`
+  - The current detail refinement phase remains English-first; do not add Chinese localization yet.
+  - Status: `Recorded / principle`
+
 - `I18N-002`
   - The current phase should finish the English UI first before Chinese localization is implemented.
   - Status: `Recorded / principle`
@@ -263,11 +411,6 @@
   - After deleting a ticket, return to the list and refresh selected/list state safely.
   - Status: `Implemented / needs manual verification`
   - Priority: `High`
-
-- `STATUS-001`
-  - Current statuses `saved` / `used` / `archived` remain unclear and need a later semantic redesign.
-  - Status: `Needs decision`
-  - Priority: `Medium`
 
 - `THEME-001`
   - Add light/day mode support later.

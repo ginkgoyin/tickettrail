@@ -25,6 +25,29 @@ const ticketTabs: Array<{ value: TicketTypeTab; label: string }> = [
   { value: "train", label: "Rail" },
 ];
 
+function cleanRouteTitleLabel(value: string | undefined) {
+  const text = (value ?? "").trim();
+  if (!text) {
+    return "--";
+  }
+
+  return text
+    .replace(/\([^)]*\)/g, "")
+    .replace(/国际机场$/u, "")
+    .replace(/机场$/u, "")
+    .replace(/火车站$/u, "")
+    .replace(/高铁站$/u, "")
+    .replace(/站$/u, "")
+    .replace(/ International Airport$/i, "")
+    .replace(/ Airport$/i, "")
+    .replace(/ Railway Station$/i, "")
+    .replace(/ Rail Station$/i, "")
+    .replace(/ Train Station$/i, "")
+    .replace(/ Station$/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim() || text;
+}
+
 export function TicketsPage({
   importProps,
   formProps,
@@ -52,13 +75,31 @@ export function TicketsPage({
     }
   }, [dashboardProps.ticket, subview]);
 
-  const detailTitle = useMemo(() => {
+  const detailHeader = useMemo(() => {
     if (!dashboardProps.ticket) {
-      return "Ticket detail";
+      return {
+        title: "Ticket detail",
+        subtitle: "",
+      };
     }
 
-    return `${dashboardProps.ticket.routeLabel} - ${dashboardProps.ticket.code}`;
-  }, [dashboardProps.ticket]);
+    const detail = dashboardProps.detail?.ticket.id === dashboardProps.ticket.id
+      ? dashboardProps.detail
+      : null;
+    const departureTitle = cleanRouteTitleLabel(
+      detail?.map.origin.label || dashboardProps.ticket.departure.name,
+    );
+    const arrivalTitle = cleanRouteTitleLabel(
+      detail?.map.destination.label || dashboardProps.ticket.arrival.name,
+    );
+    const departureCode = dashboardProps.ticket.departure.code || detail?.map.origin.code || "--";
+    const arrivalCode = dashboardProps.ticket.arrival.code || detail?.map.destination.code || "--";
+
+    return {
+      title: `${departureTitle} to ${arrivalTitle}`,
+      subtitle: `${departureCode} → ${arrivalCode}`,
+    };
+  }, [dashboardProps.detail, dashboardProps.ticket]);
 
   const handleTabChange = (ticketType: TicketTypeTab) => {
     listProps.onFiltersChange({
@@ -190,31 +231,29 @@ export function TicketsPage({
           <button className="ghost-button compact-button" onClick={() => setSubview("browse")} type="button">
             Back to list
           </button>
-          <div className="tickets-subview-heading">
-            <div>
-              <span className="ticket-kind">Selected ticket</span>
-              <h3>{detailTitle}</h3>
-            </div>
-            <div className="tickets-subview-actions">
-              <button className="ghost-button compact-button" onClick={handleEditSelectedTicket} type="button">
-                Edit
-              </button>
-              <button
-                aria-label="Delete ticket"
-                className="ghost-button compact-button danger-button ticket-delete-button"
-                disabled={isDeleting}
-                onClick={() => void handleDeleteSelectedTicket()}
-                title="Delete ticket"
-                type="button"
-              >
-                <svg aria-hidden="true" className="ticket-delete-icon" viewBox="0 0 24 24">
-                  <path
-                    d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v8h-2V9Zm4 0h2v8h-2V9ZM7 9h2v8H7V9Zm1 11a2 2 0 0 1-2-2V8h12v10a2 2 0 0 1-2 2H8Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </button>
-            </div>
+          <div className="tickets-detail-title">
+            <h3>{detailHeader.title}</h3>
+            <p>{detailHeader.subtitle}</p>
+          </div>
+          <div className="tickets-subview-actions">
+            <button className="ghost-button compact-button" onClick={handleEditSelectedTicket} type="button">
+              Edit
+            </button>
+            <button
+              aria-label="Delete ticket"
+              className="ghost-button compact-button danger-button ticket-delete-button"
+              disabled={isDeleting}
+              onClick={() => void handleDeleteSelectedTicket()}
+              title="Delete ticket"
+              type="button"
+            >
+              <svg aria-hidden="true" className="ticket-delete-icon" viewBox="0 0 24 24">
+                <path
+                  d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v8h-2V9Zm4 0h2v8h-2V9ZM7 9h2v8H7V9Zm1 11a2 2 0 0 1-2-2V8h12v10a2 2 0 0 1-2 2H8Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
           </div>
         </div>
         <Dashboard {...dashboardProps} mode="tickets" />

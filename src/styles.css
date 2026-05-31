@@ -1131,25 +1131,54 @@ textarea {
 }
 
 .tickets-subview-header {
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 16;
+  padding: 12px 4px 14px;
+  border-radius: 0;
+  border: 0;
+  background: linear-gradient(180deg, rgba(7, 22, 33, 0.92), rgba(7, 22, 33, 0.78), rgba(7, 22, 33, 0));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
 .tickets-subview-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: 100%;
+}
+
+.tickets-detail-title {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+  min-width: 0;
+}
+
+.tickets-detail-title h3 {
+  margin: 0;
+}
+
+.tickets-detail-title p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
 }
 
 .tickets-subview-actions {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  justify-self: end;
 }
 
 .tickets-subview-header h3 {
-  margin: 4px 0 0;
   font-size: 1.6rem;
 }
 
@@ -1564,6 +1593,13 @@ textarea {
   gap: 20px;
 }
 
+.dashboard-detail {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
 .detail-loading,
 .map-summary {
   color: var(--text-soft);
@@ -1614,6 +1650,39 @@ textarea {
   flex-wrap: wrap;
 }
 
+.route-map-footer {
+  gap: 18px;
+}
+
+.route-map-footer span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-map-footer strong {
+  color: var(--text);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.route-map-card {
+  display: grid;
+  gap: 18px;
+}
+
+.route-map-header {
+  align-items: center;
+}
+
+.detail-module-title,
+.route-map-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .map-preview,
 .stub-preview,
 .attachments-panel,
@@ -1627,6 +1696,13 @@ textarea {
 .itinerary-overview-card {
   display: grid;
   gap: 14px;
+}
+
+.detail-module-shell {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .scope-overview-card,
@@ -1853,12 +1929,84 @@ textarea {
   gap: 14px;
 }
 
-.detail-facts-grid {
+.detail-facts-rows {
+  display: grid;
+  gap: 14px;
+}
+
+.detail-facts-row {
+  gap: 14px;
+}
+
+.detail-facts-row-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.detail-facts-row-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.detail-status-select {
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 22, 33, 0.75);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.detail-notes-card {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-notes-card p {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
+.detail-helper-text {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.detail-section-divider {
+  height: 1px;
+  margin: 4px 0 2px;
+  background: linear-gradient(90deg, transparent, rgba(186, 215, 225, 0.18), transparent);
+}
+
+.detail-ticket-module-row {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
+
+.detail-ticket-module-row-top {
+  grid-template-columns: minmax(0, 1.12fr) minmax(340px, 1fr);
+}
+
+.detail-ticket-module-row-bottom {
+  grid-template-columns: minmax(320px, 0.98fr) minmax(0, 1.02fr);
+}
+
+.detail-ticket-module-row > * {
+  min-width: 0;
 }
 
 .detail-card-wide {
   grid-column: span 2;
+}
+
+.workspace:has(.tickets-detail-view) .section-page-header {
+  display: none;
 }
 
 @media (max-width: 1100px) {
@@ -1880,7 +2028,9 @@ textarea {
   .journeys-hero-grid,
   .journeys-phase-grid,
   .hero,
-  .detail-facts-grid {
+  .detail-facts-row-3,
+  .detail-facts-row-4,
+  .detail-ticket-module-row {
     grid-template-columns: 1fr;
   }
 }
