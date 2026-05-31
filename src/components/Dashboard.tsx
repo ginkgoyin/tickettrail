@@ -695,6 +695,14 @@ export function Dashboard({
               <strong>{ticket.segmentCount}</strong>
             </div>
           </div>
+          {ticket.notes ? (
+            <div className="detail-grid detail-facts-row detail-facts-row-notes">
+              <div className="detail-card detail-card-notes">
+                <span>Notes</span>
+                <p>{ticket.notes}</p>
+              </div>
+            </div>
+          ) : null}
         </div>
       </article>
     ) : null;
@@ -933,13 +941,6 @@ export function Dashboard({
           <span className="status-pill">{`${getStatusLabel(ticket.status)} | ${ticket.segmentCount} segment(s)`}</span>
         </div>
       ) : null}
-      {ticket?.notes && showsTicketMeta ? (
-        <article className="detail-card detail-notes-card">
-          <span>Notes</span>
-          <p>{ticket.notes}</p>
-        </article>
-      ) : null}
-
       {isLoading ? <p className="detail-loading">Loading route, stub, and attachment data...</p> : null}
 
       {itinerarySummary && showsSelectedSummary ? (

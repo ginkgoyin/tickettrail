@@ -179,6 +179,10 @@
   - Keep a subtle divider between the first detail row (Ticket information + Route map) and the second detail row (Ticket stub preview + Original ticket files) without reintroducing a large bordered wrapper.
   - Status: `Implemented / needs manual verification`
 
+- `TICKET-DETAIL-018`
+  - When notes exist, they should appear as the final row inside `Ticket information` instead of as a separate standalone card above the modules.
+  - Status: `Implemented / needs manual verification`
+
 - `STATUS-001`
   - Ticket detail should allow inline status updates from the Ticket information card.
   - Status: `Implemented / needs manual verification`

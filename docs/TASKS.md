@@ -328,6 +328,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - The latest refinement pass simplifies further: keep the auto/default status live over time with a lightweight frontend clock, remove the temporary Status and Route legs info icons again, and remove only the extra outer detail shell while preserving each module (`Ticket information`, `Route map`, `Ticket stub preview`) as its own readable block.
   - The current visual cleanup should now use two desktop detail rows with safe responsive stacking: `Ticket information` left of `Route map`, then `Ticket stub preview` left of `Original ticket files`, separated by only a lightweight divider instead of another boxed wrapper.
   - Ticket-detail text cleanup for this phase should stay English-first and replace any mojibake labels in stub-preview and attachment actions with clear English button text.
+  - When a ticket has notes, the notes block should now live inside `Ticket information` as its final row instead of floating above the detail modules as a separate card.
   - English UI completion remains the current priority; language switching and Chinese localization should wait for a later Settings/i18n phase.
 
 ### [ ] Document UX direction before implementation

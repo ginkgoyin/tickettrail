@@ -1946,6 +1946,10 @@ textarea {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.detail-facts-row-notes {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .detail-status-select {
   width: 100%;
   margin-top: 8px;
@@ -1956,11 +1960,13 @@ textarea {
   padding: 10px 12px;
 }
 
+.detail-card-notes,
 .detail-notes-card {
   display: grid;
   gap: 10px;
 }
 
+.detail-card-notes p,
 .detail-notes-card p {
   margin: 0;
   color: var(--text-soft);
