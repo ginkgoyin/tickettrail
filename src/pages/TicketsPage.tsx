@@ -3,6 +3,7 @@ import { Dashboard } from "../components/Dashboard";
 import { SmartImport } from "../components/SmartImport";
 import { TicketForm } from "../components/TicketForm";
 import { TicketList } from "../components/TicketList";
+import { useI18n } from "../lib/i18n";
 
 type SmartImportProps = ComponentProps<typeof SmartImport>;
 type TicketFormProps = ComponentProps<typeof TicketForm>;
@@ -19,33 +20,29 @@ interface TicketsPageProps {
   dashboardProps: DashboardProps;
 }
 
-const ticketTabs: Array<{ value: TicketTypeTab; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "flight", label: "Flights" },
-  { value: "train", label: "Rail" },
-];
-
 function cleanRouteTitleLabel(value: string | undefined) {
   const text = (value ?? "").trim();
   if (!text) {
     return "--";
   }
 
-  return text
-    .replace(/\([^)]*\)/g, "")
-    .replace(/国际机场$/u, "")
-    .replace(/机场$/u, "")
-    .replace(/火车站$/u, "")
-    .replace(/高铁站$/u, "")
-    .replace(/站$/u, "")
-    .replace(/ International Airport$/i, "")
-    .replace(/ Airport$/i, "")
-    .replace(/ Railway Station$/i, "")
-    .replace(/ Rail Station$/i, "")
-    .replace(/ Train Station$/i, "")
-    .replace(/ Station$/i, "")
-    .replace(/\s{2,}/g, " ")
-    .trim() || text;
+  return (
+    text
+      .replace(/\([^)]*\)/g, "")
+      .replace(/国际机场$/u, "")
+      .replace(/机场$/u, "")
+      .replace(/火车站$/u, "")
+      .replace(/高铁站$/u, "")
+      .replace(/站$/u, "")
+      .replace(/ International Airport$/i, "")
+      .replace(/ Airport$/i, "")
+      .replace(/ Railway Station$/i, "")
+      .replace(/ Rail Station$/i, "")
+      .replace(/ Train Station$/i, "")
+      .replace(/ Station$/i, "")
+      .replace(/\s{2,}/g, " ")
+      .trim() || text
+  );
 }
 
 export function TicketsPage({
@@ -54,9 +51,16 @@ export function TicketsPage({
   listProps,
   dashboardProps,
 }: TicketsPageProps) {
+  const { t } = useI18n();
   const [subview, setSubview] = useState<TicketsSubview>("browse");
   const [showComposer, setShowComposer] = useState(false);
   const [composerTab, setComposerTab] = useState<TicketComposerTab>("form");
+
+  const ticketTabs: Array<{ value: TicketTypeTab; label: string }> = [
+    { value: "all", label: t("all") },
+    { value: "flight", label: t("flights") },
+    { value: "train", label: t("rail") },
+  ];
 
   const shouldForceComposerOpen = Boolean(
     formProps.mode === "edit" || formProps.initialDraft || formProps.importedDraft || formProps.importReview?.length,
@@ -78,7 +82,7 @@ export function TicketsPage({
   const detailHeader = useMemo(() => {
     if (!dashboardProps.ticket) {
       return {
-        title: "Ticket detail",
+        title: t("ticketDetail"),
         subtitle: "",
       };
     }
@@ -97,9 +101,9 @@ export function TicketsPage({
 
     return {
       title: `${departureTitle} to ${arrivalTitle}`,
-      subtitle: `${departureCode} → ${arrivalCode}`,
+      subtitle: `${departureCode} -> ${arrivalCode}`,
     };
-  }, [dashboardProps.detail, dashboardProps.ticket]);
+  }, [dashboardProps.detail, dashboardProps.ticket, t]);
 
   const handleTabChange = (ticketType: TicketTypeTab) => {
     listProps.onFiltersChange({
@@ -171,15 +175,15 @@ export function TicketsPage({
   const composerModal = showComposer ? (
     <div className="modal-backdrop" role="presentation">
       <div
-        aria-label={formProps.mode === "edit" ? "Edit ticket dialog" : "Add ticket dialog"}
+        aria-label={formProps.mode === "edit" ? t("editTicketRecord") : t("addTicket")}
         aria-modal="true"
         className="modal-shell tickets-modal"
         role="dialog"
       >
         <div className="tickets-modal-header">
-          <h3>{formProps.mode === "edit" ? "Edit ticket record" : "Add ticket"}</h3>
+          <h3>{formProps.mode === "edit" ? t("editTicketRecord") : t("addTicket")}</h3>
           <button
-            aria-label={formProps.mode === "edit" ? "Close edit ticket" : "Close add ticket"}
+            aria-label={`${t("close")} ${formProps.mode === "edit" ? t("edit") : t("addTicket")}`}
             className="modal-close-button"
             onClick={handleCancelComposer}
             type="button"
@@ -195,14 +199,14 @@ export function TicketsPage({
               onClick={() => setComposerTab("form")}
               type="button"
             >
-              Ticket form
+              {t("ticketForm")}
             </button>
             <button
               className={composerTab === "import" ? "theme-chip active" : "theme-chip"}
               onClick={() => setComposerTab("import")}
               type="button"
             >
-              OCR / import
+              {t("ocrImport")}
             </button>
           </div>
         ) : null}
@@ -229,7 +233,7 @@ export function TicketsPage({
       <section className="section-stack tickets-detail-view">
         <div className="tickets-subview-header">
           <button className="ghost-button compact-button" onClick={() => setSubview("browse")} type="button">
-            Back to list
+            {t("backToList")}
           </button>
           <div className="tickets-detail-title">
             <h3>{detailHeader.title}</h3>
@@ -237,14 +241,14 @@ export function TicketsPage({
           </div>
           <div className="tickets-subview-actions">
             <button className="ghost-button compact-button" onClick={handleEditSelectedTicket} type="button">
-              Edit
+              {t("edit")}
             </button>
             <button
-              aria-label="Delete ticket"
+              aria-label={t("deleteTicket")}
               className="ghost-button compact-button danger-button ticket-delete-button"
               disabled={isDeleting}
               onClick={() => void handleDeleteSelectedTicket()}
-              title="Delete ticket"
+              title={t("deleteTicket")}
               type="button"
             >
               <svg aria-hidden="true" className="ticket-delete-icon" viewBox="0 0 24 24">
@@ -265,7 +269,7 @@ export function TicketsPage({
   return (
     <section className="section-stack tickets-browse-view">
       <div className="tickets-topbar">
-        <div className="tickets-tab-group" role="tablist" aria-label="Ticket type views">
+        <div aria-label="Ticket type views" className="tickets-tab-group" role="tablist">
           {ticketTabs.map((tab) => (
             <button
               aria-selected={listProps.filters.ticketType === tab.value}
@@ -282,10 +286,10 @@ export function TicketsPage({
 
         <div className="tickets-topbar-actions">
           <button className="primary-button" onClick={handleOpenComposer} type="button">
-            Add ticket
+            {t("addTicket")}
           </button>
           <button className="ghost-button" onClick={handleOpenImportComposer} type="button">
-            OCR / import
+            {t("ocrImport")}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useI18n } from "../lib/i18n";
 import type { TicketRecord, TicketStatus, TicketType } from "../types/ticket";
 
 export type TicketSort = "created_desc" | "created_asc" | "departure_asc" | "departure_desc";
@@ -59,13 +60,24 @@ function buildTimelineLabel(ticket: TicketRecord) {
 }
 
 function transportIcon(ticketType: TicketType) {
-  return ticketType === "flight" ? "✈" : "🚆";
+  return ticketType === "flight" ? "\u2708" : "\uD83D\uDE86";
+}
+
+function getStatusChipLabel(ticket: TicketRecord, language: "en" | "zh") {
+  if (ticket.status === "saved") {
+    return language === "zh" ? "已保存" : "Saved";
+  }
+  if (ticket.status === "used") {
+    return language === "zh" ? "已完成" : "Completed";
+  }
+  return language === "zh" ? "已归档" : "Archived";
 }
 
 function renderTicketRow(
   ticket: TicketRecord,
   selectedId: string,
   onSelect: (id: string) => void,
+  language: "en" | "zh",
 ) {
   return (
     <button
@@ -74,7 +86,7 @@ function renderTicketRow(
       onClick={() => onSelect(ticket.id)}
       type="button"
     >
-      <div className="ticket-row-icon" aria-hidden="true">
+      <div aria-hidden="true" className="ticket-row-icon">
         {transportIcon(ticket.ticketType)}
       </div>
       <div className="ticket-row-main">
@@ -84,16 +96,16 @@ function renderTicketRow(
         </div>
         <div className="ticket-row-meta">
           <span>{formatDateTime(ticket.departureTimeLocal)}</span>
-          <span>→</span>
+          <span>{"->"}</span>
           <span>{formatDateTime(ticket.arrivalTimeLocal)}</span>
         </div>
         <div className="ticket-row-submeta">
           <span>{ticket.carrierName}</span>
-          <span>{`${ticket.departure.code || ticket.departure.name} → ${ticket.arrival.code || ticket.arrival.name}`}</span>
+          <span>{`${ticket.departure.code || ticket.departure.name} -> ${ticket.arrival.code || ticket.arrival.name}`}</span>
         </div>
       </div>
       <div className="ticket-row-side">
-        <span className={`ticket-status ticket-status-${ticket.status}`}>{ticket.status}</span>
+        <span className={`ticket-status ticket-status-${ticket.status}`}>{getStatusChipLabel(ticket, language)}</span>
         <small>{`${ticket.segmentCount} leg${ticket.segmentCount > 1 ? "s" : ""}`}</small>
       </div>
     </button>
@@ -109,6 +121,7 @@ export function TicketList({
   onResetFilters,
   onSelect,
 }: TicketListProps) {
+  const { language, t } = useI18n();
   const pageSize = 20;
   const [viewMode, setViewMode] = useState<TicketListView>("list");
   const [page, setPage] = useState(1);
@@ -137,7 +150,7 @@ export function TicketList({
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <h3>Ticket history</h3>
+          <h3>{t("ticketHistory")}</h3>
         </div>
         <span className="status-pill">
           {tickets.length} shown / {totalCount} total
@@ -151,21 +164,21 @@ export function TicketList({
             onClick={() => setViewMode("list")}
             type="button"
           >
-            List
+            {t("list")}
           </button>
           <button
             className={viewMode === "timeline" ? "theme-chip active" : "theme-chip"}
             onClick={() => setViewMode("timeline")}
             type="button"
           >
-            Timeline
+            {t("timeline")}
           </button>
         </div>
       </div>
 
       <div className="ticket-filters">
         <label>
-          Search
+          {t("search")}
           <input
             onChange={(event) => onFiltersChange({ ...filters, query: event.target.value })}
             placeholder="Code, route, carrier, notes..."
@@ -173,7 +186,7 @@ export function TicketList({
           />
         </label>
         <label>
-          Type
+          {t("type")}
           <select
             onChange={(event) =>
               onFiltersChange({
@@ -183,13 +196,13 @@ export function TicketList({
             }
             value={filters.ticketType}
           >
-            <option value="all">All</option>
-            <option value="flight">Flight</option>
-            <option value="train">Rail</option>
+            <option value="all">{t("all")}</option>
+            <option value="flight">{t("flights")}</option>
+            <option value="train">{t("rail")}</option>
           </select>
         </label>
         <label>
-          Status
+          {t("status")}
           <select
             onChange={(event) =>
               onFiltersChange({
@@ -199,14 +212,14 @@ export function TicketList({
             }
             value={filters.status}
           >
-            <option value="all">All</option>
-            <option value="saved">Saved</option>
-            <option value="used">Used</option>
-            <option value="archived">Archived</option>
+            <option value="all">{t("all")}</option>
+            <option value="saved">{t("saved")}</option>
+            <option value="used">{t("used")}</option>
+            <option value="archived">{t("archived")}</option>
           </select>
         </label>
         <label>
-          Sort
+          {t("sort")}
           <select
             onChange={(event) =>
               onFiltersChange({
@@ -216,42 +229,42 @@ export function TicketList({
             }
             value={filters.sort}
           >
-            <option value="departure_desc">Newest departure</option>
-            <option value="departure_asc">Earliest departure</option>
-            <option value="created_desc">Newest created</option>
-            <option value="created_asc">Oldest created</option>
+            <option value="departure_desc">{t("newestDeparture")}</option>
+            <option value="departure_asc">{t("earliestDeparture")}</option>
+            <option value="created_desc">{t("newestCreated")}</option>
+            <option value="created_asc">{t("oldestCreated")}</option>
           </select>
         </label>
       </div>
 
       <button className="ghost-button compact-button filter-reset" onClick={onResetFilters} type="button">
-        Reset filters
+        {t("resetFilters")}
       </button>
 
       {viewMode === "list" ? (
         <div className="ticket-list compact-ticket-list">
           {tickets.length === 0 ? (
             <div className="empty-state">
-              <strong>No tickets match the current filters.</strong>
-              <p>Try adjusting search terms, ticket type, or travel status.</p>
+              <strong>{t("noTicketsYet")}</strong>
+              <p>{t("noTicketsMatchCurrentFilters")}</p>
             </div>
           ) : (
-            pageTickets.map((ticket) => renderTicketRow(ticket, selectedId, onSelect))
+            pageTickets.map((ticket) => renderTicketRow(ticket, selectedId, onSelect, language))
           )}
         </div>
       ) : (
         <div className="timeline-list compact-timeline-list">
           {timelineGroups.length === 0 ? (
             <div className="empty-state">
-              <strong>No tickets match the current filters.</strong>
-              <p>Try adjusting search terms, ticket type, or travel status.</p>
+              <strong>{t("noTicketsYet")}</strong>
+              <p>{t("noTicketsMatchCurrentFilters")}</p>
             </div>
           ) : (
             timelineGroups.map(([label, group]) => (
               <div className="timeline-group" key={label}>
                 <div className="timeline-date">{label}</div>
                 <div className="timeline-items compact-ticket-list">
-                  {group.map((ticket) => renderTicketRow(ticket, selectedId, onSelect))}
+                  {group.map((ticket) => renderTicketRow(ticket, selectedId, onSelect, language))}
                 </div>
               </div>
             ))
@@ -260,7 +273,7 @@ export function TicketList({
       )}
 
       {tickets.length > pageSize ? (
-        <div className="pagination-bar" aria-label="Ticket list pagination">
+        <div aria-label="Ticket list pagination" className="pagination-bar">
           <div className="pagination-summary">
             {`${pageStart + 1}-${Math.min(pageStart + pageTickets.length, tickets.length)} of ${tickets.length}`}
           </div>
@@ -271,7 +284,7 @@ export function TicketList({
               onClick={() => setPage((value) => Math.max(1, value - 1))}
               type="button"
             >
-              Previous
+              {t("previous")}
             </button>
             {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
               <button
@@ -289,7 +302,7 @@ export function TicketList({
               onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
               type="button"
             >
-              Next
+              {t("next")}
             </button>
           </div>
         </div>

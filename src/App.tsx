@@ -11,6 +11,13 @@ import { JourneysPage } from "./pages/JourneysPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TicketsPage } from "./pages/TicketsPage";
 import {
+  getMessage,
+  I18nProvider,
+  LANGUAGE_STORAGE_KEY,
+  type I18nKey,
+  type Language,
+} from "./lib/i18n";
+import {
   addTicketAttachment,
   createBackup,
   createTicket,
@@ -191,8 +198,17 @@ export default function App() {
   const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
   const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>("overview");
+  const [language, setLanguage] = useState<Language>(() => {
+    try {
+      const storedValue = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      return storedValue === "zh" ? "zh" : "en";
+    } catch {
+      return "en";
+    }
+  });
 
   const deferredQuery = useDeferredValue(filters.query);
+  const t = useMemo(() => (key: I18nKey) => getMessage(language, key), [language]);
 
   const visibleTickets = useMemo(() => {
     const filtered = tickets.filter((ticket) => {
@@ -230,8 +246,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(savedViewsStorageKey, JSON.stringify(savedViews));
+    try {
+      window.localStorage.setItem(savedViewsStorageKey, JSON.stringify(savedViews));
+    } catch {
+      // Ignore storage write failures and keep the in-memory state usable.
+    }
   }, [savedViews]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // Ignore storage write failures and keep the in-memory state usable.
+    }
+  }, [language]);
 
   useEffect(() => {
     let isMounted = true;
@@ -372,7 +400,7 @@ export default function App() {
 
   const handleDeleteTicket = async (ticketId: string) => {
     const ticket = tickets.find((item) => item.id === ticketId);
-    if (!ticket || !window.confirm(`Delete ticket ${ticket.code} (${ticket.routeLabel})?`)) {
+    if (!ticket || !window.confirm(`${t("deleteTicket")} ${ticket.code} (${ticket.routeLabel})?`)) {
       return false;
     }
 
@@ -570,11 +598,11 @@ export default function App() {
     try {
       const nextBackup = await createBackup();
       const readiness = await getBackupReadiness();
-      setBackupNotice(`已创建备份：${nextBackup.label}`);
+      setBackupNotice(`Backup created: ${nextBackup.label}`);
       startTransition(() => {
         setBackups((current) => [nextBackup, ...current.filter((item) => item.id !== nextBackup.id)]);
         setBackupReadiness(readiness);
-        setBackupStatusMessage(`已创建备份：${nextBackup.label}`);
+        setBackupStatusMessage(`Backup created: ${nextBackup.label}`);
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to create backup.");
@@ -586,8 +614,8 @@ export default function App() {
   const handleRestoreBackup = async (backupId: string) => {
     const targetBackup = backups.find((backup) => backup.id === backupId);
     const confirmMessage = targetBackup
-      ? `将恢复备份“${targetBackup.label}”。\n其中包含 ${targetBackup.ticketCount} 张票和 ${targetBackup.attachmentCount} 个附件。\n恢复后会覆盖当前数据库和附件，确定继续吗？`
-      : "恢复备份会覆盖当前数据库和附件，确定继续吗？";
+      ? `Restore backup "${targetBackup.label}"?\nIt contains ${targetBackup.ticketCount} ticket(s) and ${targetBackup.attachmentCount} attachment(s).\nThis will overwrite the current database and attachments.`
+      : "Restore this backup? This will overwrite the current database and attachments.";
 
     if (!window.confirm(confirmMessage)) {
       return;
@@ -606,7 +634,7 @@ export default function App() {
         getBackupReadiness(),
       ]);
       const restoredBackup = restoredBackups.find((backup) => backup.id === backupId);
-      setBackupNotice(restoredBackup ? `已恢复备份：${restoredBackup.label}` : "已恢复选中的备份。");
+      setBackupNotice(restoredBackup ? `Backup restored: ${restoredBackup.label}` : "Selected backup restored.");
       startTransition(() => {
         setTickets(restoredTickets);
         setBackups(restoredBackups);
@@ -615,7 +643,7 @@ export default function App() {
         setEditingId("");
         setImportedDraft(null);
         setImportReview(null);
-        setBackupStatusMessage(restoredBackup ? `已恢复备份：${restoredBackup.label}` : "已恢复选中的备份。");
+        setBackupStatusMessage(restoredBackup ? `Backup restored: ${restoredBackup.label}` : "Selected backup restored.");
         setDetailVersion((current) => current + 1);
       });
     } catch (error) {
@@ -632,9 +660,9 @@ export default function App() {
 
     try {
       const exportPath = await exportBackup(backupId);
-      setBackupNotice(`备份已导出到：${exportPath}`);
+      setBackupNotice(`Backup exported to: ${exportPath}`);
       startTransition(() => {
-        setBackupStatusMessage(`备份已导出到：${exportPath}`);
+        setBackupStatusMessage(`Backup exported to: ${exportPath}`);
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to export backup.");
@@ -651,9 +679,9 @@ export default function App() {
 
     try {
       const archivePath = await exportArchiveBundle();
-      setBackupNotice(`整库包已导出：${archivePath}`);
+      setBackupNotice(`Archive bundle exported: ${archivePath}`);
       startTransition(() => {
-        setBackupStatusMessage(`整库包已导出：${archivePath}`);
+        setBackupStatusMessage(`Archive bundle exported: ${archivePath}`);
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to export archive bundle.");
@@ -663,7 +691,7 @@ export default function App() {
   };
 
   const handleImportArchiveBundle = async (bundlePath: string) => {
-    if (!window.confirm("导入整库包会覆盖当前数据库和附件，确定继续吗？")) {
+    if (!window.confirm("Import archive bundle? This will overwrite the current database and attachments.")) {
       return;
     }
 
@@ -679,7 +707,7 @@ export default function App() {
         listBackups(),
         getBackupReadiness(),
       ]);
-      setBackupNotice(`整库包已导入：${bundlePath}`);
+      setBackupNotice(`Archive bundle imported: ${bundlePath}`);
       startTransition(() => {
         setTickets(restoredTickets);
         setBackups(restoredBackups);
@@ -688,7 +716,7 @@ export default function App() {
         setEditingId("");
         setImportedDraft(null);
         setImportReview(null);
-        setBackupStatusMessage(`整库包已导入：${bundlePath}`);
+        setBackupStatusMessage(`Archive bundle imported: ${bundlePath}`);
         setDetailVersion((current) => current + 1);
       });
     } catch (error) {
@@ -755,21 +783,29 @@ export default function App() {
 
     const sectionKey = activeSection === "exports" ? "settings" : activeSection;
 
-    const sectionMeta: Record<Exclude<AppSection, "overview" | "exports">, { title: string; copy: string }> = {
+    const sectionMeta: Record<AppSection, { title: string; copy: string }> = {
+      overview: {
+        title: t("overview"),
+        copy: "Track archive health, routes, and current workspace summaries.",
+      },
       tickets: {
-        title: "Tickets",
+        title: t("tickets"),
         copy: "Manage ticket records, imports, search, and selected ticket detail.",
       },
       journeys: {
-        title: "Journeys",
+        title: t("journeys"),
         copy: "Browse trip-level summaries and future journey records without duplicating single-ticket detail.",
       },
       map: {
-        title: "Map",
+        title: t("map"),
         copy: "Inspect route-focused content in a dedicated section without repeating the home summary.",
       },
       settings: {
-        title: "Settings",
+        title: t("settings"),
+        copy: "Review future desktop preferences, backup/export placeholders, and app information.",
+      },
+      exports: {
+        title: t("settings"),
         copy: "Review future desktop preferences, backup/export placeholders, and app information.",
       },
     };
@@ -900,15 +936,23 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar activeSection={activeSection} onSelectSection={setActiveSection} />
-      <main className="workspace" ref={workspaceRef}>
-        <AppErrorBoundary>
-          {activeSection === "overview" ? <Header /> : null}
-          {renderSectionHeader()}
+      <I18nProvider
+        value={{
+          language,
+          setLanguage,
+          t,
+        }}
+      >
+        <Sidebar activeSection={activeSection} onSelectSection={setActiveSection} />
+        <main className="workspace" ref={workspaceRef}>
+          <AppErrorBoundary>
+            {activeSection === "overview" ? <Header /> : null}
+            {renderSectionHeader()}
 
-          {sectionContent}
-        </AppErrorBoundary>
-      </main>
+            {sectionContent}
+          </AppErrorBoundary>
+        </main>
+      </I18nProvider>
     </div>
   );
 }

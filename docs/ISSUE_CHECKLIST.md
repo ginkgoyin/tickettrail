@@ -264,8 +264,8 @@
   - Status: `Recorded / principle`
 
 - `I18N-001`
-  - Settings should include a language switch between English and Chinese.
-  - Status: `Open / next task`
+  - Settings now include a language switch between English and Chinese for the current desktop phase.
+  - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
 - `I18N-002`
@@ -274,13 +274,18 @@
   - Priority: `Medium`
 
 - `I18N-003`
-  - UI labels should support English / Chinese switching through the language setting.
-  - Status: `Open / future i18n task`
+  - Core UI labels now support English / Chinese switching through the language setting.
+  - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
 - `I18N-004`
   - User-entered ticket data and airport/station names should not be automatically translated.
-  - Status: `Open / future i18n rule`
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
+- `I18N-005`
+  - Remaining long-tail UI strings should continue migrating to the i18n dictionary over time instead of blocking the current language-switch rollout.
+  - Status: `Open / future cleanup`
   - Priority: `Medium`
 
 - `IA-001`

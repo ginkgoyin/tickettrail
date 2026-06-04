@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useI18n } from "../lib/i18n";
 import {
   buildMapSvgFromSegments,
   buildStubSvg,
@@ -61,20 +62,20 @@ function formatDateTime(value: unknown) {
   return text.replace("T", " ").slice(0, 16) || text;
 }
 
-function getTicketNumberLabel(ticketType: TicketRecord["ticketType"]) {
-  return ticketType === "train" ? "Train No." : "Flight No.";
+function getTicketNumberLabel(ticketType: TicketRecord["ticketType"], flightLabel: string, trainLabel: string) {
+  return ticketType === "train" ? trainLabel : flightLabel;
 }
 
-function getOperatorLabel(ticketType: TicketRecord["ticketType"]) {
-  return ticketType === "train" ? "Operator" : "Carrier / Operator";
+function getOperatorLabel(ticketType: TicketRecord["ticketType"], flightLabel: string, trainLabel: string) {
+  return ticketType === "train" ? trainLabel : flightLabel;
 }
 
-function getDepartureLabel(ticketType: TicketRecord["ticketType"]) {
-  return ticketType === "train" ? "Departure station" : "Departure";
+function getDepartureLabel(ticketType: TicketRecord["ticketType"], flightLabel: string, trainLabel: string) {
+  return ticketType === "train" ? trainLabel : flightLabel;
 }
 
-function getArrivalLabel(ticketType: TicketRecord["ticketType"]) {
-  return ticketType === "train" ? "Arrival station" : "Arrival";
+function getArrivalLabel(ticketType: TicketRecord["ticketType"], flightLabel: string, trainLabel: string) {
+  return ticketType === "train" ? trainLabel : flightLabel;
 }
 
 function formatLocationWithTerminal(
@@ -92,27 +93,27 @@ function formatLocationWithTerminal(
   return `${base} · ${normalizedTerminal}`;
 }
 
-function getStatusLabel(status: TicketStatus) {
+function getStatusLabel(status: TicketStatus, upcomingLabel: string, completedLabel: string, archivedLabel: string) {
   switch (status) {
     case "saved":
-      return "Upcoming";
+      return upcomingLabel;
     case "used":
-      return "Completed";
+      return completedLabel;
     case "archived":
-      return "Archived";
+      return archivedLabel;
     default:
       return status;
   }
 }
 
-function getAutoDerivedStatus(ticket: TicketRecord, currentTimeMs: number) {
+function getAutoDerivedStatus(ticket: TicketRecord, currentTimeMs: number, upcomingLabel: string, completedLabel: string) {
   const candidate = safeText(ticket.arrivalTimeLocal).trim() || safeText(ticket.departureTimeLocal);
   const timestamp = Date.parse(candidate);
   if (!Number.isFinite(timestamp)) {
-    return "Upcoming";
+    return upcomingLabel;
   }
 
-  return timestamp < currentTimeMs ? "Completed" : "Upcoming";
+  return timestamp < currentTimeMs ? completedLabel : upcomingLabel;
 }
 
 function formatDuration(milliseconds: number) {
@@ -150,18 +151,28 @@ function getTravelDurationLabel(departureTimeLocal: unknown, arrivalTimeLocal: u
   return formatDuration(arrivalTimestamp - departureTimestamp);
 }
 
-function getStatusDisplayMeta(ticket: TicketRecord, currentTimeMs: number) {
-  const autoLabel = getAutoDerivedStatus(ticket, currentTimeMs);
+function getStatusDisplayMeta(
+  ticket: TicketRecord,
+  currentTimeMs: number,
+  labels: {
+    autoUpcoming: string;
+    autoCompleted: string;
+    upcoming: string;
+    completed: string;
+    archived: string;
+  },
+) {
+  const autoLabel = getAutoDerivedStatus(ticket, currentTimeMs, labels.upcoming, labels.completed);
   if (ticket.status === "saved") {
     return {
       label: autoLabel,
-      dropdownAutoLabel: `Auto: ${autoLabel}`,
+      dropdownAutoLabel: autoLabel === labels.completed ? labels.autoCompleted : labels.autoUpcoming,
     };
   }
 
   return {
-    label: getStatusLabel(ticket.status),
-    dropdownAutoLabel: `Auto: ${autoLabel}`,
+    label: getStatusLabel(ticket.status, labels.upcoming, labels.completed, labels.archived),
+    dropdownAutoLabel: autoLabel === labels.completed ? labels.autoCompleted : labels.autoUpcoming,
   };
 }
 
@@ -318,6 +329,7 @@ export function Dashboard({
   onApplyArchiveFilter,
   mode = "tickets",
 }: DashboardProps) {
+  const { t } = useI18n();
   const [exportMessage, setExportMessage] = useState("");
   const [stubTheme, setStubTheme] = useState<StubTheme>("boarding");
   const [scopeDetails, setScopeDetails] = useState<TicketDetailPayload[]>([]);
@@ -605,14 +617,22 @@ export function Dashboard({
   const showsAttachments = mode === "tickets";
   const showsTicketMeta = mode === "tickets" || mode === "journeys";
   const showsSelectedHeading = mode === "journeys";
-  const mapModuleLabel = "Route map";
-  const stubModuleLabel = "Ticket stub preview";
+  const mapModuleLabel = t("routeMap");
+  const stubModuleLabel = t("ticketStubPreview");
   const detailModuleLabel = mode === "journeys" ? "Journey detail" : "Ticket detail";
   const showsScopeFallback = showsScopeContent && !scopeSummary && !scopeMap && !scopeLoading;
   const travelDurationLabel = ticket ? getTravelDurationLabel(ticket.departureTimeLocal, ticket.arrivalTimeLocal) : "--";
   const canUpdateTicketStatus = Boolean(ticket && mode === "tickets" && onUpdateStatus);
   const statusBusy = Boolean(ticket && busyTicketId === ticket.id);
-  const statusDisplayMeta = ticket ? getStatusDisplayMeta(ticket, statusClockMs) : null;
+  const statusDisplayMeta = ticket
+    ? getStatusDisplayMeta(ticket, statusClockMs, {
+        autoUpcoming: t("autoUpcoming"),
+        autoCompleted: t("autoCompleted"),
+        upcoming: t("upcoming"),
+        completed: t("completed"),
+        archived: t("archived"),
+      })
+    : null;
   const departureTimeDisplay = ticket
     ? formatTimeWithTimezone(ticket.departureTimeLocal, ticket.departure?.timezone)
     : { primary: "--", secondary: "" };
@@ -624,21 +644,21 @@ export function Dashboard({
       <article className="detail-facts-card detail-module-shell">
         <div className="panel-heading">
           <div>
-            <h3 className="detail-module-title">Ticket information</h3>
+            <h3 className="detail-module-title">{t("ticketInformation")}</h3>
           </div>
         </div>
         <div className="detail-facts-rows">
           <div className="detail-grid detail-facts-row detail-facts-row-3">
             <div className="detail-card">
-              <span>{getOperatorLabel(ticket.ticketType)}</span>
+              <span>{getOperatorLabel(ticket.ticketType, t("carrierOperator"), t("operator"))}</span>
               <strong>{safeText(ticket.carrierName, "--")}</strong>
             </div>
             <div className="detail-card">
-              <span>{getTicketNumberLabel(ticket.ticketType)}</span>
+              <span>{getTicketNumberLabel(ticket.ticketType, t("flightNo"), t("trainNo"))}</span>
               <strong>{safeText(ticket.code, "--")}</strong>
             </div>
             <div className="detail-card">
-              <span>Status</span>
+              <span>{t("status")}</span>
               {canUpdateTicketStatus ? (
                 <select
                   aria-label="Ticket status"
@@ -649,18 +669,18 @@ export function Dashboard({
                   }
                   value={ticket.status}
                 >
-                  <option value="saved">{statusDisplayMeta?.dropdownAutoLabel ?? "Auto: Upcoming"}</option>
-                  <option value="used">Completed</option>
-                  <option value="archived">Archived</option>
+                  <option value="saved">{statusDisplayMeta?.dropdownAutoLabel ?? t("autoUpcoming")}</option>
+                  <option value="used">{t("completed")}</option>
+                  <option value="archived">{t("archived")}</option>
                 </select>
               ) : (
-                <strong>{statusDisplayMeta?.label ?? getStatusLabel(ticket.status)}</strong>
+                <strong>{statusDisplayMeta?.label ?? getStatusLabel(ticket.status, t("upcoming"), t("completed"), t("archived"))}</strong>
               )}
             </div>
           </div>
           <div className="detail-grid detail-facts-row detail-facts-row-3">
             <div className="detail-card">
-              <span>{getDepartureLabel(ticket.ticketType)}</span>
+              <span>{getDepartureLabel(ticket.ticketType, t("departure"), t("departureStation"))}</span>
               <strong>
                 {formatLocationWithTerminal(
                   ticket.ticketType,
@@ -670,11 +690,11 @@ export function Dashboard({
               </strong>
             </div>
             <div className="detail-card">
-              <span>Departure code</span>
+              <span>{t("departureCode")}</span>
               <strong>{safeText(ticket.departure?.code, "--")}</strong>
             </div>
             <div className="detail-card">
-              <span>Departure time</span>
+              <span>{t("departureTime")}</span>
               <strong>{departureTimeDisplay.primary}</strong>
               {departureTimeDisplay.secondary ? (
                 <small className="detail-helper-text">{departureTimeDisplay.secondary}</small>
@@ -683,7 +703,7 @@ export function Dashboard({
           </div>
           <div className="detail-grid detail-facts-row detail-facts-row-3">
             <div className="detail-card">
-              <span>{getArrivalLabel(ticket.ticketType)}</span>
+              <span>{getArrivalLabel(ticket.ticketType, t("arrival"), t("arrivalStation"))}</span>
               <strong>
                 {formatLocationWithTerminal(
                   ticket.ticketType,
@@ -693,11 +713,11 @@ export function Dashboard({
               </strong>
             </div>
             <div className="detail-card">
-              <span>Arrival code</span>
+              <span>{t("arrivalCode")}</span>
               <strong>{safeText(ticket.arrival?.code, "--")}</strong>
             </div>
             <div className="detail-card">
-              <span>Arrival time</span>
+              <span>{t("arrivalTime")}</span>
               <strong>{arrivalTimeDisplay.primary}</strong>
               {arrivalTimeDisplay.secondary ? (
                 <small className="detail-helper-text">{arrivalTimeDisplay.secondary}</small>
@@ -706,26 +726,26 @@ export function Dashboard({
           </div>
           <div className="detail-grid detail-facts-row detail-facts-row-4">
             <div className="detail-card">
-              <span>Cabin / Class</span>
+              <span>{t("cabinClass")}</span>
               <strong>{safeText(ticket.classInfo, "--")}</strong>
             </div>
             <div className="detail-card">
-              <span>Seat</span>
+              <span>{t("seat")}</span>
               <strong>{safeText(ticket.seatInfo, "--")}</strong>
             </div>
             <div className="detail-card">
-              <span>Duration</span>
+              <span>{t("duration")}</span>
               <strong>{travelDurationLabel}</strong>
             </div>
             <div className="detail-card">
-              <span>Route legs</span>
+              <span>{t("routeLegs")}</span>
               <strong>{ticket.segmentCount}</strong>
             </div>
           </div>
           {ticket.notes ? (
             <div className="detail-grid detail-facts-row detail-facts-row-notes">
               <div className="detail-card detail-card-notes">
-                <span>Notes</span>
+                <span>{t("notes")}</span>
                 <p>{ticket.notes}</p>
               </div>
             </div>
@@ -752,20 +772,20 @@ export function Dashboard({
                   type="button"
                 >
                   {theme === "boarding"
-                    ? "Boarding pass"
+                    ? t("boardingPass")
                     : theme === "ledger"
-                      ? "Reimbursement voucher"
-                      : "Red-eye flight"}
+                      ? t("reimbursementVoucher")
+                      : t("redEyeFlight")}
                 </button>
               ))}
             </div>
             <div className="svg-frame stub-canvas" dangerouslySetInnerHTML={{ __html: stubSvg }} />
             <div className="export-row">
               <button className="ghost-button" onClick={() => handleExportSvg("stub")} type="button">
-                Export stub SVG
+                {t("exportStubSvg")}
               </button>
               <button className="primary-button" onClick={() => void handleExportPng()} type="button">
-                Export stub PNG
+                {t("exportStubPng")}
               </button>
             </div>
           </>
@@ -799,7 +819,7 @@ export function Dashboard({
       <article className="attachments-panel">
         <div className="panel-heading">
           <div>
-            <h3 className="detail-module-title">Original ticket files</h3>
+            <h3 className="detail-module-title">{t("originalTicketFiles")}</h3>
           </div>
           <span className="status-pill">{activeDetail?.attachments?.length ?? 0} files</span>
         </div>
@@ -817,7 +837,7 @@ export function Dashboard({
             onClick={handleChooseAttachment}
             type="button"
           >
-            {attachmentBusy ? "Adding file..." : "Add file"}
+            {attachmentBusy ? t("addingFile") : t("addFile")}
           </button>
         </div>
         {activeDetail?.attachments?.length ? (
@@ -848,7 +868,7 @@ export function Dashboard({
                     onClick={() => void onDeleteAttachment(attachment.id)}
                     type="button"
                   >
-                    Delete
+                    {t("delete")}
                   </button>
                 </div>
               </article>
@@ -856,8 +876,8 @@ export function Dashboard({
           </div>
         ) : (
           <div className="empty-state">
-            <strong>No attachments yet</strong>
-            <p>Upload screenshots, scanned tickets, or PDF reimbursement files for this record.</p>
+            <strong>{t("noAttachmentsYet")}</strong>
+            <p>{t("noFilesYetMessage")}</p>
           </div>
         )}
       </article>
@@ -932,7 +952,7 @@ export function Dashboard({
               {`${formatCoordinate(activeDetail.map.origin.latitude)}, ${formatCoordinate(activeDetail.map.origin.longitude)}`}
             </span>
             <span>
-              <strong>Duration</strong>
+              <strong>{t("duration")}</strong>
               {travelDurationLabel}
             </span>
             <span>
@@ -965,7 +985,7 @@ export function Dashboard({
             <span className="ticket-kind">Selected ticket</span>
             <h3>{ticket.routeLabel}</h3>
           </div>
-          <span className="status-pill">{`${getStatusLabel(ticket.status)} | ${ticket.segmentCount} segment(s)`}</span>
+          <span className="status-pill">{`${getStatusLabel(ticket.status, t("upcoming"), t("completed"), t("archived"))} | ${ticket.segmentCount} segment(s)`}</span>
         </div>
       ) : null}
       {isLoading ? <p className="detail-loading">Loading route, stub, and attachment data...</p> : null}

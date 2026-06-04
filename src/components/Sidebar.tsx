@@ -1,14 +1,16 @@
+import { useI18n } from "../lib/i18n";
+
 export type AppSection = "overview" | "tickets" | "journeys" | "map" | "exports" | "settings";
 
-const navItems: Array<{ label: string; section: AppSection }> = [
-  { label: "Overview", section: "overview" },
-  { label: "Tickets", section: "tickets" },
-  { label: "Journeys", section: "journeys" },
-  { label: "Map", section: "map" },
+const navItems: Array<{ key: "overview" | "tickets" | "journeys" | "map"; section: AppSection }> = [
+  { key: "overview", section: "overview" },
+  { key: "tickets", section: "tickets" },
+  { key: "journeys", section: "journeys" },
+  { key: "map", section: "map" },
 ];
 
-const utilityItems: Array<{ label: string; icon?: string; section: AppSection }> = [
-  { label: "Settings", icon: "⚙", section: "settings" },
+const utilityItems: Array<{ key: "settings"; icon?: string; section: AppSection }> = [
+  { key: "settings", icon: "\u2699", section: "settings" },
 ];
 
 interface SidebarProps {
@@ -17,6 +19,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeSection, onSelectSection }: SidebarProps) {
+  const { t } = useI18n();
+
   return (
     <aside className="sidebar">
       <div className="sidebar-intro">
@@ -26,33 +30,33 @@ export function Sidebar({ activeSection, onSelectSection }: SidebarProps) {
           Ticket history, visual routes, and shareable stubs in one place.
         </p>
       </div>
-      <nav className="nav-list" aria-label="Primary navigation">
+      <nav aria-label="Primary navigation" className="nav-list">
         {navItems.map((item) => (
           <button
             aria-pressed={activeSection === item.section}
             className={`nav-item ${activeSection === item.section ? "active" : ""}`}
-            key={item.label}
+            key={item.key}
             onClick={() => onSelectSection(item.section)}
             type="button"
           >
-            <span className="nav-item-label">{item.label}</span>
+            <span className="nav-item-label">{t(item.key)}</span>
           </button>
         ))}
       </nav>
       <div className="sidebar-utility">
-        <span className="sidebar-utility-label">Preferences</span>
-        <nav className="nav-list" aria-label="Utility navigation">
+        <span className="sidebar-utility-label">{t("preferences")}</span>
+        <nav aria-label="Utility navigation" className="nav-list">
           {utilityItems.map((item) => (
             <button
               aria-pressed={activeSection === item.section}
               className={`nav-item ${activeSection === item.section ? "active" : ""}`}
-              key={item.label}
+              key={item.key}
               onClick={() => onSelectSection(item.section)}
               type="button"
             >
               <span className="nav-item-label">
                 {item.icon ? <span aria-hidden="true">{item.icon}</span> : null}
-                <span>{item.label}</span>
+                <span>{t(item.key)}</span>
               </span>
             </button>
           ))}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useI18n } from "../lib/i18n";
 import type { ImportFieldKey, ImportFieldReview } from "../lib/importParser";
 import { searchAirlines, searchLocations } from "../lib/ticketService";
 import type {
@@ -123,8 +124,8 @@ function formatDateTimeLocal(timestamp: number) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-function getTicketNumberLabel(ticketType: TicketType) {
-  return ticketType === "train" ? "Train No." : "Flight No.";
+function getTicketNumberLabel(ticketType: TicketType, flightLabel: string, trainLabel: string) {
+  return ticketType === "train" ? trainLabel : flightLabel;
 }
 
 function filterLocationsForTicketType(
@@ -158,6 +159,7 @@ export function TicketForm({
   onSubmitTicket,
   onCancelEdit,
 }: TicketFormProps) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState<TicketDraft>(createDefaultDraft());
   const [activeSuggestField, setActiveSuggestField] = useState<SuggestField>(null);
   const [airlineSuggestions, setAirlineSuggestions] = useState<AirlineDirectoryEntry[]>([]);
@@ -620,7 +622,7 @@ export function TicketForm({
                 onClick={() => applySuggestedValue(field, suggestedValue)}
                 type="button"
               >
-                {`套用 ${suggestedValue}`}
+                {`${t("apply")} ${suggestedValue}`}
               </button>
             ))}
           </span>
@@ -726,7 +728,7 @@ export function TicketForm({
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <h3>{mode === "edit" ? "Edit ticket record" : "Create ticket record"}</h3>
+          <h3>{mode === "edit" ? t("editTicketRecord") : t("createTicketRecord")}</h3>
         </div>
       </div>
 
@@ -740,7 +742,7 @@ export function TicketForm({
                 onClick={() => updateField("ticketType", type)}
                 type="button"
               >
-                {type}
+                {type === "flight" ? t("flights") : t("rail")}
               </button>
             ))}
           </div>
@@ -749,7 +751,7 @@ export function TicketForm({
         <div className="ticket-form-grid">
           <div className="ticket-form-row ticket-form-row-primary">
           <label className={getLabelClassName("carrierName")}>
-            Carrier
+            {t("carrierOperator")}
             <div className="autocomplete-field">
               <input
                 onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
@@ -778,7 +780,7 @@ export function TicketForm({
           </label>
 
           <label className={getLabelClassName("code")}>
-            {getTicketNumberLabel(draft.ticketType)}
+            {getTicketNumberLabel(draft.ticketType, t("flightNo"), t("trainNo"))}
             <input
               onChange={(event) => updateField("code", event.target.value)}
               placeholder="MU561"
@@ -790,7 +792,7 @@ export function TicketForm({
 
           <div className="ticket-form-row ticket-form-row-route">
           <label className={getLabelClassName("departure.name")}>
-            Departure
+            {t("departure")}
             <div className="autocomplete-field">
               <input
                 onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
@@ -819,7 +821,7 @@ export function TicketForm({
           </label>
 
           <label className={getLabelClassName("departure.code")}>
-            Departure code
+            {t("departureCode")}
             <input
               onChange={(event) => updateLocationField("departure", "code", event.target.value)}
               placeholder={locationCodePlaceholder}
@@ -829,7 +831,7 @@ export function TicketForm({
           </label>
 
           <label className={getLabelClassName("arrival.name")}>
-            Arrival
+            {t("arrival")}
             <div className="autocomplete-field">
               <input
                 onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
@@ -858,7 +860,7 @@ export function TicketForm({
           </label>
 
           <label className={getLabelClassName("arrival.code")}>
-            Arrival code
+            {t("arrivalCode")}
             <input
               onChange={(event) => updateLocationField("arrival", "code", event.target.value)}
               placeholder={locationCodePlaceholder}
@@ -871,7 +873,7 @@ export function TicketForm({
           {shouldShowTerminalFields(draft.ticketType) ? (
             <div className="ticket-form-row ticket-form-row-terminals">
               <label>
-                Departure terminal
+                {t("departureTerminal")}
                 <input
                   onChange={(event) => updateField("departureTerminal", event.target.value)}
                   placeholder="T1"
@@ -880,7 +882,7 @@ export function TicketForm({
               </label>
 
               <label>
-                Arrival terminal
+                {t("arrivalTerminal")}
                 <input
                   onChange={(event) => updateField("arrivalTerminal", event.target.value)}
                   placeholder="T2"
@@ -902,7 +904,7 @@ export function TicketForm({
           </label>
 
           <label className={getLabelClassName("departureTimeLocal")}>
-            Departure time
+            {t("departureTime")}
             <input
               onChange={(event) => updateField("departureTimeLocal", event.target.value)}
               type="datetime-local"
@@ -922,7 +924,7 @@ export function TicketForm({
           </label>
 
           <label className={getLabelClassName("arrivalTimeLocal")}>
-            Arrival time
+            {t("arrivalTime")}
             <input
               onChange={(event) => updateField("arrivalTimeLocal", event.target.value)}
               type="datetime-local"
@@ -934,7 +936,7 @@ export function TicketForm({
 
           <div className="ticket-form-row ticket-form-row-meta">
           <label className={getLabelClassName("classInfo")}>
-            Cabin / Class
+            {t("cabinClass")}
             <input
               onChange={(event) => updateField("classInfo", event.target.value)}
               placeholder="Economy"
@@ -944,7 +946,7 @@ export function TicketForm({
           </label>
 
           <label className={getLabelClassName("seatInfo")}>
-            Seat
+            {t("seat")}
             <input
               onChange={(event) => updateField("seatInfo", event.target.value)}
               placeholder="12A"
@@ -956,7 +958,7 @@ export function TicketForm({
         </div>
 
         <label className={getLabelClassName("notes")}>
-          Notes
+          {t("notes")}
           <textarea
             onChange={(event) => updateField("notes", event.target.value)}
             placeholder="Special handling, baggage, transfer comments..."
@@ -1044,7 +1046,7 @@ export function TicketForm({
 
                   <div className="form-grid">
                     <label>
-                      Carrier
+                      {t("carrierOperator")}
                       <div className="autocomplete-field">
                         <input
                           onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
@@ -1073,7 +1075,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      {getTicketNumberLabel(draft.ticketType)}
+                      {getTicketNumberLabel(draft.ticketType, t("flightNo"), t("trainNo"))}
                       <input
                         onChange={(event) => updateExtraSegmentField(index, "code", event.target.value)}
                         placeholder="MU561"
@@ -1082,7 +1084,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Departure
+                      {t("departure")}
                       <div className="autocomplete-field">
                         <input
                           onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
@@ -1113,7 +1115,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Arrival
+                      {t("arrival")}
                       <div className="autocomplete-field">
                         <input
                           onBlur={() => window.setTimeout(() => setActiveSuggestField(null), 120)}
@@ -1144,7 +1146,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Departure code
+                      {t("departureCode")}
                       <input
                         onChange={(event) =>
                           updateExtraSegmentLocationField(index, "departure", "code", event.target.value)
@@ -1155,7 +1157,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Arrival code
+                      {t("arrivalCode")}
                       <input
                         onChange={(event) =>
                           updateExtraSegmentLocationField(index, "arrival", "code", event.target.value)
@@ -1188,7 +1190,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Departure time
+                      {t("departureTime")}
                       <input
                         onChange={(event) =>
                           updateExtraSegmentField(index, "departureTimeLocal", event.target.value)
@@ -1199,7 +1201,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Arrival time
+                      {t("arrivalTime")}
                       <input
                         onChange={(event) => updateExtraSegmentField(index, "arrivalTimeLocal", event.target.value)}
                         type="datetime-local"
@@ -1208,7 +1210,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Cabin / Class
+                      {t("cabinClass")}
                       <input
                         onChange={(event) => updateExtraSegmentField(index, "classInfo", event.target.value)}
                         placeholder="Economy"
@@ -1217,7 +1219,7 @@ export function TicketForm({
                     </label>
 
                     <label>
-                      Seat
+                      {t("seat")}
                       <input
                         onChange={(event) => updateExtraSegmentField(index, "seatInfo", event.target.value)}
                         placeholder="12A"
@@ -1280,7 +1282,7 @@ export function TicketForm({
         <div className="form-actions">
           {mode === "edit" ? (
             <button className="ghost-button" onClick={onCancelEdit} type="button">
-              Cancel edit
+              {t("cancelEdit")}
             </button>
           ) : null}
           <button className="primary-button wide" type="submit">
@@ -1289,8 +1291,8 @@ export function TicketForm({
                 ? "Updating ticket..."
                 : "Saving ticket..."
               : mode === "edit"
-                ? "Update ticket"
-                : "Save ticket draft"}
+                ? t("updateTicket")
+                : t("saveTicketDraft")}
           </button>
         </div>
       </form>

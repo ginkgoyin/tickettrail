@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "../lib/i18n";
 import type { BackupReadiness, BackupRecord } from "../types/ticket";
 
 interface BackupPanelProps {
@@ -38,8 +39,36 @@ export function BackupPanel({
   onRestoreBackup,
   onExportBackup,
 }: BackupPanelProps) {
+  const { language } = useI18n();
   const latestBackup = backups[0];
   const [bundlePath, setBundlePath] = useState("");
+  const copy = {
+    createBackup: language === "zh" ? "创建备份" : "Create backup",
+    exportArchiveBundle: language === "zh" ? "导出整库包" : "Export archive bundle",
+    description:
+      language === "zh"
+        ? "备份会保存当前 SQLite 数据库和附件目录。恢复备份或导入整库包后，当前票据和附件会被备份内容覆盖。"
+        : "Backups include the current SQLite database and attachment directory. Restoring a backup or importing an archive bundle will overwrite the current tickets and attachments.",
+    importArchivePath: language === "zh" ? "导入整库包路径" : "Import archive bundle path",
+    importArchivePlaceholder:
+      language === "zh"
+        ? "例如：C:\\Users\\YourUser\\Downloads\\tickettrail-archive.zip"
+        : "Example: C:\\Users\\YourUser\\Downloads\\tickettrail-archive.zip",
+    importArchiveBundle: language === "zh" ? "导入整库包" : "Import archive bundle",
+    backupReadiness: language === "zh" ? "备份前校验" : "Backup readiness",
+    databaseAvailable: language === "zh" ? "数据库文件可用" : "Database file available",
+    databaseMissing: language === "zh" ? "数据库文件不存在" : "Database file missing",
+    latestBackup: language === "zh" ? "最近一次备份" : "Latest backup",
+    noBackupsYet: language === "zh" ? "还没有备份" : "No backups yet",
+    noBackupsHint:
+      language === "zh"
+        ? "建议在开始长期录入前先创建第一份备份。"
+        : "Create the first backup before you start long-term ticket entry.",
+    tickets: language === "zh" ? "张票" : "ticket(s)",
+    attachments: language === "zh" ? "个附件" : "attachment(s)",
+    exportBackup: language === "zh" ? "导出备份" : "Export backup",
+    restoreBackup: language === "zh" ? "恢复这个备份" : "Restore this backup",
+  } as const;
 
   return (
     <section className="panel backup-panel">
@@ -49,7 +78,7 @@ export function BackupPanel({
         </div>
         <div className="backup-card-actions">
           <button className="ghost-button compact-button" disabled={isBusy} onClick={onCreateBackup} type="button">
-            创建备份
+            {copy.createBackup}
           </button>
           <button
             className="ghost-button compact-button"
@@ -57,21 +86,19 @@ export function BackupPanel({
             onClick={onExportArchiveBundle}
             type="button"
           >
-            导出整库包
+            {copy.exportArchiveBundle}
           </button>
         </div>
       </div>
 
-      <p className="backup-copy">
-        备份会保存当前 SQLite 数据库和附件目录。恢复备份或导入整库包后，当前票据和附件会被备份内容覆盖。
-      </p>
+      <p className="backup-copy">{copy.description}</p>
 
       <div className="backup-import-panel">
         <label>
-          导入整库包路径
+          {copy.importArchivePath}
           <input
             onChange={(event) => setBundlePath(event.target.value)}
-            placeholder="例如：C:\\Users\\你的用户名\\Downloads\\tickettrail-archive.zip"
+            placeholder={copy.importArchivePlaceholder}
             value={bundlePath}
           />
         </label>
@@ -81,21 +108,21 @@ export function BackupPanel({
           onClick={() => onImportArchiveBundle(bundlePath.trim())}
           type="button"
         >
-          导入整库包
+          {copy.importArchiveBundle}
         </button>
       </div>
 
       {readiness ? (
         <div className="backup-highlight">
-          <strong>备份前校验</strong>
-          <span>{readiness.databaseExists ? "数据库文件可用" : "数据库文件不存在"}</span>
-          <small>{`${readiness.ticketCount} 张票 · ${readiness.attachmentCount} 个附件`}</small>
+          <strong>{copy.backupReadiness}</strong>
+          <span>{readiness.databaseExists ? copy.databaseAvailable : copy.databaseMissing}</span>
+          <small>{`${readiness.ticketCount} ${copy.tickets} · ${readiness.attachmentCount} ${copy.attachments}`}</small>
         </div>
       ) : null}
 
       {latestBackup ? (
         <div className="backup-highlight">
-          <strong>最近一次备份</strong>
+          <strong>{copy.latestBackup}</strong>
           <span>{latestBackup.label}</span>
           <small>{formatDateTime(latestBackup.createdAt)}</small>
         </div>
@@ -106,8 +133,8 @@ export function BackupPanel({
       <div className="backup-list">
         {backups.length === 0 ? (
           <div className="empty-state">
-            <strong>还没有备份</strong>
-            <p>建议在开始长期录入前先创建第一份备份。</p>
+            <strong>{copy.noBackupsYet}</strong>
+            <p>{copy.noBackupsHint}</p>
           </div>
         ) : (
           backups.map((backup) => (
@@ -117,8 +144,8 @@ export function BackupPanel({
                 <span>{formatDateTime(backup.createdAt)}</span>
               </div>
               <div className="backup-card-meta">
-                <span>{backup.ticketCount} 张票</span>
-                <span>{backup.attachmentCount} 个附件</span>
+                <span>{`${backup.ticketCount} ${copy.tickets}`}</span>
+                <span>{`${backup.attachmentCount} ${copy.attachments}`}</span>
                 <span>{formatSize(backup.databaseSizeBytes)}</span>
               </div>
               <div className="backup-card-actions">
@@ -128,7 +155,7 @@ export function BackupPanel({
                   onClick={() => onExportBackup(backup.id)}
                   type="button"
                 >
-                  导出备份
+                  {copy.exportBackup}
                 </button>
                 <button
                   className="ghost-button compact-button"
@@ -136,7 +163,7 @@ export function BackupPanel({
                   onClick={() => onRestoreBackup(backup.id)}
                   type="button"
                 >
-                  恢复这个备份
+                  {copy.restoreBackup}
                 </button>
               </div>
             </div>

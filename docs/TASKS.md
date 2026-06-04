@@ -445,4 +445,4 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Continue next with a manual verification pass for the nationwide 12306 station suggestion dataset plus the new local download/regeneration workflow, and keep future station-coordinate work (`DATA-008`) separate from the name/code/pinyin pipeline.
+Continue next with the lightweight Settings/i18n pass: add a persisted English/Chinese language switch, migrate the current core UI labels first, keep user-entered ticket/location data untranslated, and leave remaining long-tail copy for follow-up cleanup instead of mixing it with data/model work.
