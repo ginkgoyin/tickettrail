@@ -66,6 +66,26 @@
 - `TICKET-DATA-001B`: Add/Edit forms now support flight terminal fields while keeping train/rail forms unchanged, manually verified
 - `TICKET-DATA-001C`: Ticket detail now displays flight terminal information compactly and this was manually verified
 
+- `FLIGHT-LOOKUP-001`
+  - Add/Edit flight tickets should support a lightweight flight-number-plus-date lookup scaffold that returns candidate flight details for manual apply.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
+- `FLIGHT-LOOKUP-002`
+  - Replace the local mock lookup scaffold with a real reviewed provider integration only after cost, quota, license, and field coverage are accepted.
+  - Status: `Open / future provider integration`
+  - Priority: `High`
+
+- `FLIGHT-LOOKUP-003`
+  - Real flight lookup credentials must not be exposed in the frontend bundle; provider secrets belong in a safer backend or desktop-only boundary.
+  - Status: `Open / safety rule`
+  - Priority: `High`
+
+- `DATA-SOURCE-001`
+  - Settings should show a lightweight future placeholder for flight lookup provider/API configuration without storing or using a real key in this phase.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
 ## 2. Implemented / Recorded / Needs Future Verification
 
 - `UX-005L`
@@ -446,6 +466,6 @@
   - Priority: `Medium`
 
 - `I18N-001`
-  - Settings should later support language switching between English and Chinese.
-  - Status: `Open / future`
+  - Replaced by the implemented language-switch scaffold above; keep future i18n work under `I18N-005` and later follow-up items instead of re-opening this original placeholder.
+  - Status: `Superseded`
   - Priority: `Medium`

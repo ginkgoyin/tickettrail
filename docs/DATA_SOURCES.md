@@ -182,3 +182,53 @@ The generated records are normalized to the app's `LocationDirectoryEntry`-compa
   - a separate source
   - a separate validation pass
   - a separate license review if needed
+
+## 11. Flight Lookup Scaffold (Current Phase)
+
+- Phase 1 flight lookup is intentionally a local scaffold only.
+- Current implementation file:
+  - [C:\yx\00app\ticket\src\lib\flightLookup.ts](C:/yx/00app/ticket/src/lib/flightLookup.ts)
+- It performs:
+  - flight number + departure date lookup
+  - local mock candidate generation
+  - manual candidate apply back into the flight form
+- It does **not** perform:
+  - live airline API requests
+  - paid provider integration
+  - API-key storage
+  - backend credential handling
+
+The current scaffold exists to prove the Add/Edit form flow safely before the project chooses a real provider.
+
+## 12. Future Flight Data Provider Candidates
+
+Potential future providers that should be evaluated from official sources only:
+
+- [AeroDataBox](https://aerodatabox.com/)
+  - Official site describes flight status, schedules, airport schedules, airport details, and flight-number search capabilities.
+- [Amadeus On-Demand Flight Status API](https://developers.amadeus.com/self-service/apis-docs/guides/developer-guides/resources/flights/)
+  - Official docs describe real-time flight schedule data including departure/arrival times, terminal and gate information, and duration.
+- [aviationstack](https://aviationstack.com/documentation)
+  - Official docs describe real-time, historical, and future flight data, including airport/timezone/terminal fields in flight responses.
+- [FlightAware AeroAPI](https://www.flightaware.com/commercial/aeroapi)
+  - Official site describes global flight status/tracking access with multiple endpoints and query-based usage.
+
+Selection still requires a separate review for:
+
+- pricing and quotas
+- coverage for schedules vs. real-time status
+- terminal/gate field availability
+- commercial license terms
+- acceptable redistribution/caching rules
+- Tauri/backend secret handling
+
+## 13. Why OpenSky Is Not The Primary Candidate Here
+
+- [OpenSky FAQ](https://opensky-network.org/about/faq) states that its inferred flights are derived after the finished UTC day and that it has historical flight data for previous days, not commercial schedule/delay/cancellation data for the current day.
+- [OpenSky terms](https://opensky-network.org/about/terms-of-use) also state that operational/live product API use requires a written license.
+
+For this app's current lookup goal, that makes OpenSky a poor primary fit for:
+
+- flight-number + date autofill during ticket entry
+- terminal-aware commercial schedule lookup
+- simple desktop operational use without a separate license review

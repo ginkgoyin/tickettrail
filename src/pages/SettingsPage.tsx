@@ -139,6 +139,39 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
           </div>
         </div>
       </div>
+
+      <div className="panel settings-section-card">
+        <h3>Data sources</h3>
+        <div className="settings-option-list">
+          <div className="settings-option-card">
+            <div>
+              <strong>Flight lookup provider</strong>
+              <p className="hero-copy">
+                Phase 1 uses a local mock provider only. Real flight-status integration will be wired later
+                after provider review.
+              </p>
+            </div>
+            <span className="ticket-status ticket-status-draft">Mock only</span>
+          </div>
+
+          <div className="settings-option-card settings-option-card-block">
+            <div>
+              <strong>Provider API key</strong>
+              <p className="hero-copy">
+                Coming soon. The current scaffold does not store or use any API key, and future keys must
+                stay out of the frontend bundle.
+              </p>
+            </div>
+            <input
+              aria-label="Provider API key placeholder"
+              className="settings-disabled-input"
+              disabled
+              placeholder="Coming soon - not connected in this phase"
+              value=""
+            />
+          </div>
+        </div>
+      </div>
     </section>
   );
 

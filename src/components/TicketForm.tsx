@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  lookupFlightCandidates,
+  type FlightLookupCandidate,
+} from "../lib/flightLookup";
 import { useI18n } from "../lib/i18n";
 import type { ImportFieldKey, ImportFieldReview } from "../lib/importParser";
 import { searchAirlines, searchLocations } from "../lib/ticketService";
@@ -150,6 +154,14 @@ function shouldShowTerminalFields(ticketType: TicketType) {
   return ticketType === "flight";
 }
 
+function getDateOnly(value: string) {
+  return value ? value.slice(0, 10) : "";
+}
+
+function describeLookupCandidate(candidate: FlightLookupCandidate) {
+  return `${candidate.departure.code} -> ${candidate.arrival.code} · ${candidate.departureTimeLocal.slice(11, 16)} - ${candidate.arrivalTimeLocal.slice(11, 16)}`;
+}
+
 export function TicketForm({
   isSaving,
   mode,
@@ -168,6 +180,10 @@ export function TicketForm({
   const [segmentAirlineSuggestions, setSegmentAirlineSuggestions] = useState<Record<number, AirlineDirectoryEntry[]>>({});
   const [segmentDepartureSuggestions, setSegmentDepartureSuggestions] = useState<Record<number, LocationDirectoryEntry[]>>({});
   const [segmentArrivalSuggestions, setSegmentArrivalSuggestions] = useState<Record<number, LocationDirectoryEntry[]>>({});
+  const [flightLookupDate, setFlightLookupDate] = useState("");
+  const [flightLookupCandidates, setFlightLookupCandidates] = useState<FlightLookupCandidate[]>([]);
+  const [flightLookupBusy, setFlightLookupBusy] = useState(false);
+  const [flightLookupMessage, setFlightLookupMessage] = useState("");
   const airlineSuggestionCacheRef = useRef(new Map<string, AirlineDirectoryEntry[]>());
   const locationSuggestionCacheRef = useRef(new Map<string, LocationDirectoryEntry[]>());
   const reviewMap = buildReviewMap(mode === "edit" ? null : importReview);
@@ -194,16 +210,32 @@ export function TicketForm({
   useEffect(() => {
     if (mode === "edit") {
       setDraft(initialDraft ? cloneDraft(initialDraft) : createDefaultDraft());
+      setFlightLookupDate(getDateOnly(initialDraft?.departureTimeLocal ?? ""));
+      setFlightLookupCandidates([]);
+      setFlightLookupMessage("");
       return;
     }
 
     if (importedDraft) {
       setDraft(cloneDraft(importedDraft));
+      setFlightLookupDate(getDateOnly(importedDraft.departureTimeLocal ?? ""));
+      setFlightLookupCandidates([]);
+      setFlightLookupMessage("");
       return;
     }
 
     setDraft(createDefaultDraft());
+    setFlightLookupDate("");
+    setFlightLookupCandidates([]);
+    setFlightLookupMessage("");
   }, [importedDraft, initialDraft, mode]);
+
+  useEffect(() => {
+    if (draft.ticketType !== "flight") {
+      setFlightLookupCandidates([]);
+      setFlightLookupMessage("");
+    }
+  }, [draft.ticketType]);
 
   useEffect(() => {
     let isMounted = true;
@@ -594,11 +626,102 @@ export function TicketForm({
     void onSubmitTicket(draft).then(() => {
       if (mode === "create") {
         setDraft(createDefaultDraft());
+        setFlightLookupDate("");
+        setFlightLookupCandidates([]);
+        setFlightLookupMessage("");
         setAirlineSuggestions([]);
         setDepartureSuggestions([]);
         setArrivalSuggestions([]);
       }
     });
+  };
+
+  const handleLookupFlight = async () => {
+    const normalizedDate = flightLookupDate.trim();
+    const normalizedFlightNumber = draft.code.trim();
+
+    if (!normalizedFlightNumber || !normalizedDate) {
+      setFlightLookupCandidates([]);
+      setFlightLookupMessage("Enter a flight number and departure date before looking up a flight.");
+      return;
+    }
+
+    setFlightLookupBusy(true);
+    setFlightLookupMessage("");
+
+    try {
+      const candidates = await lookupFlightCandidates({
+        flightNumber: normalizedFlightNumber,
+        departureDate: normalizedDate,
+      });
+
+      setFlightLookupCandidates(candidates);
+      setFlightLookupMessage(
+        candidates.length
+          ? `${candidates.length} mock flight candidate${candidates.length === 1 ? "" : "s"} found. Review before applying.`
+          : "No mock flight candidates matched this flight number and date yet.",
+      );
+    } catch {
+      setFlightLookupCandidates([]);
+      setFlightLookupMessage("Flight lookup failed. The current scaffold only supports local mock data.");
+    } finally {
+      setFlightLookupBusy(false);
+    }
+  };
+
+  const handleApplyFlightLookupCandidate = (candidate: FlightLookupCandidate) => {
+    const conflictingFields = [
+      ["carrier / operator", draft.carrierName, candidate.carrierName],
+      ["flight number", draft.code, candidate.code],
+      ["departure", draft.departure.name, candidate.departure.name],
+      ["departure code", draft.departure.code ?? "", candidate.departure.code],
+      ["departure timezone", draft.departure.timezone, candidate.departure.timezone],
+      ["departure terminal", draft.departureTerminal ?? "", candidate.departureTerminal ?? ""],
+      ["departure time", draft.departureTimeLocal, candidate.departureTimeLocal],
+      ["arrival", draft.arrival.name, candidate.arrival.name],
+      ["arrival code", draft.arrival.code ?? "", candidate.arrival.code],
+      ["arrival timezone", draft.arrival.timezone, candidate.arrival.timezone],
+      ["arrival terminal", draft.arrivalTerminal ?? "", candidate.arrivalTerminal ?? ""],
+      ["arrival time", draft.arrivalTimeLocal, candidate.arrivalTimeLocal],
+    ].filter(
+      ([, currentValue, nextValue]) =>
+        currentValue.trim().length > 0 && currentValue.trim() !== nextValue.trim(),
+    );
+
+    if (
+      conflictingFields.length &&
+      !window.confirm(
+        `Apply this lookup result and overwrite ${conflictingFields
+          .slice(0, 4)
+          .map(([label]) => label)
+          .join(", ")}${conflictingFields.length > 4 ? ", and more" : ""}?`,
+      )
+    ) {
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      carrierName: candidate.carrierName,
+      code: candidate.code,
+      departure: {
+        ...current.departure,
+        name: candidate.departure.name,
+        code: candidate.departure.code,
+        timezone: candidate.departure.timezone,
+      },
+      arrival: {
+        ...current.arrival,
+        name: candidate.arrival.name,
+        code: candidate.arrival.code,
+        timezone: candidate.arrival.timezone,
+      },
+      departureTerminal: candidate.departureTerminal ?? "",
+      arrivalTerminal: candidate.arrivalTerminal ?? "",
+      departureTimeLocal: candidate.departureTimeLocal,
+      arrivalTimeLocal: candidate.arrivalTimeLocal,
+    }));
+    setFlightLookupMessage(`Applied mock lookup candidate: ${describeLookupCandidate(candidate)}.`);
   };
 
   const getLabelClassName = (field: ImportFieldKey) =>
@@ -789,6 +912,71 @@ export function TicketForm({
             {renderReviewNote("code")}
           </label>
           </div>
+
+          {draft.ticketType === "flight" ? (
+            <div className="ticket-form-row ticket-form-row-lookup">
+              <label>
+                Lookup date
+                <input
+                  onChange={(event) => setFlightLookupDate(event.target.value)}
+                  type="date"
+                  value={flightLookupDate}
+                />
+              </label>
+
+              <div className="flight-lookup-actions">
+                <button
+                  className="ghost-button"
+                  disabled={flightLookupBusy || !draft.code.trim() || !flightLookupDate.trim()}
+                  onClick={() => void handleLookupFlight()}
+                  type="button"
+                >
+                  {flightLookupBusy ? "Looking up..." : "Lookup flight"}
+                </button>
+                <small className="field-directory-note">
+                  Phase 1 uses a local mock provider only. No real API is connected yet.
+                </small>
+              </div>
+
+              {flightLookupMessage ? <p className="flight-lookup-message">{flightLookupMessage}</p> : null}
+
+              {flightLookupCandidates.length ? (
+                <div className="flight-lookup-candidate-list">
+                  {flightLookupCandidates.map((candidate) => (
+                    <article className="flight-lookup-candidate-card" key={candidate.id}>
+                      <div className="flight-lookup-candidate-top">
+                        <div>
+                          <strong>{`${candidate.carrierName} ${candidate.code}`}</strong>
+                          <span>{candidate.providerLabel}</span>
+                        </div>
+                        <button
+                          className="primary-button compact-button"
+                          onClick={() => handleApplyFlightLookupCandidate(candidate)}
+                          type="button"
+                        >
+                          Apply candidate
+                        </button>
+                      </div>
+                      <p className="flight-lookup-candidate-summary">
+                        {`${candidate.departure.name} (${candidate.departure.code}) -> ${candidate.arrival.name} (${candidate.arrival.code})`}
+                      </p>
+                      <div className="field-meta-list">
+                        <span className="field-meta-chip">{candidate.departureTimeLocal.replace("T", " ")}</span>
+                        <span className="field-meta-chip">{candidate.arrivalTimeLocal.replace("T", " ")}</span>
+                        {candidate.departureTerminal ? (
+                          <span className="field-meta-chip">{`Dep ${candidate.departureTerminal}`}</span>
+                        ) : null}
+                        {candidate.arrivalTerminal ? (
+                          <span className="field-meta-chip">{`Arr ${candidate.arrivalTerminal}`}</span>
+                        ) : null}
+                      </div>
+                      <small className="field-directory-note">{candidate.sourceNote}</small>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="ticket-form-row ticket-form-row-route">
           <label className={getLabelClassName("departure.name")}>

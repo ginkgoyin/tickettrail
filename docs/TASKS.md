@@ -333,6 +333,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - Flight terminal fields are now manually verified. The next language-related work should stay separate: add a Settings language switch later, let UI labels switch between English and Chinese, and keep user-entered ticket data / airport-station names untranslated.
   - Keep OCR terminal extraction and any real `Cancelled` persistence work as separate future tasks.
   - English UI completion remains the current priority; language switching and Chinese localization should wait for a later Settings/i18n phase.
+  - A new flight lookup scaffold should stay intentionally small in Phase 1: use a local mock provider plus manual candidate apply in Add/Edit flight forms first, add a Settings placeholder for future provider/API wiring, and defer any real paid/commercial integration until provider/license/secret-handling review is accepted.
+  - Any future real flight lookup integration should keep API secrets out of the frontend bundle and prefer a safer desktop/backend boundary when the project moves beyond the scaffold.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

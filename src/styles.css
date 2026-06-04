@@ -356,6 +356,15 @@ html {
   margin: 6px 0 0;
 }
 
+.settings-option-card-block {
+  grid-template-columns: 1fr;
+}
+
+.settings-disabled-input {
+  opacity: 0.68;
+  cursor: not-allowed;
+}
+
 .section-page-header {
   margin: 0 0 20px;
   padding: 0;
@@ -709,6 +718,10 @@ html {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.ticket-form-row-lookup {
+  gap: 12px;
+}
+
 .ticket-form-row-meta {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -867,6 +880,46 @@ label {
 
 .field-directory-note {
   line-height: 1.45;
+}
+
+.flight-lookup-actions,
+.flight-lookup-candidate-list,
+.flight-lookup-candidate-card {
+  display: grid;
+  gap: 10px;
+}
+
+.flight-lookup-actions {
+  justify-items: start;
+}
+
+.flight-lookup-message,
+.flight-lookup-candidate-summary {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.flight-lookup-candidate-list {
+  margin-top: 4px;
+}
+
+.flight-lookup-candidate-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(112, 212, 255, 0.14);
+  background: rgba(112, 212, 255, 0.05);
+}
+
+.flight-lookup-candidate-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.flight-lookup-candidate-top span {
+  color: var(--text-soft);
+  font-size: 0.8rem;
 }
 
 input,
