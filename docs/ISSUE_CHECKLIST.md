@@ -134,6 +134,16 @@
   - Status: `Open / release-blocking review`
   - Priority: `High`
 
+- `FLIGHT-LOOKUP-009`
+  - Validate the AeroDataBox single-day flight-status endpoint, response schema, and normalized mapping before implementing the real adapter.
+  - Status: `Completed / reviewed`
+  - Priority: `High`
+
+- `FLIGHT-LOOKUP-010`
+  - Implement the first real AeroDataBox adapter against the validated single-day endpoint/schema while keeping the user-facing mock flow safe until the real provider path is explicitly wired.
+  - Status: `Open / next implementation task`
+  - Priority: `High`
+
 ## 2. Implemented / Recorded / Needs Future Verification
 
 - `UX-005L`

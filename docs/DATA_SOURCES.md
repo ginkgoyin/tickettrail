@@ -213,30 +213,32 @@ Potential future providers that should be evaluated from official sources only:
 - [FlightAware AeroAPI](https://www.flightaware.com/commercial/aeroapi)
   - Official site describes global flight status/tracking access with multiple endpoints and query-based usage.
 
-Selection still requires a separate review for:
+Provider review is now complete enough to guide the next prototype step:
 
-- pricing and quotas
-- coverage for schedules vs. real-time status
-- terminal/gate field availability
-- commercial license terms
-- acceptable redistribution/caching rules
-- Tauri/backend secret handling
-
-No provider is selected yet in this repository.
+- AeroDataBox is the recommended first implementation candidate / prototype provider.
+- Amadeus remains the main runner-up if later testing shows stronger field quality is worth the extra integration complexity.
+- No live provider is integrated in the app yet.
 
 Before any real provider is connected, the project still needs:
 
-- provider comparison notes
-- pricing/quota review
-- terminal/gate field coverage review
-- license/terms review
-- secure desktop-side API-key boundary design
-- normalized candidate mapping rules
+- the reviewed first adapter implementation
+- final live-endpoint validation with a real user-provided key
+- commercial license/usage confirmation for the chosen integration path
+- acceptable redistribution/caching rules
+- Tauri/backend secret handling
 
 The current provider review document now recommends AeroDataBox as the first provider to prototype, with Amadeus kept as the main runner-up if higher field quality becomes more important than initial simplicity:
 
 - [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_PROVIDER_REVIEW.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_PROVIDER_REVIEW.md)
 - [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_TAURI_CONTRACT.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_TAURI_CONTRACT.md)
+- [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_AERODATABOX_SCHEMA.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_AERODATABOX_SCHEMA.md)
+
+Current validation status:
+
+- AeroDataBox single-day flight status endpoint and related response schema have now been reviewed from the official OpenAPI docs.
+- This validation confirms the planned first endpoint shape and mapping rules.
+- No live provider call has been added to the app yet.
+- The current runtime still uses only mock lookup behavior.
 
 ## 13. Why OpenSky Is Not The Primary Candidate Here
 

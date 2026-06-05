@@ -344,6 +344,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - The current next safe scaffold is local provider/API-key configuration in Settings only; keep it local, keep it explicit that live provider calls are still disabled, and treat this storage as MVP-only rather than final secure secret handling.
   - The current flight lookup backend now also has a provider adapter skeleton: `mock` remains the default safe route, saved provider config can select the backend path, and the AeroDataBox adapter must continue returning structured non-network errors until real API work is explicitly approved.
   - The current hardening step should now keep raw provider keys desktop-side only: return sanitized metadata to React, keep replacement/clear flows in Settings, and leave OS-keychain-grade storage as the next release-blocking review rather than mixing it into live provider integration.
+  - The next live-provider step should begin with the validated AeroDataBox single-day endpoint/schema only: keep the current user-facing mock flow untouched until the real adapter maps `FlightContract` fields and provider HTTP statuses into the normalized candidate/error model.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.
@@ -456,4 +457,4 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Continue next with the first post-config hardening step: replace MVP local API-key storage with a safer desktop-side secret strategy, then validate the chosen provider endpoint schema before adding any live call.
+Continue next with `FLIGHT-LOOKUP-010`: implement the first real AeroDataBox adapter against the validated single-day endpoint/schema, keep the current user-facing mock flow safe until the real adapter is explicitly wired, and do not start airline/operator data work until the AeroDataBox path is completed.

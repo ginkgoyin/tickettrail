@@ -38,6 +38,10 @@ Current provider recommendation remains:
 - AeroDataBox first
 - Amadeus as the main runner-up
 
+The current AeroDataBox endpoint/schema validation note now lives in:
+
+- [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_AERODATABOX_SCHEMA.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_AERODATABOX_SCHEMA.md)
+
 Reference docs:
 
 - [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_DESIGN.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_DESIGN.md)
