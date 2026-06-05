@@ -191,6 +191,10 @@ export function TicketForm({
   const [flightLookupCandidates, setFlightLookupCandidates] = useState<FlightLookupCandidate[]>([]);
   const [flightLookupBusy, setFlightLookupBusy] = useState(false);
   const [flightLookupMessage, setFlightLookupMessage] = useState("");
+  const [segmentLookupDates, setSegmentLookupDates] = useState<Record<number, string>>({});
+  const [segmentLookupCandidates, setSegmentLookupCandidates] = useState<Record<number, FlightLookupCandidate[]>>({});
+  const [segmentLookupBusy, setSegmentLookupBusy] = useState<Record<number, boolean>>({});
+  const [segmentLookupMessages, setSegmentLookupMessages] = useState<Record<number, string>>({});
   const airlineSuggestionCacheRef = useRef(new Map<string, AirlineDirectoryEntry[]>());
   const locationSuggestionCacheRef = useRef(new Map<string, LocationDirectoryEntry[]>());
   const reviewMap = buildReviewMap(mode === "edit" ? null : importReview);
@@ -220,6 +224,14 @@ export function TicketForm({
       setFlightLookupDate(getDateOnly(initialDraft?.departureTimeLocal ?? ""));
       setFlightLookupCandidates([]);
       setFlightLookupMessage("");
+      setSegmentLookupDates(
+        Object.fromEntries(
+          (initialDraft?.segments ?? []).map((segment, index) => [index, getDateOnly(segment.departureTimeLocal)]),
+        ),
+      );
+      setSegmentLookupCandidates({});
+      setSegmentLookupBusy({});
+      setSegmentLookupMessages({});
       return;
     }
 
@@ -228,6 +240,14 @@ export function TicketForm({
       setFlightLookupDate(getDateOnly(importedDraft.departureTimeLocal ?? ""));
       setFlightLookupCandidates([]);
       setFlightLookupMessage("");
+      setSegmentLookupDates(
+        Object.fromEntries(
+          (importedDraft.segments ?? []).map((segment, index) => [index, getDateOnly(segment.departureTimeLocal)]),
+        ),
+      );
+      setSegmentLookupCandidates({});
+      setSegmentLookupBusy({});
+      setSegmentLookupMessages({});
       return;
     }
 
@@ -235,12 +255,19 @@ export function TicketForm({
     setFlightLookupDate("");
     setFlightLookupCandidates([]);
     setFlightLookupMessage("");
+    setSegmentLookupDates({});
+    setSegmentLookupCandidates({});
+    setSegmentLookupBusy({});
+    setSegmentLookupMessages({});
   }, [importedDraft, initialDraft, mode]);
 
   useEffect(() => {
     if (draft.ticketType !== "flight") {
       setFlightLookupCandidates([]);
       setFlightLookupMessage("");
+      setSegmentLookupCandidates({});
+      setSegmentLookupMessages({});
+      setSegmentLookupBusy({});
     }
   }, [draft.ticketType]);
 
@@ -431,6 +458,44 @@ export function TicketForm({
     }));
   };
 
+  const clearSegmentLookupState = (index: number) => {
+    setSegmentLookupCandidates((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+    setSegmentLookupMessages((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+    setSegmentLookupBusy((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+  };
+
+  const swapIndexedRecordEntries = <T,>(record: Record<number, T>, left: number, right: number) => {
+    const next = { ...record };
+    const leftValue = next[left];
+    const rightValue = next[right];
+
+    if (typeof rightValue === "undefined") {
+      delete next[left];
+    } else {
+      next[left] = rightValue;
+    }
+
+    if (typeof leftValue === "undefined") {
+      delete next[right];
+    } else {
+      next[right] = leftValue;
+    }
+
+    return next;
+  };
+
   const handleSwapRoute = () => {
     setDraft((current) => ({
       ...current,
@@ -466,6 +531,10 @@ export function TicketForm({
         ],
       };
     });
+    setSegmentLookupDates((current) => ({
+      ...current,
+      [draft.segments?.length ?? 0]: getDateOnly(draft.arrivalTimeLocal),
+    }));
   };
 
   const handleRemoveSegment = (index: number) => {
@@ -473,6 +542,47 @@ export function TicketForm({
       ...current,
       segments: (current.segments ?? []).filter((_, segmentIndex) => segmentIndex !== index),
     }));
+    clearSegmentLookupState(index);
+    setSegmentLookupDates((current) =>
+      Object.fromEntries(
+        Object.entries(current)
+          .filter(([key]) => Number(key) !== index)
+          .map(([key, value]) => {
+            const numericKey = Number(key);
+            return [numericKey > index ? numericKey - 1 : numericKey, value];
+          }),
+      ),
+    );
+    setSegmentLookupCandidates((current) =>
+      Object.fromEntries(
+        Object.entries(current)
+          .filter(([key]) => Number(key) !== index)
+          .map(([key, value]) => {
+            const numericKey = Number(key);
+            return [numericKey > index ? numericKey - 1 : numericKey, value];
+          }),
+      ),
+    );
+    setSegmentLookupMessages((current) =>
+      Object.fromEntries(
+        Object.entries(current)
+          .filter(([key]) => Number(key) !== index)
+          .map(([key, value]) => {
+            const numericKey = Number(key);
+            return [numericKey > index ? numericKey - 1 : numericKey, value];
+          }),
+      ),
+    );
+    setSegmentLookupBusy((current) =>
+      Object.fromEntries(
+        Object.entries(current)
+          .filter(([key]) => Number(key) !== index)
+          .map(([key, value]) => {
+            const numericKey = Number(key);
+            return [numericKey > index ? numericKey - 1 : numericKey, value];
+          }),
+      ),
+    );
   };
 
   const handleMoveSegment = (index: number, direction: -1 | 1) => {
@@ -491,6 +601,10 @@ export function TicketForm({
         segments,
       };
     });
+    setSegmentLookupDates((current) => swapIndexedRecordEntries(current, index, index + direction));
+    setSegmentLookupCandidates((current) => swapIndexedRecordEntries(current, index, index + direction));
+    setSegmentLookupMessages((current) => swapIndexedRecordEntries(current, index, index + direction));
+    setSegmentLookupBusy((current) => swapIndexedRecordEntries(current, index, index + direction));
   };
 
   const handleInheritPreviousArrival = (index: number) => {
@@ -676,6 +790,47 @@ export function TicketForm({
     }
   };
 
+  const handleLookupSegmentFlight = async (index: number) => {
+    const segment = draft.segments?.[index];
+    const normalizedDate = (segmentLookupDates[index] ?? "").trim();
+    const normalizedFlightNumber = segment?.code.trim() ?? "";
+
+    if (!segment || !normalizedFlightNumber || !normalizedDate) {
+      setSegmentLookupCandidates((current) => ({ ...current, [index]: [] }));
+      setSegmentLookupMessages((current) => ({
+        ...current,
+        [index]: "Enter a flight number and departure date before looking up a flight.",
+      }));
+      return;
+    }
+
+    setSegmentLookupBusy((current) => ({ ...current, [index]: true }));
+    setSegmentLookupMessages((current) => ({ ...current, [index]: "" }));
+
+    try {
+      const candidates = await lookupFlightCandidates({
+        flightNumber: normalizedFlightNumber,
+        departureDate: normalizedDate,
+      });
+
+      setSegmentLookupCandidates((current) => ({ ...current, [index]: candidates }));
+      setSegmentLookupMessages((current) => ({
+        ...current,
+        [index]: candidates.length
+          ? `${candidates.length} flight candidate${candidates.length === 1 ? "" : "s"} found. Review before applying.`
+          : "No flight candidates matched this flight number and date.",
+      }));
+    } catch (error) {
+      setSegmentLookupCandidates((current) => ({ ...current, [index]: [] }));
+      setSegmentLookupMessages((current) => ({
+        ...current,
+        [index]: getFlightLookupErrorMessage(error),
+      }));
+    } finally {
+      setSegmentLookupBusy((current) => ({ ...current, [index]: false }));
+    }
+  };
+
   const handleApplyFlightLookupCandidate = (candidate: FlightLookupCandidate) => {
     const conflictingFields = [
       ["carrier / operator", draft.carrierName, candidate.carrierName],
@@ -729,6 +884,65 @@ export function TicketForm({
       arrivalTimeLocal: candidate.arrivalTimeLocal,
     }));
     setFlightLookupMessage(`Applied flight lookup candidate: ${describeLookupCandidate(candidate)}.`);
+  };
+
+  const handleApplySegmentFlightLookupCandidate = (index: number, candidate: FlightLookupCandidate) => {
+    const segment = draft.segments?.[index];
+    if (!segment) {
+      return;
+    }
+
+    const conflictingFields = [
+      ["carrier / operator", segment.carrierName, candidate.carrierName],
+      ["flight number", segment.code, candidate.code],
+      ["departure", segment.departure.name, candidate.departure.name],
+      ["departure code", segment.departure.code ?? "", candidate.departure.code],
+      ["departure timezone", segment.departure.timezone, candidate.departure.timezone],
+      ["departure time", segment.departureTimeLocal, candidate.departureTimeLocal],
+      ["arrival", segment.arrival.name, candidate.arrival.name],
+      ["arrival code", segment.arrival.code ?? "", candidate.arrival.code],
+      ["arrival timezone", segment.arrival.timezone, candidate.arrival.timezone],
+      ["arrival time", segment.arrivalTimeLocal, candidate.arrivalTimeLocal],
+    ].filter(
+      ([, currentValue, nextValue]) =>
+        currentValue.trim().length > 0 && currentValue.trim() !== nextValue.trim(),
+    );
+
+    if (
+      conflictingFields.length &&
+      !window.confirm(
+        `Apply this lookup result to segment ${index + 2} and overwrite ${conflictingFields
+          .slice(0, 4)
+          .map(([label]) => label)
+          .join(", ")}${conflictingFields.length > 4 ? ", and more" : ""}?`,
+      )
+    ) {
+      return;
+    }
+
+    updateExtraSegment(index, (currentSegment) => ({
+      ...currentSegment,
+      carrierName: candidate.carrierName,
+      code: candidate.code,
+      departure: {
+        ...currentSegment.departure,
+        name: candidate.departure.name,
+        code: candidate.departure.code,
+        timezone: candidate.departure.timezone,
+      },
+      arrival: {
+        ...currentSegment.arrival,
+        name: candidate.arrival.name,
+        code: candidate.arrival.code,
+        timezone: candidate.arrival.timezone,
+      },
+      departureTimeLocal: candidate.departureTimeLocal,
+      arrivalTimeLocal: candidate.arrivalTimeLocal,
+    }));
+    setSegmentLookupMessages((current) => ({
+      ...current,
+      [index]: `Applied flight lookup candidate: ${describeLookupCandidate(candidate)}.`,
+    }));
   };
 
   const getLabelClassName = (field: ImportFieldKey) =>
@@ -1285,6 +1499,88 @@ export function TicketForm({
                         value={segment.code}
                       />
                     </label>
+
+                    {draft.ticketType === "flight" ? (
+                      <div className="segment-lookup-inline">
+                        <div className="ticket-form-row ticket-form-row-lookup">
+                          <label>
+                            Lookup date
+                            <input
+                              onChange={(event) =>
+                                setSegmentLookupDates((current) => ({
+                                  ...current,
+                                  [index]: event.target.value,
+                                }))
+                              }
+                              type="date"
+                              value={segmentLookupDates[index] ?? getDateOnly(segment.departureTimeLocal)}
+                            />
+                          </label>
+
+                          <div className="flight-lookup-actions">
+                            <button
+                              className="ghost-button"
+                              disabled={Boolean(segmentLookupBusy[index]) || !segment.code.trim() || !(segmentLookupDates[index] ?? getDateOnly(segment.departureTimeLocal)).trim()}
+                              onClick={() => void handleLookupSegmentFlight(index)}
+                              type="button"
+                            >
+                              {segmentLookupBusy[index] ? "Looking up..." : "Lookup flight"}
+                            </button>
+                            <small className="field-directory-note">
+                              Lookup uses your saved flight data source setting for this segment.
+                            </small>
+                          </div>
+
+                          {segmentLookupMessages[index] ? (
+                            <p className="flight-lookup-message">{segmentLookupMessages[index]}</p>
+                          ) : null}
+
+                          {(segmentLookupCandidates[index] ?? []).length ? (
+                            <div className="flight-lookup-candidate-list">
+                              {(segmentLookupCandidates[index] ?? []).map((candidate) => (
+                                <article className="flight-lookup-candidate-card" key={`${index}-${candidate.id}`}>
+                                  <div className="flight-lookup-candidate-top">
+                                    <div>
+                                      <strong>{`${candidate.carrierName} ${candidate.code}`}</strong>
+                                      <span>{candidate.providerLabel}</span>
+                                    </div>
+                                    <button
+                                      className="primary-button compact-button"
+                                      onClick={() => handleApplySegmentFlightLookupCandidate(index, candidate)}
+                                      type="button"
+                                    >
+                                      Apply candidate
+                                    </button>
+                                  </div>
+                                  <p className="flight-lookup-candidate-summary">
+                                    {`${candidate.departure.name} (${candidate.departure.code}) -> ${candidate.arrival.name} (${candidate.arrival.code})`}
+                                  </p>
+                                  <div className="field-meta-list">
+                                    {candidate.departureTimeLocal ? (
+                                      <span className="field-meta-chip">
+                                        {candidate.departureTimeLocal.replace("T", " ")}
+                                      </span>
+                                    ) : null}
+                                    {candidate.arrivalTimeLocal ? (
+                                      <span className="field-meta-chip">
+                                        {candidate.arrivalTimeLocal.replace("T", " ")}
+                                      </span>
+                                    ) : null}
+                                    {candidate.departureTerminal ? (
+                                      <span className="field-meta-chip">{`Dep ${candidate.departureTerminal}`}</span>
+                                    ) : null}
+                                    {candidate.arrivalTerminal ? (
+                                      <span className="field-meta-chip">{`Arr ${candidate.arrivalTerminal}`}</span>
+                                    ) : null}
+                                  </div>
+                                  <small className="field-directory-note">{candidate.sourceNote}</small>
+                                </article>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
 
                     <label>
                       {t("departure")}

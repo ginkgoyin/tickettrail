@@ -65,6 +65,7 @@
 - `TICKET-DATA-001A`: optional departure/arrival terminal fields were added to the ticket data model and manually verified
 - `TICKET-DATA-001B`: Add/Edit forms now support flight terminal fields while keeping train/rail forms unchanged, manually verified
 - `TICKET-DATA-001C`: Ticket detail now displays flight terminal information compactly and this was manually verified
+  - Current inline display should normalize flight terminals to a `T n` style such as `T 2`.
 
 - `FLIGHT-LOOKUP-001`
   - Add/Edit flight tickets should support a lightweight flight-number-plus-date lookup scaffold that returns candidate flight details for manual apply.
@@ -146,6 +147,7 @@
     - Normalize provider-local times to a `datetime-local` compatible shape before filling the current form fields.
     - Remove stale mock-only lookup copy from the live-provider UI path.
     - Keep a short-lived cache for repeated identical live lookups so users do not have to wait on the provider every time.
+    - Extend the same lookup/apply flow to onward flight segments without changing the current segment data model.
   - Priority: `High`
 
 - `FLIGHT-LOOKUP-011`
@@ -302,6 +304,7 @@
 - `STATUS-007`
   - Automatic/default status should continue to update over time based on current time when the ticket remains in auto mode.
   - Status: `Implemented / needs manual verification`
+  - Display the derived status label directly without showing an `Auto:` prefix in the current detail UI.
 
 - `STATUS-008`
   - Remove the Status info icon/helper and keep the Ticket information layout visually clean.

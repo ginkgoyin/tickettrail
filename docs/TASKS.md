@@ -346,6 +346,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - The current hardening step should now keep raw provider keys desktop-side only: return sanitized metadata to React, keep replacement/clear flows in Settings, and leave OS-keychain-grade storage as the next release-blocking review rather than mixing it into live provider integration.
   - The next live-provider step should begin with the validated AeroDataBox single-day endpoint/schema only: keep the current user-facing mock flow untouched until the real adapter maps `FlightContract` fields and provider HTTP statuses into the normalized candidate/error model.
   - Live AeroDataBox follow-up cleanup should stay small and practical: normalize provider-local times into the current `datetime-local` field shape, remove stale mock-only lookup copy from the live-provider path, and allow a short-lived repeated-lookup cache before moving on to provider test-connection work.
+  - Current post-validation polish can also stay small: normalize inline terminal display to `T n`, show the derived auto-status label directly without `Auto:`, and let onward flight segments reuse the same lookup/apply flow as the primary flight leg.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

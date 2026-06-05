@@ -90,7 +90,10 @@ function formatLocationWithTerminal(
     return base;
   }
 
-  return `${base} · ${normalizedTerminal}`;
+  const formattedTerminal = normalizedTerminal.toUpperCase().startsWith("T")
+    ? normalizedTerminal.replace(/^T\s*/i, "T ")
+    : `T ${normalizedTerminal}`;
+  return `${base} · ${formattedTerminal}`;
 }
 
 function getStatusLabel(status: TicketStatus, upcomingLabel: string, completedLabel: string, archivedLabel: string) {
@@ -155,8 +158,6 @@ function getStatusDisplayMeta(
   ticket: TicketRecord,
   currentTimeMs: number,
   labels: {
-    autoUpcoming: string;
-    autoCompleted: string;
     upcoming: string;
     completed: string;
     archived: string;
@@ -166,13 +167,13 @@ function getStatusDisplayMeta(
   if (ticket.status === "saved") {
     return {
       label: autoLabel,
-      dropdownAutoLabel: autoLabel === labels.completed ? labels.autoCompleted : labels.autoUpcoming,
+      dropdownAutoLabel: autoLabel,
     };
   }
 
   return {
     label: getStatusLabel(ticket.status, labels.upcoming, labels.completed, labels.archived),
-    dropdownAutoLabel: autoLabel === labels.completed ? labels.autoCompleted : labels.autoUpcoming,
+    dropdownAutoLabel: autoLabel,
   };
 }
 
@@ -626,8 +627,6 @@ export function Dashboard({
   const statusBusy = Boolean(ticket && busyTicketId === ticket.id);
   const statusDisplayMeta = ticket
     ? getStatusDisplayMeta(ticket, statusClockMs, {
-        autoUpcoming: t("autoUpcoming"),
-        autoCompleted: t("autoCompleted"),
         upcoming: t("upcoming"),
         completed: t("completed"),
         archived: t("archived"),
