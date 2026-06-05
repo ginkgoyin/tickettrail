@@ -68,12 +68,12 @@
 
 - `FLIGHT-LOOKUP-001`
   - Add/Edit flight tickets should support a lightweight flight-number-plus-date lookup scaffold that returns candidate flight details for manual apply.
-  - Status: `Implemented / needs manual verification`
+  - Status: `Completed / manually verified`
   - Priority: `Medium`
 
 - `FLIGHT-LOOKUP-002`
-  - Replace the local mock lookup scaffold with a real reviewed provider integration only after cost, quota, license, and field coverage are accepted.
-  - Status: `Open / future provider integration`
+  - Real provider integration requires provider selection, adapter architecture, and a secure backend/Tauri boundary before any live API is connected.
+  - Status: `Documented / future provider integration`
   - Priority: `High`
 
 - `FLIGHT-LOOKUP-003`
@@ -81,10 +81,20 @@
   - Status: `Open / safety rule`
   - Priority: `High`
 
+- `FLIGHT-LOOKUP-004`
+  - Provider-specific responses should be normalized into a common `FlightLookupCandidate` format before the UI consumes them.
+  - Status: `Documented / future architecture`
+  - Priority: `High`
+
 - `DATA-SOURCE-001`
   - Settings should show a lightweight future placeholder for flight lookup provider/API configuration without storing or using a real key in this phase.
   - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
+
+- `DATA-SOURCE-002`
+  - Settings should later support secure provider/API key configuration through a safer desktop-side boundary rather than frontend-only storage.
+  - Status: `Open / future settings architecture`
+  - Priority: `High`
 
 ## 2. Implemented / Recorded / Needs Future Verification
 

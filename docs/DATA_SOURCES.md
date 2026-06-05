@@ -222,6 +222,17 @@ Selection still requires a separate review for:
 - acceptable redistribution/caching rules
 - Tauri/backend secret handling
 
+No provider is selected yet in this repository.
+
+Before any real provider is connected, the project still needs:
+
+- provider comparison notes
+- pricing/quota review
+- terminal/gate field coverage review
+- license/terms review
+- secure desktop-side API-key boundary design
+- normalized candidate mapping rules
+
 ## 13. Why OpenSky Is Not The Primary Candidate Here
 
 - [OpenSky FAQ](https://opensky-network.org/about/faq) states that its inferred flights are derived after the finished UTC day and that it has historical flight data for previous days, not commercial schedule/delay/cancellation data for the current day.
@@ -232,3 +243,21 @@ For this app's current lookup goal, that makes OpenSky a poor primary fit for:
 - flight-number + date autofill during ticket entry
 - terminal-aware commercial schedule lookup
 - simple desktop operational use without a separate license review
+
+## 14. Planned Real Integration Boundary
+
+The current repository does **not** call a live provider yet.
+
+The intended future integration boundary is:
+
+- React form
+  -> frontend lookup abstraction
+  -> Tauri command
+  -> provider adapter
+  -> normalized `FlightLookupCandidate[]`
+
+That future boundary is intended to ensure:
+
+- no hardcoded provider keys in frontend code
+- no provider secret exposure in bundled JavaScript
+- one normalized candidate shape regardless of provider
