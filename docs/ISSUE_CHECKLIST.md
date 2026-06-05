@@ -101,6 +101,21 @@
   - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
+- `FLIGHT-LOOKUP-006`
+  - Define the first Tauri command contract for real provider lookup, including normalized request, response, and error payloads.
+  - Status: `Implemented / needs review`
+  - Priority: `High`
+
+- `FLIGHT-LOOKUP-007`
+  - Add a backend/Tauri mock command boundary before any live provider API is connected.
+  - Status: `Open / future backend scaffold`
+  - Priority: `High`
+
+- `DATA-SOURCE-003`
+  - Design secure local provider configuration and API key storage for future flight lookup providers.
+  - Status: `Open / future secret storage design`
+  - Priority: `High`
+
 ## 2. Implemented / Recorded / Needs Future Verification
 
 - `UX-005L`

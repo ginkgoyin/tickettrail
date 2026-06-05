@@ -18,6 +18,10 @@ Current status:
 
 This design is for the next safe integration phases only.
 
+The concrete Tauri-side request/response/error proposal now lives in:
+
+- [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_TAURI_CONTRACT.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_TAURI_CONTRACT.md)
+
 ## 2. Product Behavior
 
 The real-provider flow should preserve the current user-facing behavior:

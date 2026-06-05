@@ -338,6 +338,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - `FLIGHT-LOOKUP-002` should now begin with architecture only: keep `src/lib/flightLookup.ts` as the frontend-facing abstraction, define provider adapters behind a secure Tauri/backend boundary, and do not connect any live provider until one is selected through pricing/terms/coverage review.
   - A new `docs/FLIGHT_LOOKUP_DESIGN.md` should act as the reference for future provider phases, normalization rules, and API-key security constraints.
   - The provider review phase should now compare AeroDataBox, Amadeus, Aviationstack, and FlightAware side-by-side using official docs only, recommend one first provider, and keep live integration blocked until the pricing/terms/secret-handling decision is accepted.
+  - After provider review, the next planning step should define the exact Tauri request/response/error contract for an AeroDataBox-first integration without adding live HTTP calls yet.
+  - Secure provider configuration and API key storage should remain a separate future task from the current contract-planning pass.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.
@@ -450,4 +452,4 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Continue next with the first concrete pre-integration step after review: validate the recommended provider's exact endpoint schema and draft the Tauri command contract without adding any live API call to the app yet.
+Continue next with the first concrete backend-boundary step after this contract pass: add a non-live Tauri mock lookup command that returns normalized candidates through the desktop boundary before any real provider call is attempted.

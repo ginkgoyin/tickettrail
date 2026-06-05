@@ -236,6 +236,7 @@ Before any real provider is connected, the project still needs:
 The current provider review document now recommends AeroDataBox as the first provider to prototype, with Amadeus kept as the main runner-up if higher field quality becomes more important than initial simplicity:
 
 - [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_PROVIDER_REVIEW.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_PROVIDER_REVIEW.md)
+- [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_TAURI_CONTRACT.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_TAURI_CONTRACT.md)
 
 ## 13. Why OpenSky Is Not The Primary Candidate Here
 
@@ -265,3 +266,5 @@ That future boundary is intended to ensure:
 - no hardcoded provider keys in frontend code
 - no provider secret exposure in bundled JavaScript
 - one normalized candidate shape regardless of provider
+
+No real provider has been integrated yet; the current contract work only defines the future desktop-side boundary and normalized payload shape.
