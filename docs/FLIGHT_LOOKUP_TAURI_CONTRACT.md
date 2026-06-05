@@ -17,6 +17,10 @@ Current implementation status:
 - Phase A mock Tauri command boundary is now implemented.
 - It returns local mock candidates only.
 - It does **not** call a live provider.
+- Local provider configuration commands are now scaffolded for Settings:
+  - `get_flight_data_source_config`
+  - `save_flight_data_source_config`
+- Those config commands do **not** mean real provider integration is complete.
 
 Current provider recommendation remains:
 

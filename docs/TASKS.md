@@ -341,6 +341,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - After provider review, the next planning step should define the exact Tauri request/response/error contract for an AeroDataBox-first integration without adding live HTTP calls yet.
   - Secure provider configuration and API key storage should remain a separate future task from the current contract-planning pass.
   - After the contract is documented, the next implementation step should be a backend mock command boundary that returns normalized candidates through Tauri before any real provider call is attempted.
+  - The current next safe scaffold is local provider/API-key configuration in Settings only; keep it local, keep it explicit that live provider calls are still disabled, and treat this storage as MVP-only rather than final secure secret handling.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.
@@ -453,4 +454,4 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Continue next with the first real-provider preparation step after the mock boundary: design secure local provider configuration plus desktop-side API key handling, then validate the chosen provider endpoint schema before adding any live call.
+Continue next with the first post-config hardening step: replace MVP local API-key storage with a safer desktop-side secret strategy, then validate the chosen provider endpoint schema before adding any live call.

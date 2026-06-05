@@ -246,3 +246,11 @@ pub struct FlightLookupCandidatePayload {
     pub flight_status: Option<String>,
     pub confidence: Option<String>,
 }
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlightDataSourceConfigPayload {
+    pub provider: String,
+    pub api_key: Option<String>,
+    pub updated_at: Option<String>,
+}

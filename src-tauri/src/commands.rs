@@ -2,18 +2,22 @@ use crate::{
     db,
     models::{
         AirlinePayload, BackupReadinessPayload, BackupRecordPayload, LocationDirectoryPayload,
-        FlightLookupCandidatePayload, FlightLookupLocationPayload, FlightLookupRequestPayload,
-        StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
-        TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
+        FlightDataSourceConfigPayload, FlightLookupCandidatePayload, FlightLookupLocationPayload,
+        FlightLookupRequestPayload, StubPreviewPayload, TicketAttachmentPayload,
+        TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
     },
 };
+use chrono::Utc;
+use std::fs;
+use std::path::PathBuf;
 use tauri::command;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 const MOCK_FLIGHT_LOOKUP_PROVIDER: &str = "aerodatabox";
 const MOCK_FLIGHT_LOOKUP_PROVIDER_LABEL: &str = "AeroDataBox mock via Tauri";
 const MOCK_FLIGHT_LOOKUP_SOURCE_NOTE: &str =
     "Phase A mock command only. This result is generated locally through the Tauri boundary and should be reviewed before saving.";
+const FLIGHT_DATA_SOURCE_CONFIG_FILE: &str = "flight-data-source.json";
 
 #[command]
 pub fn get_bootstrap_summary(app: AppHandle) -> Result<String, String> {
@@ -122,6 +126,44 @@ pub fn import_archive_bundle(app: AppHandle, bundle_path: String) -> Result<(), 
 }
 
 #[command]
+pub fn get_flight_data_source_config(app: AppHandle) -> Result<FlightDataSourceConfigPayload, String> {
+    let config_path = flight_data_source_config_path(&app)?;
+    if !config_path.exists() {
+        return Ok(default_flight_data_source_config());
+    }
+
+    let config_text = fs::read_to_string(&config_path)
+        .map_err(|_| "Failed to read local flight data source config.".to_string())?;
+    let mut config: FlightDataSourceConfigPayload = serde_json::from_str(&config_text)
+        .map_err(|_| "Failed to parse local flight data source config.".to_string())?;
+    normalize_flight_data_source_config(&mut config);
+    Ok(config)
+}
+
+#[command]
+pub fn save_flight_data_source_config(
+    app: AppHandle,
+    config: FlightDataSourceConfigPayload,
+) -> Result<FlightDataSourceConfigPayload, String> {
+    let mut normalized = config;
+    normalize_flight_data_source_config(&mut normalized);
+    validate_flight_data_source_provider(&normalized.provider)?;
+    normalized.updated_at = Some(Utc::now().to_rfc3339());
+
+    let config_path = flight_data_source_config_path(&app)?;
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent).map_err(|_| "Failed to prepare local config directory.".to_string())?;
+    }
+
+    let serialized = serde_json::to_string_pretty(&normalized)
+        .map_err(|_| "Failed to serialize local flight data source config.".to_string())?;
+    fs::write(&config_path, serialized)
+        .map_err(|_| "Failed to save local flight data source config.".to_string())?;
+
+    Ok(normalized)
+}
+
+#[command]
 pub fn create_stub_preview(code: String, route_label: String) -> StubPreviewPayload {
     StubPreviewPayload {
         title: "Ticket Stub Preview".into(),
@@ -179,6 +221,39 @@ pub fn lookup_flight_candidates(
             confidence: template.confidence,
         })
         .collect())
+}
+
+fn default_flight_data_source_config() -> FlightDataSourceConfigPayload {
+    FlightDataSourceConfigPayload {
+        provider: "mock".into(),
+        api_key: None,
+        updated_at: None,
+    }
+}
+
+fn flight_data_source_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path_service = app.path();
+    let base_dir = path_service
+        .app_config_dir()
+        .or_else(|_| path_service.app_data_dir())
+        .map_err(|err| err.to_string())?;
+    Ok(base_dir.join(FLIGHT_DATA_SOURCE_CONFIG_FILE))
+}
+
+fn validate_flight_data_source_provider(provider: &str) -> Result<(), String> {
+    match provider {
+        "mock" | "aerodatabox" => Ok(()),
+        _ => Err("Unsupported flight data source provider.".into()),
+    }
+}
+
+fn normalize_flight_data_source_config(config: &mut FlightDataSourceConfigPayload) {
+    config.provider = config.provider.trim().to_lowercase();
+    config.api_key = config
+        .api_key
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
 }
 
 #[derive(Clone)]
@@ -308,8 +383,12 @@ fn is_iso_date(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_iso_date, lookup_flight_candidates, normalize_flight_number};
-    use crate::models::FlightLookupRequestPayload;
+    use super::{
+        default_flight_data_source_config, is_iso_date, lookup_flight_candidates,
+        normalize_flight_data_source_config, normalize_flight_number,
+        validate_flight_data_source_provider,
+    };
+    use crate::models::{FlightDataSourceConfigPayload, FlightLookupRequestPayload};
 
     #[test]
     fn normalize_flight_number_strips_spacing_and_symbols() {
@@ -356,5 +435,33 @@ mod tests {
         .expect("mock lookup should succeed");
 
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn default_flight_data_source_config_uses_mock_provider() {
+        let config = default_flight_data_source_config();
+        assert_eq!(config.provider, "mock");
+        assert!(config.api_key.is_none());
+    }
+
+    #[test]
+    fn normalize_flight_data_source_config_trims_api_key() {
+        let mut config = FlightDataSourceConfigPayload {
+            provider: " AeroDataBox ".into(),
+            api_key: Some("  secret-key  ".into()),
+            updated_at: None,
+        };
+
+        normalize_flight_data_source_config(&mut config);
+
+        assert_eq!(config.provider, "aerodatabox");
+        assert_eq!(config.api_key.as_deref(), Some("secret-key"));
+    }
+
+    #[test]
+    fn validate_flight_data_source_provider_rejects_unknown_values() {
+        assert!(validate_flight_data_source_provider("mock").is_ok());
+        assert!(validate_flight_data_source_provider("aerodatabox").is_ok());
+        assert!(validate_flight_data_source_provider("other").is_err());
     }
 }

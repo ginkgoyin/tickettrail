@@ -1,5 +1,11 @@
 import { useEffect, useState, type ComponentProps } from "react";
 import { BackupPanel } from "../components/BackupPanel";
+import {
+  getFlightDataSourceConfig,
+  saveFlightDataSourceConfig,
+  type FlightDataSourceConfig,
+  type FlightDataSourceProvider,
+} from "../lib/flightLookup";
 import { useI18n, type Language } from "../lib/i18n";
 
 type BackupPanelProps = ComponentProps<typeof BackupPanel>;
@@ -10,9 +16,28 @@ interface SettingsPageProps {
   initialSubview?: SettingsSubview;
 }
 
+function formatSavedAt(value: string) {
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-AU", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(timestamp));
+}
+
 export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }: SettingsPageProps) {
   const { language, setLanguage, t } = useI18n();
   const [subview, setSubview] = useState<SettingsSubview>(initialSubview);
+  const [flightDataSourceConfig, setFlightDataSourceConfig] = useState<FlightDataSourceConfig>({
+    provider: "mock",
+    apiKey: "",
+  });
+  const [flightDataSourceBusy, setFlightDataSourceBusy] = useState(false);
+  const [flightDataSourceStatus, setFlightDataSourceStatus] = useState("");
+  const [showFlightDataSourceApiKey, setShowFlightDataSourceApiKey] = useState(false);
   const settingsTabs: Array<{ value: SettingsSubview; label: string }> = [
     { value: "appearance", label: t("appearance") },
     { value: "export", label: t("export") },
@@ -22,6 +47,66 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
   useEffect(() => {
     setSubview(initialSubview);
   }, [initialSubview]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFlightDataSourceConfig = async () => {
+      try {
+        const config = await getFlightDataSourceConfig();
+        if (!isMounted) {
+          return;
+        }
+
+        setFlightDataSourceConfig({
+          provider: config.provider,
+          apiKey: config.apiKey ?? "",
+          updatedAt: config.updatedAt,
+        });
+        setFlightDataSourceStatus("");
+      } catch {
+        if (isMounted) {
+          setFlightDataSourceStatus("Failed to load the local flight data source configuration.");
+        }
+      }
+    };
+
+    void loadFlightDataSourceConfig();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleUpdateFlightDataSourceProvider = (provider: FlightDataSourceProvider) => {
+    setFlightDataSourceConfig((current) => ({
+      ...current,
+      provider,
+    }));
+    setFlightDataSourceStatus("");
+  };
+
+  const handleSaveFlightDataSourceConfig = async () => {
+    setFlightDataSourceBusy(true);
+    setFlightDataSourceStatus("");
+
+    try {
+      const savedConfig = await saveFlightDataSourceConfig({
+        provider: flightDataSourceConfig.provider,
+        apiKey: flightDataSourceConfig.apiKey?.trim() || undefined,
+      });
+      setFlightDataSourceConfig({
+        provider: savedConfig.provider,
+        apiKey: savedConfig.apiKey ?? "",
+        updatedAt: savedConfig.updatedAt,
+      });
+      setFlightDataSourceStatus("Flight data source settings saved locally.");
+    } catch {
+      setFlightDataSourceStatus("Failed to save the local flight data source configuration.");
+    } finally {
+      setFlightDataSourceBusy(false);
+    }
+  };
 
   const appearanceView = (
     <section className="section-stack">
@@ -143,32 +228,88 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
       <div className="panel settings-section-card">
         <h3>Data sources</h3>
         <div className="settings-option-list">
-          <div className="settings-option-card">
+          <div className="settings-option-card settings-option-card-block">
             <div>
               <strong>Flight lookup provider</strong>
               <p className="hero-copy">
-                Phase 1 uses a local mock provider only. Real flight-status integration will be wired later
-                after provider review.
+                Mock works without an API key. AeroDataBox can be selected and stored locally now for
+                future provider integration, but real provider calls are still not connected in this phase.
               </p>
             </div>
-            <span className="ticket-status ticket-status-draft">Mock only</span>
-          </div>
 
-          <div className="settings-option-card settings-option-card-block">
-            <div>
-              <strong>Provider API key</strong>
-              <p className="hero-copy">
-                Coming soon. The current scaffold does not store or use any API key, and future keys must
-                stay out of the frontend bundle.
+            <div className="settings-field-stack">
+              <label className="settings-field">
+                <span>Provider</span>
+                <select
+                  aria-label="Flight lookup provider"
+                  onChange={(event) =>
+                    handleUpdateFlightDataSourceProvider(
+                      event.target.value as FlightDataSourceProvider,
+                    )
+                  }
+                  value={flightDataSourceConfig.provider}
+                >
+                  <option value="mock">Mock</option>
+                  <option value="aerodatabox">AeroDataBox</option>
+                </select>
+              </label>
+
+              <label className="settings-field">
+                <span>Provider API key</span>
+                <div className="settings-secret-input-row">
+                  <input
+                    aria-label="Flight data provider API key"
+                    onChange={(event) =>
+                      setFlightDataSourceConfig((current) => ({
+                        ...current,
+                        apiKey: event.target.value,
+                      }))
+                    }
+                    placeholder={
+                      flightDataSourceConfig.provider === "mock"
+                        ? "Optional for mock mode"
+                        : "Stored locally for future AeroDataBox integration"
+                    }
+                    type={showFlightDataSourceApiKey ? "text" : "password"}
+                    value={flightDataSourceConfig.apiKey ?? ""}
+                  />
+                  <button
+                    className="ghost-button compact-button"
+                    onClick={() => setShowFlightDataSourceApiKey((current) => !current)}
+                    type="button"
+                  >
+                    {showFlightDataSourceApiKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </label>
+
+              <div className="settings-inline-controls">
+                <button
+                  className="primary-button"
+                  disabled={flightDataSourceBusy}
+                  onClick={() => void handleSaveFlightDataSourceConfig()}
+                  type="button"
+                >
+                  {flightDataSourceBusy ? "Saving..." : t("save")}
+                </button>
+                <span className="ticket-status ticket-status-draft">
+                  {flightDataSourceConfig.provider === "mock"
+                    ? "Lookup remains mock-only in this phase"
+                    : "Provider selection is stored, but live lookup is not connected yet"}
+                </span>
+              </div>
+
+              <p className="settings-helper-copy">
+                API keys are stored locally only in this MVP scaffold and are not yet moved to final
+                secure secret storage.
               </p>
+              {flightDataSourceConfig.updatedAt ? (
+                <p className="settings-helper-copy">{`Last saved: ${formatSavedAt(flightDataSourceConfig.updatedAt)}`}</p>
+              ) : null}
+              {flightDataSourceStatus ? (
+                <p className="settings-status-message">{flightDataSourceStatus}</p>
+              ) : null}
             </div>
-            <input
-              aria-label="Provider API key placeholder"
-              className="settings-disabled-input"
-              disabled
-              placeholder="Coming soon - not connected in this phase"
-              value=""
-            />
           </div>
         </div>
       </div>

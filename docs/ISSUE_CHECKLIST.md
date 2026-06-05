@@ -113,7 +113,15 @@
 
 - `DATA-SOURCE-003`
   - Design secure local provider configuration and API key storage for future flight lookup providers.
-  - Status: `Open / future secret storage design`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Phase 1 now includes local provider selection plus local API-key scaffold in Settings.
+    - This is still MVP local storage, not final secure secret storage.
+  - Priority: `High`
+
+- `DATA-SOURCE-004`
+  - Replace local MVP API-key storage with more secure storage before any public-release security claim is made.
+  - Status: `Open / future secure storage hardening`
   - Priority: `High`
 
 ## 2. Implemented / Recorded / Needs Future Verification

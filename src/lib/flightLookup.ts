@@ -5,6 +5,14 @@ export interface FlightLookupRequest {
   departureDate: string;
 }
 
+export type FlightDataSourceProvider = "mock" | "aerodatabox";
+
+export interface FlightDataSourceConfig {
+  provider: FlightDataSourceProvider;
+  apiKey?: string;
+  updatedAt?: string;
+}
+
 export interface FlightLookupLocation {
   name: string;
   code: string;
@@ -47,6 +55,8 @@ export interface FlightLookupErrorPayload {
   details?: string;
 }
 
+const FLIGHT_DATA_SOURCE_CONFIG_STORAGE_KEY = "tickettrail.flight-data-source-config";
+
 interface FlightLookupTauriRequest {
   flightNumber: string;
   date: string;
@@ -55,6 +65,12 @@ interface FlightLookupTauriRequest {
   departureAirportHint?: string;
   arrivalAirportHint?: string;
   countryHint?: string;
+}
+
+interface FlightDataSourceConfigPayload {
+  provider: string;
+  apiKey?: string;
+  updatedAt?: string;
 }
 
 interface MockFlightTemplate {
@@ -179,12 +195,81 @@ function normalizeFlightNumber(value: string) {
   return value.replace(/[^a-z0-9]/gi, "").trim().toUpperCase();
 }
 
+function normalizeProvider(value: string | null | undefined): FlightDataSourceProvider {
+  return value?.trim().toLowerCase() === "aerodatabox" ? "aerodatabox" : "mock";
+}
+
 function combineDateAndTime(date: string, time: string) {
   return `${date}T${time}`;
 }
 
 function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function normalizeFlightDataSourceConfig(
+  config: Partial<FlightDataSourceConfigPayload> | null | undefined,
+): FlightDataSourceConfig {
+  return {
+    provider: normalizeProvider(config?.provider),
+    apiKey: config?.apiKey?.trim() || undefined,
+    updatedAt: config?.updatedAt || undefined,
+  };
+}
+
+function buildFlightDataSourceConfigPayload(
+  config: FlightDataSourceConfig,
+): FlightDataSourceConfigPayload {
+  return {
+    provider: config.provider,
+    apiKey: config.apiKey?.trim() || undefined,
+    updatedAt: config.updatedAt,
+  };
+}
+
+function canUseLocalStorage() {
+  return typeof window !== "undefined" && !!window.localStorage;
+}
+
+function getFlightDataSourceConfigFromLocalStorage(): FlightDataSourceConfig {
+  if (!canUseLocalStorage()) {
+    return { provider: "mock" };
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(FLIGHT_DATA_SOURCE_CONFIG_STORAGE_KEY);
+    if (!rawValue) {
+      return { provider: "mock" };
+    }
+
+    return normalizeFlightDataSourceConfig(
+      JSON.parse(rawValue) as Partial<FlightDataSourceConfigPayload>,
+    );
+  } catch {
+    return { provider: "mock" };
+  }
+}
+
+function saveFlightDataSourceConfigToLocalStorage(
+  config: FlightDataSourceConfig,
+): FlightDataSourceConfig {
+  const normalized = {
+    ...normalizeFlightDataSourceConfig(config),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (canUseLocalStorage()) {
+    window.localStorage.setItem(
+      FLIGHT_DATA_SOURCE_CONFIG_STORAGE_KEY,
+      JSON.stringify(normalized),
+    );
+  }
+
+  return normalized;
+}
+
+function cacheFlightDataSourceConfig(config: FlightDataSourceConfig): FlightDataSourceConfig {
+  return saveFlightDataSourceConfigToLocalStorage(config);
 }
 
 function buildTauriRequest(request: FlightLookupRequest): FlightLookupTauriRequest {
@@ -222,6 +307,31 @@ async function lookupViaTauri(
     }
 
     return null;
+  }
+}
+
+export async function getFlightDataSourceConfig(): Promise<FlightDataSourceConfig> {
+  try {
+    const config = await invoke<FlightDataSourceConfigPayload>("get_flight_data_source_config");
+    return cacheFlightDataSourceConfig(normalizeFlightDataSourceConfig(config));
+  } catch {
+    return getFlightDataSourceConfigFromLocalStorage();
+  }
+}
+
+export async function saveFlightDataSourceConfig(
+  config: FlightDataSourceConfig,
+): Promise<FlightDataSourceConfig> {
+  try {
+    const savedConfig = await invoke<FlightDataSourceConfigPayload>(
+      "save_flight_data_source_config",
+      {
+        config: buildFlightDataSourceConfigPayload(config),
+      },
+    );
+    return cacheFlightDataSourceConfig(normalizeFlightDataSourceConfig(savedConfig));
+  } catch {
+    return saveFlightDataSourceConfigToLocalStorage(config);
   }
 }
 

@@ -365,6 +365,40 @@ html {
   cursor: not-allowed;
 }
 
+.settings-field-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-field {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-secret-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.settings-inline-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.settings-helper-copy,
+.settings-status-message {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.settings-status-message {
+  color: #cfefff;
+}
+
 .section-page-header {
   margin: 0 0 20px;
   padding: 0;
