@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
+  getFlightLookupErrorMessage,
   lookupFlightCandidates,
   type FlightLookupCandidate,
 } from "../lib/flightLookup";
@@ -159,7 +160,13 @@ function getDateOnly(value: string) {
 }
 
 function describeLookupCandidate(candidate: FlightLookupCandidate) {
-  return `${candidate.departure.code} -> ${candidate.arrival.code} · ${candidate.departureTimeLocal.slice(11, 16)} - ${candidate.arrivalTimeLocal.slice(11, 16)}`;
+  const departureTimeLabel = candidate.departureTimeLocal
+    ? candidate.departureTimeLocal.slice(11, 16)
+    : "time pending";
+  const arrivalTimeLabel = candidate.arrivalTimeLocal
+    ? candidate.arrivalTimeLocal.slice(11, 16)
+    : "time pending";
+  return `${candidate.departure.code} -> ${candidate.arrival.code} · ${departureTimeLabel} - ${arrivalTimeLabel}`;
 }
 
 export function TicketForm({
@@ -658,12 +665,12 @@ export function TicketForm({
       setFlightLookupCandidates(candidates);
       setFlightLookupMessage(
         candidates.length
-          ? `${candidates.length} mock flight candidate${candidates.length === 1 ? "" : "s"} found. Review before applying.`
-          : "No mock flight candidates matched this flight number and date yet.",
+          ? `${candidates.length} flight candidate${candidates.length === 1 ? "" : "s"} found. Review before applying.`
+          : "No flight candidates matched this flight number and date.",
       );
-    } catch {
+    } catch (error) {
       setFlightLookupCandidates([]);
-      setFlightLookupMessage("Flight lookup failed. The current scaffold only supports local mock data.");
+      setFlightLookupMessage(getFlightLookupErrorMessage(error));
     } finally {
       setFlightLookupBusy(false);
     }
@@ -721,7 +728,7 @@ export function TicketForm({
       departureTimeLocal: candidate.departureTimeLocal,
       arrivalTimeLocal: candidate.arrivalTimeLocal,
     }));
-    setFlightLookupMessage(`Applied mock lookup candidate: ${describeLookupCandidate(candidate)}.`);
+    setFlightLookupMessage(`Applied flight lookup candidate: ${describeLookupCandidate(candidate)}.`);
   };
 
   const getLabelClassName = (field: ImportFieldKey) =>
@@ -934,7 +941,7 @@ export function TicketForm({
                   {flightLookupBusy ? "Looking up..." : "Lookup flight"}
                 </button>
                 <small className="field-directory-note">
-                  Phase 1 uses a local mock provider only. No real API is connected yet.
+                  Lookup uses your saved flight data source setting. Review candidates before applying.
                 </small>
               </div>
 
@@ -961,8 +968,16 @@ export function TicketForm({
                         {`${candidate.departure.name} (${candidate.departure.code}) -> ${candidate.arrival.name} (${candidate.arrival.code})`}
                       </p>
                       <div className="field-meta-list">
-                        <span className="field-meta-chip">{candidate.departureTimeLocal.replace("T", " ")}</span>
-                        <span className="field-meta-chip">{candidate.arrivalTimeLocal.replace("T", " ")}</span>
+                        {candidate.departureTimeLocal ? (
+                          <span className="field-meta-chip">
+                            {candidate.departureTimeLocal.replace("T", " ")}
+                          </span>
+                        ) : null}
+                        {candidate.arrivalTimeLocal ? (
+                          <span className="field-meta-chip">
+                            {candidate.arrivalTimeLocal.replace("T", " ")}
+                          </span>
+                        ) : null}
                         {candidate.departureTerminal ? (
                           <span className="field-meta-chip">{`Dep ${candidate.departureTerminal}`}</span>
                         ) : null}

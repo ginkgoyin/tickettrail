@@ -345,6 +345,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - The current flight lookup backend now also has a provider adapter skeleton: `mock` remains the default safe route, saved provider config can select the backend path, and the AeroDataBox adapter must continue returning structured non-network errors until real API work is explicitly approved.
   - The current hardening step should now keep raw provider keys desktop-side only: return sanitized metadata to React, keep replacement/clear flows in Settings, and leave OS-keychain-grade storage as the next release-blocking review rather than mixing it into live provider integration.
   - The next live-provider step should begin with the validated AeroDataBox single-day endpoint/schema only: keep the current user-facing mock flow untouched until the real adapter maps `FlightContract` fields and provider HTTP statuses into the normalized candidate/error model.
+  - Live AeroDataBox follow-up cleanup should stay small and practical: normalize provider-local times into the current `datetime-local` field shape, remove stale mock-only lookup copy from the live-provider path, and allow a short-lived repeated-lookup cache before moving on to provider test-connection work.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.
@@ -457,4 +458,4 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Continue next with `FLIGHT-LOOKUP-010`: implement the first real AeroDataBox adapter against the validated single-day endpoint/schema, keep the current user-facing mock flow safe until the real adapter is explicitly wired, and do not start airline/operator data work until the AeroDataBox path is completed.
+Continue next with manual verification for the latest `FLIGHT-LOOKUP-010` live-provider follow-up, then move to `FLIGHT-LOOKUP-011` provider test-connection work and `FLIGHT-LOOKUP-012` live error/rate-limit hardening before starting airline/operator data expansion.

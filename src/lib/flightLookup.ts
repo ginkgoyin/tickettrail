@@ -6,9 +6,11 @@ export interface FlightLookupRequest {
 }
 
 export type FlightDataSourceProvider = "mock" | "aerodatabox";
+export type FlightDataSourceGateway = "apiMarket" | "rapidApi";
 
 export interface FlightDataSourceConfig {
   provider: FlightDataSourceProvider;
+  gateway: FlightDataSourceGateway;
   hasApiKey: boolean;
   apiKeyPreview?: string;
   updatedAt?: string;
@@ -16,6 +18,7 @@ export interface FlightDataSourceConfig {
 
 export interface FlightDataSourceConfigSaveInput {
   provider: FlightDataSourceProvider;
+  gateway?: FlightDataSourceGateway;
   apiKey?: string;
   clearApiKey?: boolean;
 }
@@ -77,6 +80,7 @@ interface FlightLookupTauriRequest {
 
 interface FlightDataSourceConfigPayload {
   provider: string;
+  gateway?: string;
   hasApiKey?: boolean;
   apiKeyPreview?: string;
   updatedAt?: string;
@@ -84,6 +88,7 @@ interface FlightDataSourceConfigPayload {
 
 interface FlightDataSourceConfigSavePayload {
   provider: string;
+  gateway?: string;
   apiKey?: string;
   clearApiKey?: boolean;
 }
@@ -214,6 +219,13 @@ function normalizeProvider(value: string | null | undefined): FlightDataSourcePr
   return value?.trim().toLowerCase() === "aerodatabox" ? "aerodatabox" : "mock";
 }
 
+function normalizeGateway(value: string | null | undefined): FlightDataSourceGateway {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "rapidapi" || normalized === "rapid_api" || normalized === "rapid-api"
+    ? "rapidApi"
+    : "apiMarket";
+}
+
 function combineDateAndTime(date: string, time: string) {
   return `${date}T${time}`;
 }
@@ -227,6 +239,7 @@ function normalizeFlightDataSourceConfig(
 ): FlightDataSourceConfig {
   return {
     provider: normalizeProvider(config?.provider),
+    gateway: normalizeGateway(config?.gateway),
     hasApiKey: Boolean(config?.hasApiKey),
     apiKeyPreview: config?.apiKeyPreview?.trim() || undefined,
     updatedAt: config?.updatedAt || undefined,
@@ -238,6 +251,7 @@ function buildFlightDataSourceConfigPayload(
 ): FlightDataSourceConfigSavePayload {
   return {
     provider: config.provider,
+    gateway: config.gateway,
     apiKey: config.apiKey?.trim() || undefined,
     clearApiKey: config.clearApiKey || undefined,
   };
@@ -259,20 +273,20 @@ function canUseLocalStorage() {
 
 function getFlightDataSourceConfigFromLocalStorage(): FlightDataSourceConfig {
   if (!canUseLocalStorage()) {
-    return { provider: "mock", hasApiKey: false };
+    return { provider: "mock", gateway: "apiMarket", hasApiKey: false };
   }
 
   try {
     const rawValue = window.localStorage.getItem(FLIGHT_DATA_SOURCE_CONFIG_STORAGE_KEY);
     if (!rawValue) {
-      return { provider: "mock", hasApiKey: false };
+      return { provider: "mock", gateway: "apiMarket", hasApiKey: false };
     }
 
     return normalizeFlightDataSourceConfig(
       JSON.parse(rawValue) as Partial<FlightDataSourceConfigPayload>,
     );
   } catch {
-    return { provider: "mock", hasApiKey: false };
+    return { provider: "mock", gateway: "apiMarket", hasApiKey: false };
   }
 }
 
@@ -282,6 +296,7 @@ function saveFlightDataSourceConfigToLocalStorage(
   const current = getFlightDataSourceConfigFromLocalStorage();
   const normalized: FlightDataSourceConfig = {
     provider: config.provider,
+    gateway: config.gateway ?? current.gateway,
     hasApiKey: config.clearApiKey ? false : config.apiKey?.trim() ? true : current.hasApiKey,
     apiKeyPreview: config.clearApiKey
       ? undefined
@@ -318,6 +333,58 @@ function isStructuredLookupError(value: unknown): value is FlightLookupErrorPayl
   return typeof maybeError.code === "string" && typeof maybeError.message === "string";
 }
 
+function parseStructuredLookupError(value: unknown): FlightLookupErrorPayload | null {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return parseStructuredLookupError(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  return isStructuredLookupError(value) ? value : null;
+}
+
+export function getFlightLookupErrorMessage(error: unknown) {
+  const structuredError = parseStructuredLookupError(error);
+  if (!structuredError) {
+    return "Flight lookup failed. The current provider could not be reached safely.";
+  }
+
+  switch (structuredError.code) {
+    case "missing_api_key":
+      return "AeroDataBox is selected, but no API key is saved yet.";
+    case "provider_unauthorized":
+      return (
+        structuredError.message ||
+        "The saved AeroDataBox API key was rejected by the provider."
+      );
+    case "rate_limited":
+      return "The current flight lookup provider rate limit was reached. Please try again later.";
+    case "network_error":
+      return "Flight lookup could not reach the current provider right now.";
+    case "provider_response_parse_error":
+      return (
+        structuredError.message ||
+        "The current flight lookup provider returned data that could not be read safely."
+      );
+    case "unsupported_provider":
+      return "The selected flight lookup provider is not supported by the current backend.";
+    case "missing_provider_configuration":
+      return "The current flight lookup provider configuration is incomplete.";
+    case "provider_not_implemented":
+      return "The selected flight lookup provider is saved, but the live adapter is not ready yet.";
+    case "no_results":
+      return "No flight candidates matched this flight number and date.";
+    default:
+      return (
+        structuredError.message ||
+        "Flight lookup failed. The current provider could not be reached safely."
+      );
+  }
+}
+
 async function lookupViaTauri(
   request: FlightLookupRequest,
 ): Promise<FlightLookupCandidate[] | null> {
@@ -326,11 +393,12 @@ async function lookupViaTauri(
       request: buildTauriRequest(request),
     });
   } catch (error) {
-    if (isStructuredLookupError(error)) {
-      if (error.code === "no_results") {
+    const structuredError = parseStructuredLookupError(error);
+    if (structuredError) {
+      if (structuredError.code === "no_results") {
         return [];
       }
-      throw error;
+      throw structuredError;
     }
 
     return null;

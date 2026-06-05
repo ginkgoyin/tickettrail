@@ -20,7 +20,11 @@ Current implementation status:
 - Phase B provider adapter skeleton is now implemented.
   - The backend lookup path now routes through provider adapter modules.
   - `mock` remains the safe default when no saved provider config exists.
-  - `aerodatabox` now has a backend adapter skeleton that returns a structured `provider_not_implemented` or `missing_api_key` error instead of attempting a network call.
+  - `aerodatabox` now has a real backend adapter path for live lookup, while older `provider_not_implemented` behavior remains part of the normalized error contract for future providers or partial integrations.
+- Phase C first live-provider adapter is now implemented for AeroDataBox behind the same Tauri/backend boundary.
+  - Saved provider config can now select a real AeroDataBox lookup path.
+  - The frontend still does not receive the raw key.
+  - The current user-facing TicketForm flow stays candidate-based and manual-apply.
 - Local provider configuration commands are now scaffolded for Settings:
   - `get_flight_data_source_config`
   - `save_flight_data_source_config`
@@ -170,6 +174,7 @@ Normalization expectations:
   - Optional terminal value.
 - `departure.timeLocal`
   - Optional local departure time string.
+  - When the backend returns a value intended for the current form, normalize it to a `datetime-local` compatible shape such as `2026-06-05T11:40`.
 - `departure.timezone`
   - Optional departure timezone id or label.
 - `arrival.*`
@@ -298,6 +303,6 @@ That endpoint validation is a **future task** and is not implemented here.
 
 ## 10. Explicit Status Note
 
-No real provider has been integrated yet.
+The first real AeroDataBox provider path is now integrated behind the Tauri/backend boundary.
 
-This document only defines the proposed request/response/error contract and the backend integration boundary for a future AeroDataBox-first prototype.
+This document still defines the normalized request/response/error contract and the backend integration boundary that future providers must follow.

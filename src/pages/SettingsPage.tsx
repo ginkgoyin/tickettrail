@@ -4,6 +4,7 @@ import {
   getFlightDataSourceConfig,
   saveFlightDataSourceConfig,
   type FlightDataSourceConfig,
+  type FlightDataSourceGateway,
   type FlightDataSourceProvider,
 } from "../lib/flightLookup";
 import { useI18n, type Language } from "../lib/i18n";
@@ -33,6 +34,7 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
   const [subview, setSubview] = useState<SettingsSubview>(initialSubview);
   const [flightDataSourceConfig, setFlightDataSourceConfig] = useState<FlightDataSourceConfig>({
     provider: "mock",
+    gateway: "apiMarket",
     hasApiKey: false,
   });
   const [flightDataSourceApiKeyDraft, setFlightDataSourceApiKeyDraft] = useState("");
@@ -61,6 +63,7 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
 
         setFlightDataSourceConfig({
           provider: config.provider,
+          gateway: config.gateway,
           hasApiKey: config.hasApiKey,
           apiKeyPreview: config.apiKeyPreview,
           updatedAt: config.updatedAt,
@@ -89,6 +92,14 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
     setFlightDataSourceStatus("");
   };
 
+  const handleUpdateFlightDataSourceGateway = (gateway: FlightDataSourceGateway) => {
+    setFlightDataSourceConfig((current) => ({
+      ...current,
+      gateway,
+    }));
+    setFlightDataSourceStatus("");
+  };
+
   const handleSaveFlightDataSourceConfig = async () => {
     setFlightDataSourceBusy(true);
     setFlightDataSourceStatus("");
@@ -96,10 +107,12 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
     try {
       const savedConfig = await saveFlightDataSourceConfig({
         provider: flightDataSourceConfig.provider,
+        gateway: flightDataSourceConfig.gateway,
         apiKey: flightDataSourceApiKeyDraft.trim() || undefined,
       });
       setFlightDataSourceConfig({
         provider: savedConfig.provider,
+        gateway: savedConfig.gateway,
         hasApiKey: savedConfig.hasApiKey,
         apiKeyPreview: savedConfig.apiKeyPreview,
         updatedAt: savedConfig.updatedAt,
@@ -121,10 +134,12 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
     try {
       const savedConfig = await saveFlightDataSourceConfig({
         provider: flightDataSourceConfig.provider,
+        gateway: flightDataSourceConfig.gateway,
         clearApiKey: true,
       });
       setFlightDataSourceConfig({
         provider: savedConfig.provider,
+        gateway: savedConfig.gateway,
         hasApiKey: savedConfig.hasApiKey,
         apiKeyPreview: savedConfig.apiKeyPreview,
         updatedAt: savedConfig.updatedAt,
@@ -284,6 +299,24 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
                   <option value="aerodatabox">AeroDataBox</option>
                 </select>
               </label>
+
+              {flightDataSourceConfig.provider === "aerodatabox" ? (
+                <label className="settings-field">
+                  <span>AeroDataBox gateway</span>
+                  <select
+                    aria-label="AeroDataBox gateway"
+                    onChange={(event) =>
+                      handleUpdateFlightDataSourceGateway(
+                        event.target.value as FlightDataSourceGateway,
+                      )
+                    }
+                    value={flightDataSourceConfig.gateway}
+                  >
+                    <option value="apiMarket">API.Market</option>
+                    <option value="rapidApi">RapidAPI</option>
+                  </select>
+                </label>
+              ) : null}
 
               <label className="settings-field">
                 <span>Provider API key</span>

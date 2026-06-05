@@ -251,6 +251,7 @@ pub struct FlightLookupCandidatePayload {
 #[serde(rename_all = "camelCase")]
 pub struct FlightDataSourceConfigPayload {
     pub provider: String,
+    pub gateway: String,
     pub has_api_key: bool,
     pub api_key_preview: Option<String>,
     pub updated_at: Option<String>,
@@ -260,6 +261,7 @@ pub struct FlightDataSourceConfigPayload {
 #[serde(rename_all = "camelCase")]
 pub struct FlightDataSourceConfigSavePayload {
     pub provider: String,
+    pub gateway: Option<String>,
     pub api_key: Option<String>,
     pub clear_api_key: Option<bool>,
 }

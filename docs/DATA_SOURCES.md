@@ -217,7 +217,8 @@ Provider review is now complete enough to guide the next prototype step:
 
 - AeroDataBox is the recommended first implementation candidate / prototype provider.
 - Amadeus remains the main runner-up if later testing shows stronger field quality is worth the extra integration complexity.
-- No live provider is integrated in the app yet.
+- AeroDataBox is now integrated as the first real provider path behind the Tauri/backend boundary.
+- The current user-facing lookup UX still preserves the existing manual candidate-review/apply flow.
 
 Before any real provider is connected, the project still needs:
 
@@ -237,8 +238,8 @@ Current validation status:
 
 - AeroDataBox single-day flight status endpoint and related response schema have now been reviewed from the official OpenAPI docs.
 - This validation confirms the planned first endpoint shape and mapping rules.
-- No live provider call has been added to the app yet.
-- The current runtime still uses only mock lookup behavior.
+- A real AeroDataBox adapter path now exists behind the backend boundary when Settings selects `AeroDataBox` and a local key is saved.
+- The current runtime still keeps `Mock` as the safe fallback/default provider path.
 
 ## 13. Why OpenSky Is Not The Primary Candidate Here
 
@@ -269,4 +270,4 @@ That future boundary is intended to ensure:
 - no provider secret exposure in bundled JavaScript
 - one normalized candidate shape regardless of provider
 
-No real provider has been integrated yet; the current contract work only defines the future desktop-side boundary and normalized payload shape.
+The first real provider path is now implemented for AeroDataBox behind the desktop-side boundary, while the normalized payload shape and contract rules continue to apply to future providers.

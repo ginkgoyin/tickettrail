@@ -15,7 +15,8 @@ Current status:
 
 - backend provider adapter skeleton exists
 - desktop-side provider config and local secret storage exist
-- live AeroDataBox calls are still **not connected**
+- live AeroDataBox calls are now implemented behind the existing Tauri/backend boundary
+- live validation still depends on a user manually testing with their own saved key
 
 Related docs:
 
@@ -218,12 +219,12 @@ Status legend:
 | `departure.name` | `departure.airport.name` | confirmed | `ListingAirportContract.name` exists |
 | `departure.code` | `departure.airport.iata` | confirmed | IATA field exists, but may be nullable |
 | `departure.terminal` | `departure.terminal` | confirmed | field exists in `FlightAirportMovementContract` |
-| `departure.timeLocal` | `departure.scheduledTime.local` or `departure.revisedTime.local` | confirmed | exact fallback rule is adapter-side and still needs final implementation |
+| `departure.timeLocal` | `departure.scheduledTime.local` or `departure.revisedTime.local` | confirmed | adapter should normalize provider-local timestamps to a `datetime-local` compatible value such as `2026-06-05T11:40` |
 | `departure.timezone` | `departure.airport.timeZone` | confirmed | `ListingAirportContract.timeZone` exists |
 | `arrival.name` | `arrival.airport.name` | confirmed | `ListingAirportContract.name` exists |
 | `arrival.code` | `arrival.airport.iata` | confirmed | IATA field exists, may be nullable |
 | `arrival.terminal` | `arrival.terminal` | confirmed | field exists |
-| `arrival.timeLocal` | `arrival.scheduledTime.local` or `arrival.revisedTime.local` | confirmed | exact fallback rule still adapter-side |
+| `arrival.timeLocal` | `arrival.scheduledTime.local` or `arrival.revisedTime.local` | confirmed | apply the same `datetime-local` normalization rule as departure time |
 | `arrival.timezone` | `arrival.airport.timeZone` | confirmed | `ListingAirportContract.timeZone` exists |
 | `aircraft` | `flight.aircraft.model` | confirmed | model field exists |
 | `flightStatus` | `flight.status` | confirmed | `FlightStatus` enum exists |
@@ -280,7 +281,7 @@ Proposed mapping from AeroDataBox/provider-side outcomes into the app's normaliz
 | HTTP `503` | `network_error` | confirmed-like | service unavailable should map to transient failure |
 | undocumented live rate-limit response | `rate_limited` | needs live validation | pricing docs mention limits, spec does not list `429` |
 | unsupported provider selection in backend | `unsupported_provider` | confirmed app mapping | backend route-level error |
-| skeleton adapter with no live HTTP path yet | `provider_not_implemented` | confirmed app mapping | current backend skeleton already uses this |
+| historical adapter-skeleton state or future partially integrated provider | `provider_not_implemented` | documented fallback | keep the code for future provider phases even though AeroDataBox now has a live path |
 
 ## 10. Live Validation Status
 
@@ -346,6 +347,6 @@ Official sources used for this validation:
 
 ## 14. Explicit Status
 
-No real AeroDataBox integration has been implemented yet.
+The real AeroDataBox adapter is now implemented behind the Tauri/backend boundary.
 
-This validation only confirms the documented endpoint shape, auth scheme, response schema, and mapping plan needed for a future real adapter.
+This document still only records the validated endpoint shape, auth scheme, response schema, and mapping plan. It does not include any real key or raw response dumps, and it does not claim live provider verification until a user manually tests with their own saved key.

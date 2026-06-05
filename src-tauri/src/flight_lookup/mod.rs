@@ -7,10 +7,13 @@ use crate::models::{
 
 pub const PROVIDER_MOCK: &str = "mock";
 pub const PROVIDER_AERODATABOX: &str = "aerodatabox";
+pub const AERODATABOX_GATEWAY_API_MARKET: &str = "apiMarket";
+pub const AERODATABOX_GATEWAY_RAPID_API: &str = "rapidApi";
 
 #[derive(Clone, Debug)]
 pub struct FlightLookupProviderConfig {
     pub provider: String,
+    pub gateway: String,
     pub api_key: Option<String>,
 }
 
@@ -30,6 +33,9 @@ pub fn lookup_candidates(
         PROVIDER_AERODATABOX => aerodatabox::lookup_candidates(
             &normalized_flight_number,
             lookup_date,
+            &config
+                .map(|value| value.gateway.clone())
+                .unwrap_or_else(|| AERODATABOX_GATEWAY_API_MARKET.to_string()),
             config.and_then(|value| value.api_key.as_deref()),
         ),
         unsupported => Err(error_payload(
@@ -93,7 +99,7 @@ fn resolve_provider(config: Option<&FlightLookupProviderConfig>) -> String {
 mod tests {
     use super::{
         is_iso_date, lookup_candidates, normalize_flight_number, FlightLookupProviderConfig,
-        PROVIDER_AERODATABOX, PROVIDER_MOCK,
+        AERODATABOX_GATEWAY_API_MARKET, PROVIDER_AERODATABOX, PROVIDER_MOCK,
     };
     use crate::models::FlightLookupRequestPayload;
 
@@ -137,6 +143,7 @@ mod tests {
             &build_request(PROVIDER_AERODATABOX),
             Some(&FlightLookupProviderConfig {
                 provider: PROVIDER_MOCK.into(),
+                gateway: AERODATABOX_GATEWAY_API_MARKET.into(),
                 api_key: None,
             }),
         )
@@ -147,17 +154,18 @@ mod tests {
     }
 
     #[test]
-    fn lookup_returns_not_implemented_for_aerodatabox_config() {
+    fn lookup_returns_missing_key_for_aerodatabox_config_without_secret() {
         let error = lookup_candidates(
             &build_request(PROVIDER_AERODATABOX),
             Some(&FlightLookupProviderConfig {
                 provider: PROVIDER_AERODATABOX.into(),
-                api_key: Some("test-key".into()),
+                gateway: AERODATABOX_GATEWAY_API_MARKET.into(),
+                api_key: None,
             }),
         )
-        .expect_err("aerodatabox should stay a skeleton in this phase");
+        .expect_err("aerodatabox should reject missing API keys");
 
-        assert_eq!(error.code, "provider_not_implemented");
+        assert_eq!(error.code, "missing_api_key");
         assert_eq!(error.provider.as_deref(), Some(PROVIDER_AERODATABOX));
     }
 

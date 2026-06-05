@@ -141,7 +141,21 @@
 
 - `FLIGHT-LOOKUP-010`
   - Implement the first real AeroDataBox adapter against the validated single-day endpoint/schema while keeping the user-facing mock flow safe until the real provider path is explicitly wired.
-  - Status: `Open / next implementation task`
+  - Status: `Implemented / needs manual verification`
+  - Follow-up notes:
+    - Normalize provider-local times to a `datetime-local` compatible shape before filling the current form fields.
+    - Remove stale mock-only lookup copy from the live-provider UI path.
+    - Keep a short-lived cache for repeated identical live lookups so users do not have to wait on the provider every time.
+  - Priority: `High`
+
+- `FLIGHT-LOOKUP-011`
+  - Add a provider test-connection flow later so users can verify AeroDataBox credentials and gateway setup separately from the normal flight lookup flow.
+  - Status: `Open / future enhancement`
+  - Priority: `Medium`
+
+- `FLIGHT-LOOKUP-012`
+  - Add better live rate-limit and marketplace-specific AeroDataBox error handling after real-world testing clarifies the actual provider failure shapes.
+  - Status: `Open / future hardening`
   - Priority: `High`
 
 ## 2. Implemented / Recorded / Needs Future Verification
