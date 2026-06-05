@@ -268,10 +268,6 @@ function saveFlightDataSourceConfigToLocalStorage(
   return normalized;
 }
 
-function cacheFlightDataSourceConfig(config: FlightDataSourceConfig): FlightDataSourceConfig {
-  return saveFlightDataSourceConfigToLocalStorage(config);
-}
-
 function buildTauriRequest(request: FlightLookupRequest): FlightLookupTauriRequest {
   return {
     flightNumber: request.flightNumber,
@@ -313,7 +309,7 @@ async function lookupViaTauri(
 export async function getFlightDataSourceConfig(): Promise<FlightDataSourceConfig> {
   try {
     const config = await invoke<FlightDataSourceConfigPayload>("get_flight_data_source_config");
-    return cacheFlightDataSourceConfig(normalizeFlightDataSourceConfig(config));
+    return normalizeFlightDataSourceConfig(config);
   } catch {
     return getFlightDataSourceConfigFromLocalStorage();
   }
@@ -329,7 +325,7 @@ export async function saveFlightDataSourceConfig(
         config: buildFlightDataSourceConfigPayload(config),
       },
     );
-    return cacheFlightDataSourceConfig(normalizeFlightDataSourceConfig(savedConfig));
+    return normalizeFlightDataSourceConfig(savedConfig);
   } catch {
     return saveFlightDataSourceConfigToLocalStorage(config);
   }
