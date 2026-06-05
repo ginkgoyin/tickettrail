@@ -41,6 +41,7 @@ export type FlightLookupErrorCode =
   | "missing_provider_configuration"
   | "missing_api_key"
   | "provider_unauthorized"
+  | "provider_not_implemented"
   | "rate_limited"
   | "no_results"
   | "network_error"
@@ -297,9 +298,7 @@ async function lookupViaTauri(
       if (error.code === "no_results") {
         return [];
       }
-      if (error.code === "unsupported_provider") {
-        return null;
-      }
+      throw error;
     }
 
     return null;

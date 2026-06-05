@@ -342,6 +342,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - Secure provider configuration and API key storage should remain a separate future task from the current contract-planning pass.
   - After the contract is documented, the next implementation step should be a backend mock command boundary that returns normalized candidates through Tauri before any real provider call is attempted.
   - The current next safe scaffold is local provider/API-key configuration in Settings only; keep it local, keep it explicit that live provider calls are still disabled, and treat this storage as MVP-only rather than final secure secret handling.
+  - The current flight lookup backend now also has a provider adapter skeleton: `mock` remains the default safe route, saved provider config can select the backend path, and the AeroDataBox adapter must continue returning structured non-network errors until real API work is explicitly approved.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

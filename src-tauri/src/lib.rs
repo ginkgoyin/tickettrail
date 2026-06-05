@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod flight_lookup;
 mod models;
 
 use commands::{

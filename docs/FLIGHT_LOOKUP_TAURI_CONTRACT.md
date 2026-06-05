@@ -17,6 +17,10 @@ Current implementation status:
 - Phase A mock Tauri command boundary is now implemented.
 - It returns local mock candidates only.
 - It does **not** call a live provider.
+- Phase B provider adapter skeleton is now implemented.
+  - The backend lookup path now routes through provider adapter modules.
+  - `mock` remains the safe default when no saved provider config exists.
+  - `aerodatabox` now has a backend adapter skeleton that returns a structured `provider_not_implemented` or `missing_api_key` error instead of attempting a network call.
 - Local provider configuration commands are now scaffolded for Settings:
   - `get_flight_data_source_config`
   - `save_flight_data_source_config`
@@ -178,6 +182,7 @@ type FlightLookupErrorPayload = {
     | "missing_provider_configuration"
     | "missing_api_key"
     | "provider_unauthorized"
+    | "provider_not_implemented"
     | "rate_limited"
     | "no_results"
     | "network_error"
@@ -198,6 +203,8 @@ Expected meanings:
   - Provider requires a credential and none is available.
 - `provider_unauthorized`
   - Credential exists but the provider rejected it.
+- `provider_not_implemented`
+  - Provider selection/config exists, but the backend adapter is still a non-network skeleton in the current phase.
 - `rate_limited`
   - Provider quota or burst limit was exceeded.
 - `no_results`
@@ -250,12 +257,15 @@ Recommended phases:
   - Add a Tauri command stub that returns mock lookup candidates through the backend boundary.
   - Status: implemented in the current phase.
 - Phase B
-  - Design local provider selection and API key configuration in Settings.
+  - Add provider adapter skeleton routing behind the Tauri command boundary without making live HTTP calls.
+  - Status: implemented in the current phase.
 - Phase C
-  - Add an AeroDataBox adapter using a user-provided key.
+  - Design local provider selection and API key configuration in Settings.
 - Phase D
-  - Add structured error handling and a provider test-connection flow.
+  - Add an AeroDataBox adapter using a user-provided key.
 - Phase E
+  - Add structured error handling and a provider test-connection flow.
+- Phase F
   - Evaluate optional second providers such as Amadeus after the first provider is stable.
 
 ## 9. First Endpoint To Validate Later

@@ -111,6 +111,11 @@
   - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
+- `FLIGHT-LOOKUP-008`
+  - Refactor flight lookup into provider adapter skeleton modules, use saved provider config when present, and keep AeroDataBox as a non-network backend skeleton until live integration is approved.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
 - `DATA-SOURCE-003`
   - Design secure local provider configuration and API key storage for future flight lookup providers.
   - Status: `Implemented / needs manual verification`

@@ -207,7 +207,7 @@ pub struct BackupReadinessPayload {
     pub attachment_count: usize,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlightLookupRequestPayload {
     pub flight_number: String,
@@ -219,7 +219,7 @@ pub struct FlightLookupRequestPayload {
     pub country_hint: Option<String>,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlightLookupLocationPayload {
     pub name: String,
@@ -227,7 +227,7 @@ pub struct FlightLookupLocationPayload {
     pub timezone: String,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlightLookupCandidatePayload {
     pub id: String,
@@ -247,10 +247,20 @@ pub struct FlightLookupCandidatePayload {
     pub confidence: Option<String>,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlightDataSourceConfigPayload {
     pub provider: String,
     pub api_key: Option<String>,
     pub updated_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlightLookupErrorPayload {
+    pub code: String,
+    pub message: String,
+    pub provider: Option<String>,
+    pub retryable: bool,
+    pub details: Option<String>,
 }
