@@ -300,3 +300,7 @@ The next safe step after this design is:
 1. provider comparison and terms review
 2. choose one provider for a first secure desktop integration
 3. define the Tauri command contract before any live HTTP call is added
+
+Related review document:
+
+- [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_PROVIDER_REVIEW.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_PROVIDER_REVIEW.md)

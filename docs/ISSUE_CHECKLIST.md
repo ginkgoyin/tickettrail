@@ -96,6 +96,11 @@
   - Status: `Open / future settings architecture`
   - Priority: `High`
 
+- `FLIGHT-LOOKUP-005`
+  - Provider review should compare real flight-data candidates and recommend a first provider before any live integration begins.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
 ## 2. Implemented / Recorded / Needs Future Verification
 
 - `UX-005L`

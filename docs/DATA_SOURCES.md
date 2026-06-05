@@ -233,6 +233,10 @@ Before any real provider is connected, the project still needs:
 - secure desktop-side API-key boundary design
 - normalized candidate mapping rules
 
+The current provider review document now recommends AeroDataBox as the first provider to prototype, with Amadeus kept as the main runner-up if higher field quality becomes more important than initial simplicity:
+
+- [C:\yx\00app\ticket\docs\FLIGHT_LOOKUP_PROVIDER_REVIEW.md](C:/yx/00app/ticket/docs/FLIGHT_LOOKUP_PROVIDER_REVIEW.md)
+
 ## 13. Why OpenSky Is Not The Primary Candidate Here
 
 - [OpenSky FAQ](https://opensky-network.org/about/faq) states that its inferred flights are derived after the finished UTC day and that it has historical flight data for previous days, not commercial schedule/delay/cancellation data for the current day.
