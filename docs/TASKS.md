@@ -343,6 +343,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - After the contract is documented, the next implementation step should be a backend mock command boundary that returns normalized candidates through Tauri before any real provider call is attempted.
   - The current next safe scaffold is local provider/API-key configuration in Settings only; keep it local, keep it explicit that live provider calls are still disabled, and treat this storage as MVP-only rather than final secure secret handling.
   - The current flight lookup backend now also has a provider adapter skeleton: `mock` remains the default safe route, saved provider config can select the backend path, and the AeroDataBox adapter must continue returning structured non-network errors until real API work is explicitly approved.
+  - The current hardening step should now keep raw provider keys desktop-side only: return sanitized metadata to React, keep replacement/clear flows in Settings, and leave OS-keychain-grade storage as the next release-blocking review rather than mixing it into live provider integration.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.

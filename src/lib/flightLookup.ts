@@ -9,8 +9,15 @@ export type FlightDataSourceProvider = "mock" | "aerodatabox";
 
 export interface FlightDataSourceConfig {
   provider: FlightDataSourceProvider;
-  apiKey?: string;
+  hasApiKey: boolean;
+  apiKeyPreview?: string;
   updatedAt?: string;
+}
+
+export interface FlightDataSourceConfigSaveInput {
+  provider: FlightDataSourceProvider;
+  apiKey?: string;
+  clearApiKey?: boolean;
 }
 
 export interface FlightLookupLocation {
@@ -70,8 +77,15 @@ interface FlightLookupTauriRequest {
 
 interface FlightDataSourceConfigPayload {
   provider: string;
-  apiKey?: string;
+  hasApiKey?: boolean;
+  apiKeyPreview?: string;
   updatedAt?: string;
+}
+
+interface FlightDataSourceConfigSavePayload {
+  provider: string;
+  apiKey?: string;
+  clearApiKey?: boolean;
 }
 
 interface MockFlightTemplate {
@@ -213,19 +227,30 @@ function normalizeFlightDataSourceConfig(
 ): FlightDataSourceConfig {
   return {
     provider: normalizeProvider(config?.provider),
-    apiKey: config?.apiKey?.trim() || undefined,
+    hasApiKey: Boolean(config?.hasApiKey),
+    apiKeyPreview: config?.apiKeyPreview?.trim() || undefined,
     updatedAt: config?.updatedAt || undefined,
   };
 }
 
 function buildFlightDataSourceConfigPayload(
-  config: FlightDataSourceConfig,
-): FlightDataSourceConfigPayload {
+  config: FlightDataSourceConfigSaveInput,
+): FlightDataSourceConfigSavePayload {
   return {
     provider: config.provider,
     apiKey: config.apiKey?.trim() || undefined,
-    updatedAt: config.updatedAt,
+    clearApiKey: config.clearApiKey || undefined,
   };
+}
+
+function buildApiKeyPreview(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const suffix = trimmed.slice(-4);
+  return suffix ? `********${suffix}` : "API key saved";
 }
 
 function canUseLocalStorage() {
@@ -234,28 +259,35 @@ function canUseLocalStorage() {
 
 function getFlightDataSourceConfigFromLocalStorage(): FlightDataSourceConfig {
   if (!canUseLocalStorage()) {
-    return { provider: "mock" };
+    return { provider: "mock", hasApiKey: false };
   }
 
   try {
     const rawValue = window.localStorage.getItem(FLIGHT_DATA_SOURCE_CONFIG_STORAGE_KEY);
     if (!rawValue) {
-      return { provider: "mock" };
+      return { provider: "mock", hasApiKey: false };
     }
 
     return normalizeFlightDataSourceConfig(
       JSON.parse(rawValue) as Partial<FlightDataSourceConfigPayload>,
     );
   } catch {
-    return { provider: "mock" };
+    return { provider: "mock", hasApiKey: false };
   }
 }
 
 function saveFlightDataSourceConfigToLocalStorage(
-  config: FlightDataSourceConfig,
+  config: FlightDataSourceConfigSaveInput,
 ): FlightDataSourceConfig {
-  const normalized = {
-    ...normalizeFlightDataSourceConfig(config),
+  const current = getFlightDataSourceConfigFromLocalStorage();
+  const normalized: FlightDataSourceConfig = {
+    provider: config.provider,
+    hasApiKey: config.clearApiKey ? false : config.apiKey?.trim() ? true : current.hasApiKey,
+    apiKeyPreview: config.clearApiKey
+      ? undefined
+      : config.apiKey?.trim()
+        ? buildApiKeyPreview(config.apiKey)
+        : current.apiKeyPreview,
     updatedAt: new Date().toISOString(),
   };
 
@@ -315,7 +347,7 @@ export async function getFlightDataSourceConfig(): Promise<FlightDataSourceConfi
 }
 
 export async function saveFlightDataSourceConfig(
-  config: FlightDataSourceConfig,
+  config: FlightDataSourceConfigSaveInput,
 ): Promise<FlightDataSourceConfig> {
   try {
     const savedConfig = await invoke<FlightDataSourceConfigPayload>(

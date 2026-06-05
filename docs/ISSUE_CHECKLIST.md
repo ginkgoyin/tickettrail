@@ -126,7 +126,12 @@
 
 - `DATA-SOURCE-004`
   - Replace local MVP API-key storage with more secure storage before any public-release security claim is made.
-  - Status: `Open / future secure storage hardening`
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `DATA-SOURCE-005`
+  - Before public release, evaluate OS keychain or stronger secure storage instead of stopping at app-data secret-file storage.
+  - Status: `Open / release-blocking review`
   - Priority: `High`
 
 ## 2. Implemented / Recorded / Needs Future Verification

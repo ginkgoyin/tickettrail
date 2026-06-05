@@ -3,8 +3,9 @@ use crate::{
     flight_lookup::{self, PROVIDER_AERODATABOX, PROVIDER_MOCK},
     models::{
         AirlinePayload, BackupReadinessPayload, BackupRecordPayload, LocationDirectoryPayload,
-        FlightDataSourceConfigPayload, FlightLookupCandidatePayload, FlightLookupRequestPayload,
-        StubPreviewPayload, TicketAttachmentPayload,
+        FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload,
+        FlightLookupCandidatePayload, FlightLookupRequestPayload, StubPreviewPayload,
+        TicketAttachmentPayload,
         TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
     },
 };
@@ -15,6 +16,28 @@ use tauri::command;
 use tauri::{AppHandle, Manager};
 
 const FLIGHT_DATA_SOURCE_CONFIG_FILE: &str = "flight-data-source.json";
+const FLIGHT_DATA_SOURCE_SECRET_FILE: &str = "flight-data-source.secret.json";
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+struct StoredFlightDataSourceConfig {
+    provider: String,
+    updated_at: Option<String>,
+    #[serde(alias = "apiKey", default)]
+    legacy_api_key: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+struct StoredFlightDataSourceSecret {
+    api_key: String,
+    updated_at: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct EffectiveFlightDataSourceConfig {
+    provider: String,
+    api_key: Option<String>,
+    updated_at: Option<String>,
+}
 
 #[command]
 pub fn get_bootstrap_summary(app: AppHandle) -> Result<String, String> {
@@ -124,16 +147,16 @@ pub fn import_archive_bundle(app: AppHandle, bundle_path: String) -> Result<(), 
 
 #[command]
 pub fn get_flight_data_source_config(app: AppHandle) -> Result<FlightDataSourceConfigPayload, String> {
-    load_flight_data_source_config(&app)
+    Ok(public_flight_data_source_config(&load_effective_flight_data_source_config(&app)?))
 }
 
 #[command]
 pub fn save_flight_data_source_config(
     app: AppHandle,
-    config: FlightDataSourceConfigPayload,
+    config: FlightDataSourceConfigSavePayload,
 ) -> Result<FlightDataSourceConfigPayload, String> {
-    let mut normalized = config;
-    normalize_flight_data_source_config(&mut normalized);
+    let existing = load_effective_flight_data_source_config(&app)?;
+    let mut normalized = normalize_flight_data_source_save_payload(config);
     validate_flight_data_source_provider(&normalized.provider)?;
     normalized.updated_at = Some(Utc::now().to_rfc3339());
 
@@ -142,12 +165,26 @@ pub fn save_flight_data_source_config(
         fs::create_dir_all(parent).map_err(|_| "Failed to prepare local config directory.".to_string())?;
     }
 
-    let serialized = serde_json::to_string_pretty(&normalized)
-        .map_err(|_| "Failed to serialize local flight data source config.".to_string())?;
+    let serialized = serde_json::to_string_pretty(&StoredFlightDataSourceConfig {
+        provider: normalized.provider.clone(),
+        updated_at: normalized.updated_at.clone(),
+        legacy_api_key: None,
+    })
+    .map_err(|_| "Failed to serialize local flight data source config.".to_string())?;
     fs::write(&config_path, serialized)
         .map_err(|_| "Failed to save local flight data source config.".to_string())?;
 
-    Ok(normalized)
+    write_flight_data_source_secret(
+        &app,
+        normalized
+            .api_key
+            .as_deref()
+            .or(existing.api_key.as_deref()),
+        normalized.updated_at.as_deref(),
+        normalized.clear_api_key,
+    )?;
+
+    Ok(public_flight_data_source_config(&load_effective_flight_data_source_config(&app)?))
 }
 
 #[command]
@@ -176,12 +213,16 @@ pub fn lookup_flight_candidates(
     app: AppHandle,
     request: FlightLookupRequestPayload,
 ) -> Result<Vec<FlightLookupCandidatePayload>, crate::models::FlightLookupErrorPayload> {
-    let config = load_flight_data_source_config(&app).ok();
-    flight_lookup::lookup_candidates(&request, config.as_ref())
+    let config = load_effective_flight_data_source_config(&app).ok();
+    let provider_config = config.as_ref().map(|value| flight_lookup::FlightLookupProviderConfig {
+        provider: value.provider.clone(),
+        api_key: value.api_key.clone(),
+    });
+    flight_lookup::lookup_candidates(&request, provider_config.as_ref())
 }
 
-fn default_flight_data_source_config() -> FlightDataSourceConfigPayload {
-    FlightDataSourceConfigPayload {
+fn default_flight_data_source_config() -> EffectiveFlightDataSourceConfig {
+    EffectiveFlightDataSourceConfig {
         provider: PROVIDER_MOCK.into(),
         api_key: None,
         updated_at: None,
@@ -197,6 +238,15 @@ fn flight_data_source_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(base_dir.join(FLIGHT_DATA_SOURCE_CONFIG_FILE))
 }
 
+fn flight_data_source_secret_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path_service = app.path();
+    let base_dir = path_service
+        .app_config_dir()
+        .or_else(|_| path_service.app_data_dir())
+        .map_err(|err| err.to_string())?;
+    Ok(base_dir.join(FLIGHT_DATA_SOURCE_SECRET_FILE))
+}
+
 fn validate_flight_data_source_provider(provider: &str) -> Result<(), String> {
     match provider {
         PROVIDER_MOCK | PROVIDER_AERODATABOX => Ok(()),
@@ -204,36 +254,177 @@ fn validate_flight_data_source_provider(provider: &str) -> Result<(), String> {
     }
 }
 
-fn normalize_flight_data_source_config(config: &mut FlightDataSourceConfigPayload) {
-    config.provider = config.provider.trim().to_lowercase();
-    config.api_key = config
-        .api_key
-        .as_ref()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
+fn normalize_flight_data_source_save_payload(
+    config: FlightDataSourceConfigSavePayload,
+) -> FlightDataSourceSaveState {
+    FlightDataSourceSaveState {
+        provider: config.provider.trim().to_lowercase(),
+        api_key: config
+            .api_key
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+        clear_api_key: config.clear_api_key.unwrap_or(false),
+        updated_at: None,
+    }
 }
 
-fn load_flight_data_source_config(app: &AppHandle) -> Result<FlightDataSourceConfigPayload, String> {
+fn normalize_stored_flight_data_source_config(config: &mut StoredFlightDataSourceConfig) {
+    config.provider = config.provider.trim().to_lowercase();
+}
+
+fn normalize_stored_flight_data_source_secret(secret: &mut StoredFlightDataSourceSecret) {
+    secret.api_key = secret.api_key.trim().to_string();
+}
+
+fn load_effective_flight_data_source_config(
+    app: &AppHandle,
+) -> Result<EffectiveFlightDataSourceConfig, String> {
     let config_path = flight_data_source_config_path(app)?;
-    if !config_path.exists() {
-        return Ok(default_flight_data_source_config());
+    let mut config = if !config_path.exists() {
+        let default = default_flight_data_source_config();
+        StoredFlightDataSourceConfig {
+            provider: default.provider,
+            updated_at: default.updated_at,
+            legacy_api_key: None,
+        }
+    } else {
+        let config_text = fs::read_to_string(&config_path)
+            .map_err(|_| "Failed to read local flight data source config.".to_string())?;
+        let mut stored: StoredFlightDataSourceConfig = serde_json::from_str(&config_text)
+            .map_err(|_| "Failed to parse local flight data source config.".to_string())?;
+        normalize_stored_flight_data_source_config(&mut stored);
+        stored
+    };
+
+    validate_flight_data_source_provider(&config.provider)?;
+
+    let secret = load_flight_data_source_secret(app)?;
+    let legacy_api_key = config
+        .legacy_api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if config.updated_at.is_none() {
+        config.updated_at = secret.as_ref().and_then(|value| value.updated_at.clone());
     }
 
-    let config_text = fs::read_to_string(&config_path)
-        .map_err(|_| "Failed to read local flight data source config.".to_string())?;
-    let mut config: FlightDataSourceConfigPayload = serde_json::from_str(&config_text)
-        .map_err(|_| "Failed to parse local flight data source config.".to_string())?;
-    normalize_flight_data_source_config(&mut config);
-    Ok(config)
+    Ok(EffectiveFlightDataSourceConfig {
+        provider: config.provider,
+        api_key: secret.map(|value| value.api_key).or(legacy_api_key),
+        updated_at: config.updated_at,
+    })
 }
+
+fn public_flight_data_source_config(
+    config: &EffectiveFlightDataSourceConfig,
+) -> FlightDataSourceConfigPayload {
+    FlightDataSourceConfigPayload {
+        provider: config.provider.clone(),
+        has_api_key: config.api_key.is_some(),
+        api_key_preview: config.api_key.as_deref().map(mask_api_key_preview),
+        updated_at: config.updated_at.clone(),
+    }
+}
+
+fn load_flight_data_source_secret(
+    app: &AppHandle,
+) -> Result<Option<StoredFlightDataSourceSecret>, String> {
+    let secret_path = flight_data_source_secret_path(app)?;
+    if !secret_path.exists() {
+        return Ok(None);
+    }
+
+    let secret_text = fs::read_to_string(&secret_path)
+        .map_err(|_| "Failed to read local flight data source secret.".to_string())?;
+    let mut secret: StoredFlightDataSourceSecret = serde_json::from_str(&secret_text)
+        .map_err(|_| "Failed to parse local flight data source secret.".to_string())?;
+    normalize_stored_flight_data_source_secret(&mut secret);
+
+    if secret.api_key.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(secret))
+}
+
+fn write_flight_data_source_secret(
+    app: &AppHandle,
+    api_key: Option<&str>,
+    updated_at: Option<&str>,
+    clear_api_key: bool,
+) -> Result<(), String> {
+    let secret_path = flight_data_source_secret_path(app)?;
+
+    if clear_api_key {
+        if secret_path.exists() {
+            fs::remove_file(&secret_path)
+                .map_err(|_| "Failed to clear local flight data source secret.".to_string())?;
+        }
+        return Ok(());
+    }
+
+    let Some(raw_key) = api_key.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+
+    if let Some(parent) = secret_path.parent() {
+        fs::create_dir_all(parent).map_err(|_| "Failed to prepare local secret directory.".to_string())?;
+    }
+
+    let serialized = serde_json::to_string_pretty(&StoredFlightDataSourceSecret {
+        api_key: raw_key.to_string(),
+        updated_at: updated_at.map(str::to_string),
+    })
+    .map_err(|_| "Failed to serialize local flight data source secret.".to_string())?;
+
+    fs::write(&secret_path, serialized)
+        .map_err(|_| "Failed to save local flight data source secret.".to_string())?;
+
+    Ok(())
+}
+
+fn mask_api_key_preview(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return "API key saved".into();
+    }
+
+    let visible_suffix = trimmed
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+
+    if visible_suffix.is_empty() {
+        "API key saved".into()
+    } else {
+        format!("********{}", visible_suffix)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct FlightDataSourceSaveState {
+    provider: String,
+    api_key: Option<String>,
+    clear_api_key: bool,
+    updated_at: Option<String>,
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::{
-        default_flight_data_source_config, normalize_flight_data_source_config,
+        default_flight_data_source_config, mask_api_key_preview,
+        normalize_flight_data_source_save_payload, public_flight_data_source_config,
         validate_flight_data_source_provider, PROVIDER_AERODATABOX, PROVIDER_MOCK,
+        EffectiveFlightDataSourceConfig,
     };
-    use crate::models::FlightDataSourceConfigPayload;
+    use crate::models::FlightDataSourceConfigSavePayload;
 
     #[test]
     fn default_flight_data_source_config_uses_mock_provider() {
@@ -243,17 +434,34 @@ mod tests {
     }
 
     #[test]
-    fn normalize_flight_data_source_config_trims_api_key() {
-        let mut config = FlightDataSourceConfigPayload {
+    fn normalize_flight_data_source_save_payload_trims_api_key() {
+        let config = FlightDataSourceConfigSavePayload {
             provider: " AeroDataBox ".into(),
             api_key: Some("  secret-key  ".into()),
-            updated_at: None,
+            clear_api_key: None,
         };
 
-        normalize_flight_data_source_config(&mut config);
+        let normalized = normalize_flight_data_source_save_payload(config);
 
-        assert_eq!(config.provider, "aerodatabox");
-        assert_eq!(config.api_key.as_deref(), Some("secret-key"));
+        assert_eq!(normalized.provider, "aerodatabox");
+        assert_eq!(normalized.api_key.as_deref(), Some("secret-key"));
+    }
+
+    #[test]
+    fn public_flight_data_source_config_hides_raw_key() {
+        let public_config = public_flight_data_source_config(&EffectiveFlightDataSourceConfig {
+            provider: PROVIDER_AERODATABOX.into(),
+            api_key: Some("very-secret-key-1234".into()),
+            updated_at: Some("2026-06-05T00:00:00Z".into()),
+        });
+
+        assert!(public_config.has_api_key);
+        assert_eq!(public_config.api_key_preview.as_deref(), Some("********1234"));
+    }
+
+    #[test]
+    fn mask_api_key_preview_uses_suffix_only() {
+        assert_eq!(mask_api_key_preview("abcd1234"), "********1234");
     }
 
     #[test]

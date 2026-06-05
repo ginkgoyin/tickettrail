@@ -24,6 +24,13 @@ Current implementation status:
 - Local provider configuration commands are now scaffolded for Settings:
   - `get_flight_data_source_config`
   - `save_flight_data_source_config`
+- Current provider-config responses now return sanitized metadata only:
+  - `provider`
+  - `hasApiKey`
+  - `apiKeyPreview`
+  - `updatedAt`
+- Raw API keys are no longer returned to the frontend after save/load.
+- This is still improved desktop-side MVP storage, not final OS-level secure storage.
 - Those config commands do **not** mean real provider integration is complete.
 
 Current provider recommendation remains:
@@ -221,8 +228,8 @@ Expected meanings:
 The secret boundary should remain strict:
 
 - Frontend sends only the normalized lookup request.
-- Frontend must not receive or store a raw provider API key for live use.
-- Tauri/backend should read provider configuration later from a safer desktop-side boundary.
+- Frontend must not receive a raw provider API key back after save/load.
+- Tauri/backend should read provider configuration and the raw local secret from a desktop-side boundary.
 - Any temporary localStorage-based MVP setting is **not** the final secure secret-storage design.
 
 This means:

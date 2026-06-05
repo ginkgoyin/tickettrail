@@ -33,8 +33,9 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
   const [subview, setSubview] = useState<SettingsSubview>(initialSubview);
   const [flightDataSourceConfig, setFlightDataSourceConfig] = useState<FlightDataSourceConfig>({
     provider: "mock",
-    apiKey: "",
+    hasApiKey: false,
   });
+  const [flightDataSourceApiKeyDraft, setFlightDataSourceApiKeyDraft] = useState("");
   const [flightDataSourceBusy, setFlightDataSourceBusy] = useState(false);
   const [flightDataSourceStatus, setFlightDataSourceStatus] = useState("");
   const [showFlightDataSourceApiKey, setShowFlightDataSourceApiKey] = useState(false);
@@ -60,9 +61,11 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
 
         setFlightDataSourceConfig({
           provider: config.provider,
-          apiKey: config.apiKey ?? "",
+          hasApiKey: config.hasApiKey,
+          apiKeyPreview: config.apiKeyPreview,
           updatedAt: config.updatedAt,
         });
+        setFlightDataSourceApiKeyDraft("");
         setFlightDataSourceStatus("");
       } catch {
         if (isMounted) {
@@ -93,16 +96,44 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
     try {
       const savedConfig = await saveFlightDataSourceConfig({
         provider: flightDataSourceConfig.provider,
-        apiKey: flightDataSourceConfig.apiKey?.trim() || undefined,
+        apiKey: flightDataSourceApiKeyDraft.trim() || undefined,
       });
       setFlightDataSourceConfig({
         provider: savedConfig.provider,
-        apiKey: savedConfig.apiKey ?? "",
+        hasApiKey: savedConfig.hasApiKey,
+        apiKeyPreview: savedConfig.apiKeyPreview,
         updatedAt: savedConfig.updatedAt,
       });
+      setFlightDataSourceApiKeyDraft("");
+      setShowFlightDataSourceApiKey(false);
       setFlightDataSourceStatus("Flight data source settings saved locally.");
     } catch {
       setFlightDataSourceStatus("Failed to save the local flight data source configuration.");
+    } finally {
+      setFlightDataSourceBusy(false);
+    }
+  };
+
+  const handleClearFlightDataSourceApiKey = async () => {
+    setFlightDataSourceBusy(true);
+    setFlightDataSourceStatus("");
+
+    try {
+      const savedConfig = await saveFlightDataSourceConfig({
+        provider: flightDataSourceConfig.provider,
+        clearApiKey: true,
+      });
+      setFlightDataSourceConfig({
+        provider: savedConfig.provider,
+        hasApiKey: savedConfig.hasApiKey,
+        apiKeyPreview: savedConfig.apiKeyPreview,
+        updatedAt: savedConfig.updatedAt,
+      });
+      setFlightDataSourceApiKeyDraft("");
+      setShowFlightDataSourceApiKey(false);
+      setFlightDataSourceStatus("Saved flight data source API key was cleared locally.");
+    } catch {
+      setFlightDataSourceStatus("Failed to clear the saved flight data source API key.");
     } finally {
       setFlightDataSourceBusy(false);
     }
@@ -259,28 +290,35 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
                 <div className="settings-secret-input-row">
                   <input
                     aria-label="Flight data provider API key"
-                    onChange={(event) =>
-                      setFlightDataSourceConfig((current) => ({
-                        ...current,
-                        apiKey: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => setFlightDataSourceApiKeyDraft(event.target.value)}
                     placeholder={
                       flightDataSourceConfig.provider === "mock"
-                        ? "Optional for mock mode"
-                        : "Stored locally for future AeroDataBox integration"
+                        ? flightDataSourceConfig.hasApiKey
+                          ? "Optional for mock mode; saved key is kept locally"
+                          : "Optional for mock mode"
+                        : flightDataSourceConfig.hasApiKey
+                          ? "Type a new key to replace the saved one"
+                          : "Stored locally for future AeroDataBox integration"
                     }
                     type={showFlightDataSourceApiKey ? "text" : "password"}
-                    value={flightDataSourceConfig.apiKey ?? ""}
+                    value={flightDataSourceApiKeyDraft}
                   />
                   <button
                     className="ghost-button compact-button"
+                    disabled={!flightDataSourceApiKeyDraft}
                     onClick={() => setShowFlightDataSourceApiKey((current) => !current)}
                     type="button"
                   >
                     {showFlightDataSourceApiKey ? "Hide" : "Show"}
                   </button>
                 </div>
+                {flightDataSourceConfig.hasApiKey ? (
+                  <p className="settings-helper-copy">
+                    {flightDataSourceConfig.apiKeyPreview
+                      ? `Saved key: ${flightDataSourceConfig.apiKeyPreview}`
+                      : "API key saved locally"}
+                  </p>
+                ) : null}
               </label>
 
               <div className="settings-inline-controls">
@@ -292,6 +330,16 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
                 >
                   {flightDataSourceBusy ? "Saving..." : t("save")}
                 </button>
+                {flightDataSourceConfig.hasApiKey ? (
+                  <button
+                    className="ghost-button compact-button danger-button"
+                    disabled={flightDataSourceBusy}
+                    onClick={() => void handleClearFlightDataSourceApiKey()}
+                    type="button"
+                  >
+                    Clear saved key
+                  </button>
+                ) : null}
                 <span className="ticket-status ticket-status-draft">
                   {flightDataSourceConfig.provider === "mock"
                     ? "Lookup remains mock-only in this phase"
@@ -300,8 +348,8 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
               </div>
 
               <p className="settings-helper-copy">
-                API keys are stored locally only in this MVP scaffold and are not yet moved to final
-                secure secret storage.
+                API keys are now stored through a desktop-side local secret file and are no longer
+                returned to the frontend after save. This is still not final OS-level secure storage.
               </p>
               {flightDataSourceConfig.updatedAt ? (
                 <p className="settings-helper-copy">{`Last saved: ${formatSavedAt(flightDataSourceConfig.updatedAt)}`}</p>

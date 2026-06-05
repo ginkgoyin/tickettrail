@@ -2,16 +2,21 @@ pub mod aerodatabox;
 pub mod mock;
 
 use crate::models::{
-    FlightDataSourceConfigPayload, FlightLookupCandidatePayload, FlightLookupErrorPayload,
-    FlightLookupRequestPayload,
+    FlightLookupCandidatePayload, FlightLookupErrorPayload, FlightLookupRequestPayload,
 };
 
 pub const PROVIDER_MOCK: &str = "mock";
 pub const PROVIDER_AERODATABOX: &str = "aerodatabox";
 
+#[derive(Clone, Debug)]
+pub struct FlightLookupProviderConfig {
+    pub provider: String,
+    pub api_key: Option<String>,
+}
+
 pub fn lookup_candidates(
     request: &FlightLookupRequestPayload,
-    config: Option<&FlightDataSourceConfigPayload>,
+    config: Option<&FlightLookupProviderConfig>,
 ) -> Result<Vec<FlightLookupCandidatePayload>, FlightLookupErrorPayload> {
     let normalized_flight_number = normalize_flight_number(&request.flight_number);
     let lookup_date = request.date.trim();
@@ -73,7 +78,7 @@ pub fn is_iso_date(value: &str) -> bool {
             .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit())
 }
 
-fn resolve_provider(config: Option<&FlightDataSourceConfigPayload>) -> String {
+fn resolve_provider(config: Option<&FlightLookupProviderConfig>) -> String {
     let configured_provider = config
         .map(|value| value.provider.trim().to_lowercase())
         .filter(|value| !value.is_empty());
@@ -87,10 +92,10 @@ fn resolve_provider(config: Option<&FlightDataSourceConfigPayload>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        is_iso_date, lookup_candidates, normalize_flight_number, PROVIDER_AERODATABOX,
-        PROVIDER_MOCK,
+        is_iso_date, lookup_candidates, normalize_flight_number, FlightLookupProviderConfig,
+        PROVIDER_AERODATABOX, PROVIDER_MOCK,
     };
-    use crate::models::{FlightDataSourceConfigPayload, FlightLookupRequestPayload};
+    use crate::models::FlightLookupRequestPayload;
 
     fn build_request(provider: &str) -> FlightLookupRequestPayload {
         FlightLookupRequestPayload {
@@ -130,10 +135,9 @@ mod tests {
     fn lookup_uses_saved_mock_provider_when_configured() {
         let results = lookup_candidates(
             &build_request(PROVIDER_AERODATABOX),
-            Some(&FlightDataSourceConfigPayload {
+            Some(&FlightLookupProviderConfig {
                 provider: PROVIDER_MOCK.into(),
                 api_key: None,
-                updated_at: None,
             }),
         )
         .expect("saved mock provider should still return local candidates");
@@ -146,10 +150,9 @@ mod tests {
     fn lookup_returns_not_implemented_for_aerodatabox_config() {
         let error = lookup_candidates(
             &build_request(PROVIDER_AERODATABOX),
-            Some(&FlightDataSourceConfigPayload {
+            Some(&FlightLookupProviderConfig {
                 provider: PROVIDER_AERODATABOX.into(),
                 api_key: Some("test-key".into()),
-                updated_at: None,
             }),
         )
         .expect_err("aerodatabox should stay a skeleton in this phase");
