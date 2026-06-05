@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 export interface FlightLookupRequest {
   flightNumber: string;
   departureDate: string;
@@ -11,6 +13,7 @@ export interface FlightLookupLocation {
 
 export interface FlightLookupCandidate {
   id: string;
+  provider?: string;
   providerLabel: string;
   sourceNote: string;
   carrierName: string;
@@ -21,6 +24,37 @@ export interface FlightLookupCandidate {
   arrivalTerminal?: string;
   departureTimeLocal: string;
   arrivalTimeLocal: string;
+  aircraft?: string;
+  flightStatus?: string;
+  confidence?: string;
+}
+
+export type FlightLookupErrorCode =
+  | "missing_provider_configuration"
+  | "missing_api_key"
+  | "provider_unauthorized"
+  | "rate_limited"
+  | "no_results"
+  | "network_error"
+  | "provider_response_parse_error"
+  | "unsupported_provider";
+
+export interface FlightLookupErrorPayload {
+  code: FlightLookupErrorCode;
+  message: string;
+  provider?: string;
+  retryable: boolean;
+  details?: string;
+}
+
+interface FlightLookupTauriRequest {
+  flightNumber: string;
+  date: string;
+  provider: "aerodatabox";
+  locale?: string;
+  departureAirportHint?: string;
+  arrivalAirportHint?: string;
+  countryHint?: string;
 }
 
 interface MockFlightTemplate {
@@ -32,11 +66,19 @@ interface MockFlightTemplate {
   arrivalTerminal?: string;
   departureTime: string;
   arrivalTime: string;
+  aircraft?: string;
+  flightStatus?: string;
+  confidence?: string;
 }
 
-const MOCK_PROVIDER_LABEL = "Mock flight lookup";
+const MOCK_PROVIDER = "aerodatabox";
+const MOCK_PROVIDER_LABEL = "AeroDataBox mock via Tauri";
 const MOCK_SOURCE_NOTE =
-  "Phase 1 scaffold only. This result is generated from a local mock provider and should be reviewed before saving.";
+  "Phase A mock command only. This result is generated locally through the Tauri boundary and should be reviewed before saving.";
+
+const BROWSER_FALLBACK_PROVIDER_LABEL = "Mock flight lookup";
+const BROWSER_FALLBACK_SOURCE_NOTE =
+  "Fallback local mock only. This result is generated in the frontend because the Tauri lookup boundary is unavailable.";
 
 const MOCK_FLIGHTS: Record<string, MockFlightTemplate[]> = {
   MF802: [
@@ -57,6 +99,9 @@ const MOCK_FLIGHTS: Record<string, MockFlightTemplate[]> = {
       arrivalTerminal: "T3",
       departureTime: "11:25",
       arrivalTime: "19:40",
+      aircraft: "Boeing 787-9",
+      flightStatus: "scheduled",
+      confidence: "high",
     },
   ],
   MU562: [
@@ -77,6 +122,9 @@ const MOCK_FLIGHTS: Record<string, MockFlightTemplate[]> = {
       arrivalTerminal: "T1",
       departureTime: "12:10",
       arrivalTime: "20:35",
+      aircraft: "Airbus A330-200",
+      flightStatus: "scheduled",
+      confidence: "high",
     },
   ],
   CZ326: [
@@ -97,6 +145,9 @@ const MOCK_FLIGHTS: Record<string, MockFlightTemplate[]> = {
       arrivalTerminal: "T2",
       departureTime: "10:45",
       arrivalTime: "18:20",
+      aircraft: "Boeing 787-8",
+      flightStatus: "scheduled",
+      confidence: "high",
     },
   ],
   QF127: [
@@ -117,6 +168,9 @@ const MOCK_FLIGHTS: Record<string, MockFlightTemplate[]> = {
       arrivalTerminal: "T1",
       departureTime: "09:30",
       arrivalTime: "16:10",
+      aircraft: "Airbus A330-300",
+      flightStatus: "scheduled",
+      confidence: "high",
     },
   ],
 };
@@ -133,9 +187,45 @@ function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-export async function lookupFlightCandidates(
+function buildTauriRequest(request: FlightLookupRequest): FlightLookupTauriRequest {
+  return {
+    flightNumber: request.flightNumber,
+    date: request.departureDate,
+    provider: "aerodatabox",
+  };
+}
+
+function isStructuredLookupError(value: unknown): value is FlightLookupErrorPayload {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const maybeError = value as Partial<FlightLookupErrorPayload>;
+  return typeof maybeError.code === "string" && typeof maybeError.message === "string";
+}
+
+async function lookupViaTauri(
   request: FlightLookupRequest,
-): Promise<FlightLookupCandidate[]> {
+): Promise<FlightLookupCandidate[] | null> {
+  try {
+    return await invoke<FlightLookupCandidate[]>("lookup_flight_candidates", {
+      request: buildTauriRequest(request),
+    });
+  } catch (error) {
+    if (isStructuredLookupError(error)) {
+      if (error.code === "no_results") {
+        return [];
+      }
+      if (error.code === "unsupported_provider") {
+        return null;
+      }
+    }
+
+    return null;
+  }
+}
+
+function lookupViaLocalFallback(request: FlightLookupRequest): FlightLookupCandidate[] {
   const normalizedFlightNumber = normalizeFlightNumber(request.flightNumber);
   const departureDate = request.departureDate.trim();
 
@@ -147,8 +237,9 @@ export async function lookupFlightCandidates(
 
   return templates.map((template, index) => ({
     id: `${normalizedFlightNumber}-${departureDate}-${index}`,
-    providerLabel: MOCK_PROVIDER_LABEL,
-    sourceNote: MOCK_SOURCE_NOTE,
+    provider: MOCK_PROVIDER,
+    providerLabel: BROWSER_FALLBACK_PROVIDER_LABEL,
+    sourceNote: BROWSER_FALLBACK_SOURCE_NOTE,
     carrierName: template.carrierName,
     code: template.code,
     departure: template.departure,
@@ -157,5 +248,37 @@ export async function lookupFlightCandidates(
     arrivalTerminal: template.arrivalTerminal,
     departureTimeLocal: combineDateAndTime(departureDate, template.departureTime),
     arrivalTimeLocal: combineDateAndTime(departureDate, template.arrivalTime),
+    aircraft: template.aircraft,
+    flightStatus: template.flightStatus,
+    confidence: template.confidence,
   }));
+}
+
+export async function lookupFlightCandidates(
+  request: FlightLookupRequest,
+): Promise<FlightLookupCandidate[]> {
+  const normalizedFlightNumber = normalizeFlightNumber(request.flightNumber);
+  const departureDate = request.departureDate.trim();
+
+  if (!normalizedFlightNumber || !isIsoDate(departureDate)) {
+    return [];
+  }
+
+  const tauriCandidates = await lookupViaTauri({
+    flightNumber: normalizedFlightNumber,
+    departureDate,
+  });
+  if (tauriCandidates) {
+    return tauriCandidates.map((candidate) => ({
+      ...candidate,
+      provider: candidate.provider ?? MOCK_PROVIDER,
+      providerLabel: candidate.providerLabel || MOCK_PROVIDER_LABEL,
+      sourceNote: candidate.sourceNote || MOCK_SOURCE_NOTE,
+    }));
+  }
+
+  return lookupViaLocalFallback({
+    flightNumber: normalizedFlightNumber,
+    departureDate,
+  });
 }

@@ -108,7 +108,7 @@
 
 - `FLIGHT-LOOKUP-007`
   - Add a backend/Tauri mock command boundary before any live provider API is connected.
-  - Status: `Open / future backend scaffold`
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `DATA-SOURCE-003`

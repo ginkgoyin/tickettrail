@@ -206,3 +206,43 @@ pub struct BackupReadinessPayload {
     pub ticket_count: usize,
     pub attachment_count: usize,
 }
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlightLookupRequestPayload {
+    pub flight_number: String,
+    pub date: String,
+    pub provider: String,
+    pub locale: Option<String>,
+    pub departure_airport_hint: Option<String>,
+    pub arrival_airport_hint: Option<String>,
+    pub country_hint: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlightLookupLocationPayload {
+    pub name: String,
+    pub code: String,
+    pub timezone: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlightLookupCandidatePayload {
+    pub id: String,
+    pub provider: String,
+    pub provider_label: String,
+    pub source_note: String,
+    pub carrier_name: String,
+    pub code: String,
+    pub departure: FlightLookupLocationPayload,
+    pub arrival: FlightLookupLocationPayload,
+    pub departure_terminal: Option<String>,
+    pub arrival_terminal: Option<String>,
+    pub departure_time_local: String,
+    pub arrival_time_local: String,
+    pub aircraft: Option<String>,
+    pub flight_status: Option<String>,
+    pub confidence: Option<String>,
+}

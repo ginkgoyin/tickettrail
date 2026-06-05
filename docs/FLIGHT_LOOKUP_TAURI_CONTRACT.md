@@ -8,10 +8,15 @@ It is intentionally **docs-only**.
 
 It does **not**:
 
-- implement a Tauri command
 - call AeroDataBox or any other real provider
 - store any API key
 - change frontend runtime behavior
+
+Current implementation status:
+
+- Phase A mock Tauri command boundary is now implemented.
+- It returns local mock candidates only.
+- It does **not** call a live provider.
 
 Current provider recommendation remains:
 
@@ -239,6 +244,7 @@ Recommended phases:
 
 - Phase A
   - Add a Tauri command stub that returns mock lookup candidates through the backend boundary.
+  - Status: implemented in the current phase.
 - Phase B
   - Design local provider selection and API key configuration in Settings.
 - Phase C
