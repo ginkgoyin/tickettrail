@@ -501,6 +501,76 @@
 
 ## 4. Journey Work Not Started
 
+- `JOURNEY-DESIGN-002`
+  - Expand `docs/JOURNEY_DESIGN.md` into an implementation-ready Journey MVP design covering create/edit/delete flows, linked tickets, companions, notes, destination/currency/date derivation, Summary direction, and phased implementation order.
+  - Status: `Documented / docs-only`
+  - Priority: `High`
+
+- `JOURNEY-DATA-001`
+  - Add the real Journey persistence model, schema direction, migration plan, and linked-ticket / companion storage.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `JOURNEY-SERVICE-001`
+  - Add Journey CRUD service and Tauri command boundaries after the Journey data model is accepted.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `JOURNEY-LIST-001`
+  - Replace the current Journey List scaffold with stored Journey rows, filters, sorting, and compact trip cards.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `JOURNEY-CREATE-001`
+  - Implement manual Journey creation with metadata fields, ticket selector search, and linked-ticket save flow.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `JOURNEY-DETAIL-001`
+  - Implement Journey Detail with trip summary, linked tickets, route summary, companions, notes, and a mini calendar.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `JOURNEY-EDIT-001`
+  - Implement Journey edit flow for metadata, linked tickets, companions, and notes.
+  - Status: `Open / future implementation`
+  - Priority: `Medium`
+
+- `JOURNEY-DELETE-001`
+  - Implement Journey delete using a centered app-themed confirm dialog that removes only the Journey and links, not the original tickets.
+  - Status: `Open / future implementation`
+  - Priority: `Medium`
+
+- `JOURNEY-COMPANION-001`
+  - Save Journey companions as parsed free-text names in MVP.
+  - Status: `Open / future implementation`
+  - Priority: `Medium`
+
+- `JOURNEY-COMPANION-002`
+  - Later suggest previously used companion names while keeping manual free-text entry.
+  - Status: `Open / future enhancement`
+  - Priority: `Medium`
+
+- `JOURNEY-SUMMARY-001`
+  - Implement real Journeys Summary metrics, filters, and destination / transport / cost aggregates after Journey CRUD is stable.
+  - Status: `Open / future implementation`
+  - Priority: `Medium`
+
+- `JOURNEY-MAP-004`
+  - Add later Journey-colored map and yearly filtering only after the non-map Journey CRUD flow is stable.
+  - Status: `Open / future enhancement`
+  - Priority: `Medium`
+
+- `TICKET-LIST-SEGMENT-CODE-001`
+  - Ticket List and Journey linked-ticket rows should show multi-segment code summaries such as `HO1230 / HO1669` instead of only one flight/train code.
+  - Status: `Open / future implementation`
+  - Priority: `Medium`
+
+- `UI-DIALOG-001`
+  - Destructive confirm dialogs should use centered app-themed dialogs instead of browser/system confirms, starting with Delete Journey.
+  - Status: `Open / future UI cleanup`
+  - Priority: `Medium`
+
 - `JOURNEY-003`
   - Journey list items should show compact trip-level information such as title, destination, duration, date range, and optional total distance.
   - Status: `Open / needs design`

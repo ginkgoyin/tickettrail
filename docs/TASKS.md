@@ -461,11 +461,26 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `EXPORT-PATH-001`.
+Current task: `JOURNEY-DESIGN-002` docs-only.
 
-The next follow-up should stay small and focused:
+Do not start Journey runtime implementation until the Journey MVP design is reviewed and accepted.
 
-1. `OVERVIEW-REDESIGN-001` next as a docs/design task before implementing any new Overview layout.
-2. Do not implement the Overview redesign before the design document is accepted.
+After the design is accepted, the recommended implementation order is:
 
-`EXPORT-PATH-002`, `SEGMENT-STUB-003`, `SEGMENT-DURATION-001`, `SEGMENT-DETAIL-001`, `SEGMENT-FORM-001`, `MAP-004 / MAP-005`, and `AIRLINE-DATA-001 / AIRLINE-LOGO-001` stay open / future and should not be pulled into this task by default.
+1. `JOURNEY-DATA-001`
+2. `JOURNEY-SERVICE-001`
+3. `JOURNEY-LIST-001`
+4. `JOURNEY-CREATE-001`
+5. Manually verify Journey List + Create together once both are implemented
+6. `JOURNEY-DETAIL-001`
+7. `JOURNEY-EDIT-001`
+8. `JOURNEY-DELETE-001`
+9. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
+
+Implementation notes:
+
+- Ticket selector search belongs in the first `JOURNEY-CREATE-001` implementation, not a later polish pass.
+- `JOURNEY-LIST-001` may be manually verified together with `JOURNEY-CREATE-001`, but code changes still require normal automated build/test checks.
+- Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.
+- `OVERVIEW-REDESIGN-001` remains a separate docs/design task.
+- UI art-style redesign remains deferred and should not block Journey MVP implementation.
