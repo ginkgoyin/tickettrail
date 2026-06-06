@@ -304,6 +304,10 @@ function buildTicketCodeSummary(ticket: TicketRecord) {
   return cleanedCodes.join(" / ") || ticket.code || "No code";
 }
 
+function transportIcon(ticketType: TicketRecord["ticketType"]) {
+  return ticketType === "flight" ? "✈" : "🚆";
+}
+
 function buildTicketSearchText(ticket: TicketRecord) {
   const dateParts = [
     ticket.departureTimeLocal,
@@ -1031,10 +1035,21 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
                 <section className="panel journey-create-section journey-create-section-tickets">
                   <div className="journey-create-section-top">
                     <div>
-                      <h3>Tickets</h3>
-                      <p className="hero-copy">
-                        Select zero or more existing tickets to link into this journey.
-                      </p>
+                      <div className="section-page-title-row">
+                        <h3>Tickets</h3>
+                        <div className="section-help">
+                          <button
+                            aria-label="Journey ticket selector help"
+                            className="section-help-trigger"
+                            type="button"
+                          >
+                            i
+                          </button>
+                          <div className="section-help-tooltip" role="tooltip">
+                            Select zero or more existing tickets to link into this journey.
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <span className="ticket-status ticket-status-saved">
                       {createDraft.selectedTicketIds.length} selected
@@ -1071,20 +1086,18 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
                                 type="checkbox"
                               />
                               <span className="journey-ticket-option-icon" aria-hidden="true">
-                                {ticket.ticketType === "flight" ? "F" : "R"}
+                                {transportIcon(ticket.ticketType)}
                               </span>
                               <span className="journey-ticket-option-main">
                                 <span className="journey-ticket-option-top">
                                   <strong>{routeSummary}</strong>
-                                  <span className="ticket-status ticket-status-saved">{ticket.status}</span>
                                 </span>
                                 <span className="ticket-row-meta">
                                   <span>{formatTicketDateLabel(ticket)}</span>
-                                  <span>{codeSummary}</span>
+                                  <span>
+                                    {ticket.carrierName ? `${codeSummary} (${ticket.carrierName})` : codeSummary}
+                                  </span>
                                 </span>
-                                {ticket.carrierName ? (
-                                  <span className="journey-ticket-option-subtitle">{ticket.carrierName}</span>
-                                ) : null}
                               </span>
                             </label>
                           );
