@@ -183,8 +183,8 @@
 
 - `SEGMENT-STUB-003`
   - Export all segment PNGs from the current multi-segment ticket.
-  - Status: `Open / future enhancement`
-  - Priority: `Medium`
+  - Status: `Deferred / not doing now`
+  - Priority: `Low`
 
 - `SEGMENT-DETAIL-001`
   - Redesign ticket detail into itinerary summary, segment list, route map, stubs, and attachments.
@@ -235,7 +235,12 @@
 
 - `EXPORT-PATH-001`
   - Settings should show the current export/download folder and provide a button to open that folder.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
+- `EXPORT-PATH-002`
+  - Let users choose and persist a custom default export folder.
+  - Status: `Open / future enhancement`
   - Priority: `Medium`
 
 ## 2. Implemented / Recorded / Needs Future Verification

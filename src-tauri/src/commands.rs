@@ -5,8 +5,8 @@ use crate::{
         PROVIDER_AERODATABOX, PROVIDER_MOCK,
     },
     models::{
-        AirlinePayload, BackupReadinessPayload, BackupRecordPayload, LocationDirectoryPayload,
-        FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload,
+        AirlinePayload, BackupReadinessPayload, BackupRecordPayload, ExportFolderPayload,
+        LocationDirectoryPayload, FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload,
         FlightLookupCandidatePayload, FlightLookupRequestPayload, StubPreviewPayload,
         TicketAttachmentPayload,
         TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
@@ -15,6 +15,7 @@ use crate::{
 use chrono::Utc;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command as ProcessCommand;
 use tauri::command;
 use tauri::{AppHandle, Manager};
 
@@ -151,6 +152,18 @@ pub fn import_archive_bundle(app: AppHandle, bundle_path: String) -> Result<(), 
 }
 
 #[command]
+pub fn get_export_folder_info(app: AppHandle) -> Result<ExportFolderPayload, String> {
+    resolve_export_folder_info(&app)
+}
+
+#[command]
+pub fn open_export_folder(app: AppHandle) -> Result<ExportFolderPayload, String> {
+    let export_folder = resolve_export_folder_info(&app)?;
+    open_folder_in_os(&PathBuf::from(&export_folder.path))?;
+    Ok(export_folder)
+}
+
+#[command]
 pub fn get_flight_data_source_config(app: AppHandle) -> Result<FlightDataSourceConfigPayload, String> {
     Ok(public_flight_data_source_config(&load_effective_flight_data_source_config(&app)?))
 }
@@ -236,6 +249,63 @@ fn default_flight_data_source_config() -> EffectiveFlightDataSourceConfig {
         api_key: None,
         updated_at: None,
     }
+}
+
+fn resolve_export_folder_info(app: &AppHandle) -> Result<ExportFolderPayload, String> {
+    let path_service = app.path();
+    let (path, resolution_kind) = if let Ok(path) = path_service.download_dir() {
+        (path, "downloads")
+    } else if let Ok(path) = path_service.desktop_dir() {
+        (path, "desktop")
+    } else if let Ok(path) = path_service.document_dir() {
+        (path, "documents")
+    } else if let Ok(path) = path_service.app_data_dir() {
+        (path, "appData")
+    } else {
+        return Err("Unable to resolve a local export folder on this device.".into());
+    };
+
+    Ok(ExportFolderPayload {
+        path: path.to_string_lossy().to_string(),
+        resolution_kind: resolution_kind.into(),
+        is_exact: false,
+    })
+}
+
+fn open_folder_in_os(path: &PathBuf) -> Result<(), String> {
+    if !path.exists() {
+        return Err("The current export folder could not be found on this device.".into());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        ProcessCommand::new("explorer")
+            .arg(path)
+            .spawn()
+            .map_err(|_| "Failed to open the current export folder in File Explorer.".to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        ProcessCommand::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|_| "Failed to open the current export folder.".to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        ProcessCommand::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|_| "Failed to open the current export folder.".to_string())?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("Opening the current export folder is not supported on this platform yet.".into())
 }
 
 fn flight_data_source_config_path(app: &AppHandle) -> Result<PathBuf, String> {

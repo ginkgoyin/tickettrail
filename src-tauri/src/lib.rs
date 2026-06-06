@@ -6,8 +6,9 @@ mod models;
 use commands::{
     add_ticket_attachment, create_backup, create_stub_preview, create_ticket, delete_ticket,
     delete_ticket_attachment, export_archive_bundle, export_backup, get_backup_readiness,
-    get_bootstrap_summary, get_flight_data_source_config, get_ticket_detail, import_archive_bundle,
-    list_backups, list_tickets, lookup_flight_candidates, restore_backup,
+    get_bootstrap_summary, get_export_folder_info, get_flight_data_source_config, get_ticket_detail,
+    import_archive_bundle, list_backups, list_tickets, lookup_flight_candidates, open_export_folder,
+    restore_backup,
     save_flight_data_source_config, search_airlines, search_locations, update_ticket,
     update_ticket_status,
 };
@@ -27,6 +28,8 @@ pub fn run() {
             get_ticket_detail,
             search_airlines,
             search_locations,
+            get_export_folder_info,
+            open_export_folder,
             get_flight_data_source_config,
             save_flight_data_source_config,
             lookup_flight_candidates,

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ComponentProps } from "react";
 import { BackupPanel } from "../components/BackupPanel";
+import { getExportFolderInfo, openExportFolder, type ExportFolderInfo } from "../lib/ticketService";
 import {
   getFlightDataSourceConfig,
   saveFlightDataSourceConfig,
@@ -41,6 +42,9 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
   const [flightDataSourceBusy, setFlightDataSourceBusy] = useState(false);
   const [flightDataSourceStatus, setFlightDataSourceStatus] = useState("");
   const [showFlightDataSourceApiKey, setShowFlightDataSourceApiKey] = useState(false);
+  const [exportFolderInfo, setExportFolderInfo] = useState<ExportFolderInfo | null>(null);
+  const [exportFolderBusy, setExportFolderBusy] = useState(false);
+  const [exportFolderStatus, setExportFolderStatus] = useState("");
   const settingsTabs: Array<{ value: SettingsSubview; label: string }> = [
     { value: "appearance", label: t("appearance") },
     { value: "export", label: t("export") },
@@ -83,6 +87,32 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadExportFolderInfo = async () => {
+      try {
+        const info = await getExportFolderInfo();
+        if (!isMounted) {
+          return;
+        }
+
+        setExportFolderInfo(info);
+        setExportFolderStatus("");
+      } catch {
+        if (isMounted) {
+          setExportFolderStatus(t("exportFolderLoadFailed"));
+        }
+      }
+    };
+
+    void loadExportFolderInfo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [t]);
 
   const handleUpdateFlightDataSourceProvider = (provider: FlightDataSourceProvider) => {
     setFlightDataSourceConfig((current) => ({
@@ -154,6 +184,28 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
     }
   };
 
+  const exportFolderLabel =
+    exportFolderInfo?.resolutionKind === "downloads"
+      ? t("defaultSystemDownloadsFolder")
+      : t("bestAvailableExportFolder");
+
+  const handleOpenExportFolder = async () => {
+    setExportFolderBusy(true);
+    setExportFolderStatus("");
+
+    try {
+      const info = await openExportFolder();
+      setExportFolderInfo(info);
+      setExportFolderStatus(t("exportFolderOpened"));
+    } catch (error) {
+      setExportFolderStatus(
+        error instanceof Error && error.message ? error.message : t("exportFolderOpenFailed"),
+      );
+    } finally {
+      setExportFolderBusy(false);
+    }
+  };
+
   const appearanceView = (
     <section className="section-stack">
       <div className="panel settings-intro-card">
@@ -200,8 +252,9 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
       <div className="panel settings-intro-card">
         <h3>{t("backupAndExport")}</h3>
         <p className="hero-copy">
-          Backup and export-related preferences now live under Settings. Placeholder controls below are not
-          active yet unless they belong to the existing backup workflow.
+          Backup and export-related preferences now live under Settings. The existing backup workflow
+          remains available here, and stub exports now show the current default download folder for
+          desktop use.
         </p>
       </div>
 
@@ -229,16 +282,28 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
           <div className="panel settings-section-card">
             <h3>{t("defaultExportLocation")}</h3>
             <div className="settings-option-list">
-              <div className="settings-option-card">
+              <div className="settings-option-card settings-option-card-block">
                 <div>
-                  <strong>{t("exportDestinationPreference")}</strong>
-                  <p className="hero-copy">
-                    Coming soon. Default export location behavior is not implemented yet.
+                  <strong>{t("currentExportFolder")}</strong>
+                  <p className="hero-copy">{exportFolderLabel}</p>
+                  <p className="settings-helper-copy">
+                    {exportFolderInfo?.path || t("exportFolderPathUnavailable")}
                   </p>
+                  <p className="hero-copy">{t("exportFolderDefaultFlowNote")}</p>
                 </div>
-                <span className="ticket-status ticket-status-draft">{t("disabled")}</span>
+                <div className="settings-inline-controls">
+                  <button
+                    className="ghost-button"
+                    disabled={exportFolderBusy || !exportFolderInfo?.path}
+                    onClick={() => void handleOpenExportFolder()}
+                    type="button"
+                  >
+                    {exportFolderBusy ? t("openingFolder") : t("openFolder")}
+                  </button>
+                </div>
               </div>
             </div>
+            {exportFolderStatus ? <p className="settings-status-message">{exportFolderStatus}</p> : null}
           </div>
         </div>
       </div>

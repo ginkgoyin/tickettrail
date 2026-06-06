@@ -209,6 +209,14 @@ pub struct BackupReadinessPayload {
     pub attachment_count: usize,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportFolderPayload {
+    pub path: String,
+    pub resolution_kind: String,
+    pub is_exact: bool,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlightLookupRequestPayload {

@@ -461,11 +461,11 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-The current IA cleanup removes selected-ticket detail content from Overview / Map responsibilities and removes the redundant Map page from primary navigation without redesigning Overview yet.
+Current task: `EXPORT-PATH-001`.
 
 The next follow-up should stay small and focused:
 
 1. `OVERVIEW-REDESIGN-001` next as a docs/design task before implementing any new Overview layout.
-2. `EXPORT-PATH-001` and `SEGMENT-STUB-003` remain separate follow-ups and should not be mixed into the Overview redesign pass.
+2. Do not implement the Overview redesign before the design document is accepted.
 
-`SEGMENT-DURATION-001`, `SEGMENT-DETAIL-001`, `SEGMENT-FORM-001`, `MAP-004 / MAP-005`, and `AIRLINE-DATA-001 / AIRLINE-LOGO-001` stay open / future and should not be pulled into this IA cleanup by default.
+`EXPORT-PATH-002`, `SEGMENT-STUB-003`, `SEGMENT-DURATION-001`, `SEGMENT-DETAIL-001`, `SEGMENT-FORM-001`, `MAP-004 / MAP-005`, and `AIRLINE-DATA-001 / AIRLINE-LOGO-001` stay open / future and should not be pulled into this task by default.

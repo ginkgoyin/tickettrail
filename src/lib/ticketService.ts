@@ -36,6 +36,14 @@ let locationLookupPromise: Promise<{
   byAirportTerm: Map<string, LocationDirectoryEntry>;
 }> | null = null;
 
+export type ExportFolderResolutionKind = "downloads" | "desktop" | "documents" | "appData";
+
+export interface ExportFolderInfo {
+  path: string;
+  resolutionKind: ExportFolderResolutionKind;
+  isExact: boolean;
+}
+
 async function loadLocationSeed(): Promise<LocationDirectoryEntry[]> {
   if (!locationSeedPromise) {
     locationSeedPromise = Promise.all([
@@ -502,6 +510,26 @@ function buildSegmentCount(ticket: TicketDraft) {
 
 function supportsTauri() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export async function getExportFolderInfo(): Promise<ExportFolderInfo> {
+  if (supportsTauri()) {
+    return invoke<ExportFolderInfo>("get_export_folder_info");
+  }
+
+  return {
+    path: "",
+    resolutionKind: "downloads",
+    isExact: false,
+  };
+}
+
+export async function openExportFolder(): Promise<ExportFolderInfo> {
+  if (supportsTauri()) {
+    return invoke<ExportFolderInfo>("open_export_folder");
+  }
+
+  throw new Error("Opening the export folder is only available in the desktop app.");
 }
 
 function readFallbackTickets(): TicketRecord[] {

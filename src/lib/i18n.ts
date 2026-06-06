@@ -101,6 +101,17 @@ const messages = {
     storage: "Storage",
     defaultExportLocation: "Default export location",
     exportDestinationPreference: "Export destination preference",
+    currentExportFolder: "Current export folder",
+    defaultSystemDownloadsFolder: "Default system Downloads folder",
+    bestAvailableExportFolder: "Best available export folder",
+    exportFolderDefaultFlowNote:
+      "Stub SVG/PNG exports are currently saved through the default download flow. Custom export location selection is not implemented yet.",
+    openFolder: "Open folder",
+    openingFolder: "Opening folder...",
+    exportFolderPathUnavailable: "Path unavailable outside the desktop runtime.",
+    exportFolderOpened: "Current export folder opened.",
+    exportFolderLoadFailed: "Failed to resolve the current export folder.",
+    exportFolderOpenFailed: "Failed to open the current export folder.",
     appName: "App name",
     versionInformation: "Version information",
     softwareInformation: "Software information",
@@ -220,7 +231,7 @@ const I18nContext = createContext<I18nValue | null>(null);
 export const I18nProvider = I18nContext.Provider;
 
 export function getMessage(language: Language, key: I18nKey) {
-  return messages[language][key] ?? messages.en[key];
+  return (messages[language] as Record<string, string | undefined>)[key] ?? messages.en[key];
 }
 
 export function useI18n() {
