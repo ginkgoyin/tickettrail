@@ -508,7 +508,12 @@
 
 - `JOURNEY-DATA-001`
   - Add the real Journey persistence model, schema direction, migration plan, and linked-ticket / companion storage.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `JOURNEY-DATA-002`
+  - Deleting a ticket removes related `journey_tickets` links without deleting the Journey itself.
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `JOURNEY-SERVICE-001`
@@ -573,27 +578,27 @@
 
 - `JOURNEY-003`
   - Journey list items should show compact trip-level information such as title, destination, duration, date range, and optional total distance.
-  - Status: `Open / needs design`
+  - Status: `Superseded by JOURNEY-DESIGN-002 and the JOURNEY-DATA/LIST/CREATE/DETAIL/SUMMARY task split`
   - Priority: `Medium`
 
 - `JOURNEY-004`
   - Journey detail should represent a trip record that can include multiple tickets, multiple segments, companions, notes, total distance, total duration, and a route map.
-  - Status: `Open / needs design`
+  - Status: `Superseded by JOURNEY-DESIGN-002 and the JOURNEY-DATA/LIST/CREATE/DETAIL/SUMMARY task split`
   - Priority: `High`
 
 - `JOURNEY-005`
   - Tickets and journeys should use a many-to-many relationship: one ticket can belong to multiple journeys, and a ticket can also belong to none.
-  - Status: `Open / future data model`
+  - Status: `Superseded by JOURNEY-DESIGN-002 and the JOURNEY-DATA/LIST/CREATE/DETAIL/SUMMARY task split`
   - Priority: `High`
 
 - `JOURNEY-006`
   - Journeys Summary should show trip-level aggregates such as total journeys, destination statistics, companion statistics, total distance/days, and a journey map.
-  - Status: `Open / needs design`
+  - Status: `Superseded by JOURNEY-DESIGN-002 and the JOURNEY-DATA/LIST/CREATE/DETAIL/SUMMARY task split`
   - Priority: `Medium`
 
 - `JOURNEY-007`
   - Journey map rendering should use one distinct color per journey and support all-years / selected-year views.
-  - Status: `Open / future map design`
+  - Status: `Superseded by JOURNEY-DESIGN-002 and the JOURNEY-DATA/LIST/CREATE/DETAIL/SUMMARY task split`
   - Priority: `Medium`
 
 - `MAP-003`

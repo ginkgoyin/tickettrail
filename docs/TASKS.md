@@ -306,11 +306,11 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - `SETTINGS-001` is now in place as a safe UI scaffold: a bottom sidebar entry and a non-functional Settings page for Appearance, Export, and About placeholders.
   - Sidebar / Settings / Exports IA cleanup should now keep backup/export placeholders under `Settings > Export`, keep standalone `Exports` out of primary navigation, and leave ticket-edit behavior for a separate task.
   - For the current phase, desktop layout remains the primary target; responsive behavior is only a safe fallback for narrower desktop windows, not a mobile-first redesign track.
-  - Journey implementation should not start until the Journey design is accepted, especially because Journeys are being redefined as trip collections rather than single-ticket detail duplication.
+  - Journey design is now accepted as a docs baseline; Journey runtime work should still begin with the data/service boundary before any List/Create UI.
   - Journey design decisions are now confirmed: manual-first creation, ticket-list selection flow, `title` as the main list title, free-text companions with later suggestions, `All years` as default filter, and a future many-to-many table direction.
   - Journey implementation should begin with a safe `Summary + List` scaffold only.
   - Journeys Phase 1 scaffold has now been manually verified: `Journeys` opens `Summary` by default, `Summary / List` switching works, and the section no longer duplicates Tickets single-ticket detail.
-  - Do not implement the real Journey database schema until a later phase.
+  - `JOURNEY-DATA-001` is now the correct first implementation phase for real Journey persistence foundations.
   - Ticket edit modal/refresh behavior has now been manually verified: edit opens from detail, uses the shared modal/form pattern without OCR in edit mode, locks ticket type, refreshes the current detail view after save, and keeps add/list flows stable.
   - Ticket location suggestions/placeholders are now manually verified for transport-specific filtering: flight forms suggest airports only, train/rail forms suggest stations only, and placeholders reflect the selected ticket type in both add and edit flows.
   - `FORM-001` date/time confirm/apply behavior is deferred for now; keep the original/simple datetime inputs until a clearer picker direction is chosen.
@@ -461,21 +461,20 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-DESIGN-002` docs-only.
+Current task: `JOURNEY-DATA-001`.
 
-Do not start Journey runtime implementation until the Journey MVP design is reviewed and accepted.
+Journey List/Create UI should not start until the data/service boundary is in place.
 
-After the design is accepted, the recommended implementation order is:
+After this data-layer task, the recommended implementation order is:
 
-1. `JOURNEY-DATA-001`
-2. `JOURNEY-SERVICE-001`
-3. `JOURNEY-LIST-001`
-4. `JOURNEY-CREATE-001`
-5. Manually verify Journey List + Create together once both are implemented
-6. `JOURNEY-DETAIL-001`
-7. `JOURNEY-EDIT-001`
-8. `JOURNEY-DELETE-001`
-9. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
+1. `JOURNEY-SERVICE-001`
+2. `JOURNEY-LIST-001`
+3. `JOURNEY-CREATE-001`
+4. Manually verify Journey List + Create together once both are implemented
+5. `JOURNEY-DETAIL-001`
+6. `JOURNEY-EDIT-001`
+7. `JOURNEY-DELETE-001`
+8. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
 
 Implementation notes:
 

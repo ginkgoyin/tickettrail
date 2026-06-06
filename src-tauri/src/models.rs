@@ -8,6 +8,48 @@ pub struct TicketLocationPayload {
     pub timezone: String,
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JourneyCompanionPayload {
+    pub id: String,
+    pub journey_id: String,
+    pub name: String,
+    pub created_at: String,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JourneyTicketPayload {
+    pub id: String,
+    pub journey_id: String,
+    pub ticket_id: String,
+    pub created_at: String,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JourneyPayload {
+    pub id: String,
+    pub title: String,
+    pub destination: Option<String>,
+    pub date_mode: String,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub notes: Option<String>,
+    pub rating: Option<i64>,
+    pub mood: Option<String>,
+    pub cost_amount: Option<f64>,
+    pub cost_currency: Option<String>,
+    pub lodging: Option<String>,
+    pub companions: Vec<JourneyCompanionPayload>,
+    pub ticket_ids: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TicketDraftPayload {

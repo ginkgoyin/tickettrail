@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS ticket_records (
     version INTEGER NOT NULL DEFAULT 1
 );
 
-CREATE TABLE IF NOT EXISTS journeys (
+CREATE TABLE IF NOT EXISTS ticket_itineraries (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     journey_type TEXT NOT NULL CHECK (journey_type IN ('single_leg', 'multi_leg')),
@@ -22,6 +22,38 @@ CREATE TABLE IF NOT EXISTS journeys (
     end_time_utc TEXT NOT NULL,
     created_at_utc TEXT NOT NULL,
     updated_at_utc TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS journeys (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    destination TEXT,
+    date_mode TEXT NOT NULL CHECK (date_mode IN ('auto', 'manual')),
+    start_date TEXT,
+    end_date TEXT,
+    notes TEXT,
+    rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
+    mood TEXT,
+    cost_amount REAL,
+    cost_currency TEXT,
+    lodging TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS journey_tickets (
+    id TEXT PRIMARY KEY,
+    journey_id TEXT NOT NULL REFERENCES journeys(id) ON DELETE CASCADE,
+    ticket_id TEXT NOT NULL REFERENCES ticket_records(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    UNIQUE(journey_id, ticket_id)
+);
+
+CREATE TABLE IF NOT EXISTS journey_companions (
+    id TEXT PRIMARY KEY,
+    journey_id TEXT NOT NULL REFERENCES journeys(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS locations (
@@ -38,9 +70,9 @@ CREATE TABLE IF NOT EXISTS locations (
     source TEXT NOT NULL DEFAULT 'user'
 );
 
-CREATE TABLE IF NOT EXISTS segments (
+CREATE TABLE IF NOT EXISTS ticket_segments (
     id TEXT PRIMARY KEY,
-    journey_id TEXT NOT NULL REFERENCES journeys(id),
+    journey_id TEXT NOT NULL REFERENCES ticket_itineraries(id),
     segment_index INTEGER NOT NULL,
     transport_type TEXT NOT NULL CHECK (transport_type IN ('flight', 'train')),
     carrier_name TEXT NOT NULL,
@@ -114,14 +146,29 @@ CREATE TABLE IF NOT EXISTS location_directory (
 CREATE INDEX IF NOT EXISTS idx_ticket_records_type_created
     ON ticket_records(ticket_type, created_at_utc);
 
-CREATE INDEX IF NOT EXISTS idx_journeys_status_start
-    ON journeys(status, start_time_utc);
+CREATE INDEX IF NOT EXISTS idx_ticket_itineraries_status_start
+    ON ticket_itineraries(status, start_time_utc);
 
-CREATE INDEX IF NOT EXISTS idx_segments_departure_utc
-    ON segments(departure_time_utc);
+CREATE INDEX IF NOT EXISTS idx_journeys_start_date
+    ON journeys(start_date);
 
-CREATE INDEX IF NOT EXISTS idx_segments_route
-    ON segments(departure_location_id, arrival_location_id);
+CREATE INDEX IF NOT EXISTS idx_journeys_end_date
+    ON journeys(end_date);
+
+CREATE INDEX IF NOT EXISTS idx_journey_tickets_journey
+    ON journey_tickets(journey_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_journey_tickets_ticket
+    ON journey_tickets(ticket_id);
+
+CREATE INDEX IF NOT EXISTS idx_journey_companions_journey
+    ON journey_companions(journey_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_ticket_segments_departure_utc
+    ON ticket_segments(departure_time_utc);
+
+CREATE INDEX IF NOT EXISTS idx_ticket_segments_route
+    ON ticket_segments(departure_location_id, arrival_location_id);
 
 CREATE INDEX IF NOT EXISTS idx_rendered_artifacts_owner
     ON rendered_artifacts(owner_type, owner_id, artifact_type);

@@ -19,6 +19,10 @@ use uuid::Uuid;
 const SCHEMA_SQL: &str = include_str!("../../database/schema.sql");
 const AIRLINES_SEED_JSON: &str = include_str!("../../src/data/airlines.seed.json");
 const LOCATIONS_SEED_JSON: &str = include_str!("../../src/data/locations.seed.json");
+const LEGACY_JOURNEYS_TABLE: &str = "journeys";
+const LEGACY_SEGMENTS_TABLE: &str = "segments";
+const TICKET_ITINERARIES_TABLE: &str = "ticket_itineraries";
+const TICKET_SEGMENTS_TABLE: &str = "ticket_segments";
 
 #[derive(Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -347,7 +351,7 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
     let created_at = Utc::now().to_rfc3339();
 
     let ticket_id = Uuid::new_v4().to_string();
-    let journey_id = Uuid::new_v4().to_string();
+    let itinerary_id = Uuid::new_v4().to_string();
 
     let conn = open_connection(app)?;
     let raw_payload_json = serde_json::to_string(&draft).map_err(|err| err.to_string())?;
@@ -366,12 +370,12 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
 
     let result = (|| {
         conn.execute(
-            "INSERT INTO journeys (
+            "INSERT INTO ticket_itineraries (
                 id, title, journey_type, primary_ticket_type, status,
                 start_time_utc, end_time_utc, created_at_utc, updated_at_utc
              ) VALUES (?1, ?2, ?3, ?4, 'planned', ?5, ?6, ?7, ?8)",
             params![
-                &journey_id,
+                &itinerary_id,
                 &route_label,
                 &journey_type,
                 &draft.ticket_type,
@@ -383,7 +387,7 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
         )
         .map_err(|err| err.to_string())?;
 
-        insert_segments(&conn, &journey_id, &draft.ticket_type, &effective_segments)?;
+        insert_segments(&conn, &itinerary_id, &draft.ticket_type, &effective_segments)?;
 
         conn.execute(
             "INSERT INTO ticket_records (
@@ -396,7 +400,7 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
                 &draft.carrier_name,
                 &draft.code,
                 &raw_payload_json,
-                &journey_id,
+                &itinerary_id,
                 &created_at,
                 &created_at
             ],
@@ -446,10 +450,10 @@ pub fn update_ticket(
 
     let conn = open_connection(app)?;
     let existing_row = get_ticket_row(&conn, ticket_id)?;
-    let journey_id = existing_row
+    let itinerary_id = existing_row
         .journey_id
         .clone()
-        .ok_or_else(|| "Ticket journey relation is missing.".to_string())?;
+        .ok_or_else(|| "Ticket itinerary relation is missing.".to_string())?;
     let raw_payload_json = serde_json::to_string(&draft).map_err(|err| err.to_string())?;
     let route_label = format!(
         "{} -> {}",
@@ -466,7 +470,7 @@ pub fn update_ticket(
 
     let result = (|| {
         conn.execute(
-            "UPDATE journeys
+            "UPDATE ticket_itineraries
              SET title = ?1,
                  journey_type = ?2,
                  primary_ticket_type = ?3,
@@ -481,14 +485,14 @@ pub fn update_ticket(
                 &departure_time_utc,
                 &arrival_time_utc,
                 &updated_at,
-                &journey_id
+                &itinerary_id
             ],
         )
         .map_err(|err| err.to_string())?;
 
-        conn.execute("DELETE FROM segments WHERE journey_id = ?1", [&journey_id])
+        conn.execute("DELETE FROM ticket_segments WHERE journey_id = ?1", [&itinerary_id])
             .map_err(|err| err.to_string())?;
-        insert_segments(&conn, &journey_id, &draft.ticket_type, &effective_segments)?;
+        insert_segments(&conn, &itinerary_id, &draft.ticket_type, &effective_segments)?;
 
         conn.execute(
             "UPDATE ticket_records
@@ -540,10 +544,10 @@ pub fn update_ticket_status(
 
     let conn = open_connection(app)?;
     let existing_row = get_ticket_row(&conn, ticket_id)?;
-    let journey_id = existing_row
+    let itinerary_id = existing_row
         .journey_id
         .clone()
-        .ok_or_else(|| "Ticket journey relation is missing.".to_string())?;
+        .ok_or_else(|| "Ticket itinerary relation is missing.".to_string())?;
     let updated_at = Utc::now().to_rfc3339();
     let draft = deserialize_ticket_draft(&existing_row.raw_payload_json)?;
 
@@ -562,11 +566,11 @@ pub fn update_ticket_status(
         .map_err(|err| err.to_string())?;
 
         conn.execute(
-            "UPDATE journeys
+            "UPDATE ticket_itineraries
              SET status = ?1,
                  updated_at_utc = ?2
              WHERE id = ?3",
-            params![journey_status_for_ticket_status(status), &updated_at, &journey_id],
+            params![journey_status_for_ticket_status(status), &updated_at, &itinerary_id],
         )
         .map_err(|err| err.to_string())?;
 
@@ -594,10 +598,10 @@ pub fn update_ticket_status(
 pub fn delete_ticket(app: &AppHandle, ticket_id: &str) -> Result<(), String> {
     let conn = open_connection(app)?;
     let existing_row = get_ticket_row(&conn, ticket_id)?;
-    let journey_id = existing_row
+    let itinerary_id = existing_row
         .journey_id
         .clone()
-        .ok_or_else(|| "Ticket journey relation is missing.".to_string())?;
+        .ok_or_else(|| "Ticket itinerary relation is missing.".to_string())?;
     let attachments = list_ticket_attachments(&conn, ticket_id)?;
 
     conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
@@ -606,11 +610,13 @@ pub fn delete_ticket(app: &AppHandle, ticket_id: &str) -> Result<(), String> {
     let result = (|| {
         conn.execute("DELETE FROM ticket_attachments WHERE ticket_id = ?1", [ticket_id])
             .map_err(|err| err.to_string())?;
+        conn.execute("DELETE FROM journey_tickets WHERE ticket_id = ?1", [ticket_id])
+            .map_err(|err| err.to_string())?;
         conn.execute("DELETE FROM ticket_records WHERE id = ?1", [ticket_id])
             .map_err(|err| err.to_string())?;
-        conn.execute("DELETE FROM segments WHERE journey_id = ?1", [&journey_id])
+        conn.execute("DELETE FROM ticket_segments WHERE journey_id = ?1", [&itinerary_id])
             .map_err(|err| err.to_string())?;
-        conn.execute("DELETE FROM journeys WHERE id = ?1", [&journey_id])
+        conn.execute("DELETE FROM ticket_itineraries WHERE id = ?1", [&itinerary_id])
             .map_err(|err| err.to_string())?;
         conn.execute_batch("COMMIT;").map_err(|err| err.to_string())
     })();
@@ -977,7 +983,7 @@ fn insert_segments(
             normalize_to_utc(&segment.arrival_time_local, &segment.arrival.timezone)?;
 
         conn.execute(
-            "INSERT INTO segments (
+            "INSERT INTO ticket_segments (
                 id, journey_id, segment_index, transport_type, carrier_name, code,
                 departure_location_id, arrival_location_id, departure_name_raw, arrival_name_raw,
                 departure_time_local, arrival_time_local, departure_timezone, arrival_timezone,
@@ -1284,10 +1290,102 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
     }
 
     let conn = Connection::open(path).map_err(|err| err.to_string())?;
+    migrate_legacy_ticket_journey_tables(&conn)?;
     conn.execute_batch(SCHEMA_SQL).map_err(|err| err.to_string())?;
     seed_airlines(&conn)?;
     seed_location_directory(&conn)?;
     Ok(conn)
+}
+
+fn migrate_legacy_ticket_journey_tables(conn: &Connection) -> Result<(), String> {
+    if !table_exists(conn, LEGACY_JOURNEYS_TABLE)? {
+        return Ok(());
+    }
+
+    if !table_has_column(conn, LEGACY_JOURNEYS_TABLE, "journey_type")?
+        || !table_has_column(conn, LEGACY_JOURNEYS_TABLE, "start_time_utc")?
+    {
+        return Ok(());
+    }
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        conn.execute("DROP INDEX IF EXISTS idx_journeys_status_start", [])
+            .map_err(|err| err.to_string())?;
+        conn.execute("DROP INDEX IF EXISTS idx_segments_departure_utc", [])
+            .map_err(|err| err.to_string())?;
+        conn.execute("DROP INDEX IF EXISTS idx_segments_route", [])
+            .map_err(|err| err.to_string())?;
+
+        if table_exists(conn, TICKET_ITINERARIES_TABLE)? {
+            if table_exists(conn, LEGACY_SEGMENTS_TABLE)? {
+                if table_exists(conn, TICKET_SEGMENTS_TABLE)? {
+                    conn.execute("DROP TABLE segments", [])
+                        .map_err(|err| err.to_string())?;
+                } else {
+                    conn.execute("ALTER TABLE segments RENAME TO ticket_segments", [])
+                        .map_err(|err| err.to_string())?;
+                }
+            }
+
+            conn.execute("DROP TABLE journeys", [])
+                .map_err(|err| err.to_string())?;
+        } else {
+            conn.execute(
+                "ALTER TABLE journeys RENAME TO ticket_itineraries",
+                [],
+            )
+            .map_err(|err| err.to_string())?;
+
+            if table_exists(conn, LEGACY_SEGMENTS_TABLE)? && !table_exists(conn, TICKET_SEGMENTS_TABLE)? {
+                conn.execute(
+                    "ALTER TABLE segments RENAME TO ticket_segments",
+                    [],
+                )
+                .map_err(|err| err.to_string())?;
+            }
+        }
+
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result
+}
+
+fn table_exists(conn: &Connection, table_name: &str) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table' AND name = ?1
+        )",
+        [table_name],
+        |row| row.get::<_, i64>(0),
+    )
+    .map(|value| value != 0)
+    .map_err(|err| err.to_string())
+}
+
+fn table_has_column(conn: &Connection, table_name: &str, column_name: &str) -> Result<bool, String> {
+    let pragma = format!("PRAGMA table_info({})", table_name);
+    let mut stmt = conn.prepare(&pragma).map_err(|err| err.to_string())?;
+    let columns = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|err| err.to_string())?;
+
+    for column in columns {
+        if column.map_err(|err| err.to_string())? == column_name {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
 
 fn seed_airlines(conn: &Connection) -> Result<(), String> {
@@ -1604,9 +1702,11 @@ fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_effective_segments, normalize_to_utc, sanitize_file_name, validate_draft, TicketDraftPayload, TicketLocationPayload,
-        TicketSegmentPayload,
+        build_effective_segments, migrate_legacy_ticket_journey_tables, normalize_to_utc,
+        sanitize_file_name, table_exists, validate_draft, TicketDraftPayload,
+        TicketLocationPayload, TicketSegmentPayload,
     };
+    use rusqlite::Connection;
 
     fn sample_location(name: &str, code: Option<&str>, timezone: &str) -> TicketLocationPayload {
         TicketLocationPayload {
@@ -1644,6 +1744,51 @@ mod tests {
                 notes: "".to_string(),
             }]),
         }
+    }
+
+    fn create_legacy_ticket_journey_connection() -> Connection {
+        let conn = Connection::open_in_memory().expect("should create in-memory db");
+        conn.execute_batch(
+            "
+            CREATE TABLE journeys (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                journey_type TEXT NOT NULL,
+                primary_ticket_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                start_time_utc TEXT NOT NULL,
+                end_time_utc TEXT NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
+            );
+            CREATE TABLE segments (
+                id TEXT PRIMARY KEY,
+                journey_id TEXT NOT NULL,
+                segment_index INTEGER NOT NULL,
+                transport_type TEXT NOT NULL,
+                carrier_name TEXT NOT NULL,
+                code TEXT NOT NULL,
+                departure_location_id TEXT,
+                arrival_location_id TEXT,
+                departure_name_raw TEXT NOT NULL,
+                arrival_name_raw TEXT NOT NULL,
+                departure_time_local TEXT NOT NULL,
+                arrival_time_local TEXT NOT NULL,
+                departure_timezone TEXT NOT NULL,
+                arrival_timezone TEXT NOT NULL,
+                departure_time_utc TEXT NOT NULL,
+                arrival_time_utc TEXT NOT NULL,
+                class_info TEXT,
+                seat_info TEXT,
+                metadata_json TEXT NOT NULL DEFAULT '{}'
+            );
+            CREATE INDEX idx_journeys_status_start ON journeys(status, start_time_utc);
+            CREATE INDEX idx_segments_departure_utc ON segments(departure_time_utc);
+            CREATE INDEX idx_segments_route ON segments(departure_location_id, arrival_location_id);
+            ",
+        )
+        .expect("should create legacy tables");
+        conn
     }
 
     #[test]
@@ -1708,6 +1853,77 @@ mod tests {
         assert_eq!(segments.len(), 2);
         assert_eq!(segments[0].departure.code.as_deref(), Some("PVG"));
         assert_eq!(segments[1].arrival.code.as_deref(), Some("MEL"));
+    }
+
+    #[test]
+    fn migrate_legacy_ticket_journey_tables_renames_old_tables() {
+        let conn = create_legacy_ticket_journey_connection();
+
+        migrate_legacy_ticket_journey_tables(&conn).expect("legacy table migration should succeed");
+
+        assert!(table_exists(&conn, "ticket_itineraries").expect("should inspect tables"));
+        assert!(table_exists(&conn, "ticket_segments").expect("should inspect tables"));
+        assert!(!table_exists(&conn, "journeys").expect("should inspect tables"));
+        assert!(!table_exists(&conn, "segments").expect("should inspect tables"));
+    }
+
+    #[test]
+    fn migrate_legacy_ticket_journey_tables_is_noop_without_legacy_tables() {
+        let conn = Connection::open_in_memory().expect("should create in-memory db");
+
+        migrate_legacy_ticket_journey_tables(&conn).expect("migration should be a no-op");
+
+        assert!(!table_exists(&conn, "ticket_itineraries").expect("should inspect tables"));
+        assert!(!table_exists(&conn, "journeys").expect("should inspect tables"));
+    }
+
+    #[test]
+    fn migrate_legacy_ticket_journey_tables_cleans_up_mixed_partial_state() {
+        let conn = create_legacy_ticket_journey_connection();
+        conn.execute_batch(
+            "
+            CREATE TABLE ticket_itineraries (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                journey_type TEXT NOT NULL,
+                primary_ticket_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                start_time_utc TEXT NOT NULL,
+                end_time_utc TEXT NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
+            );
+            CREATE TABLE ticket_segments (
+                id TEXT PRIMARY KEY,
+                journey_id TEXT NOT NULL,
+                segment_index INTEGER NOT NULL,
+                transport_type TEXT NOT NULL,
+                carrier_name TEXT NOT NULL,
+                code TEXT NOT NULL,
+                departure_location_id TEXT,
+                arrival_location_id TEXT,
+                departure_name_raw TEXT NOT NULL,
+                arrival_name_raw TEXT NOT NULL,
+                departure_time_local TEXT NOT NULL,
+                arrival_time_local TEXT NOT NULL,
+                departure_timezone TEXT NOT NULL,
+                arrival_timezone TEXT NOT NULL,
+                departure_time_utc TEXT NOT NULL,
+                arrival_time_utc TEXT NOT NULL,
+                class_info TEXT,
+                seat_info TEXT,
+                metadata_json TEXT NOT NULL DEFAULT '{}'
+            );
+            ",
+        )
+        .expect("should create mixed state");
+
+        migrate_legacy_ticket_journey_tables(&conn).expect("mixed migration should succeed");
+
+        assert!(table_exists(&conn, "ticket_itineraries").expect("should inspect tables"));
+        assert!(table_exists(&conn, "ticket_segments").expect("should inspect tables"));
+        assert!(!table_exists(&conn, "journeys").expect("should inspect tables"));
+        assert!(!table_exists(&conn, "segments").expect("should inspect tables"));
     }
 }
 
