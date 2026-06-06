@@ -311,7 +311,7 @@ html {
   gap: 14px;
 }
 
-.journeys-filter-header,
+.journeys-filter-row,
 .journey-list-card-top,
 .journey-list-card-heading,
 .journeys-feedback-actions {
@@ -320,9 +320,8 @@ html {
   flex-wrap: wrap;
 }
 
-.journeys-filter-header,
+.journeys-filter-row,
 .journey-list-card-top {
-  justify-content: space-between;
   align-items: center;
 }
 
@@ -336,19 +335,23 @@ html {
   color: var(--text-soft);
 }
 
-.journeys-filter-grid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(2, minmax(0, 220px));
+.journeys-filter-row {
+  flex-wrap: wrap;
 }
 
-.journeys-filter-grid label {
-  display: grid;
-  gap: 8px;
+.journeys-inline-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.journeys-filter-grid select {
+.journeys-inline-filter span {
+  color: var(--text-soft);
+}
+
+.journeys-inline-filter select {
   min-height: 44px;
+  min-width: 170px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(8, 18, 28, 0.92);
@@ -2256,7 +2259,6 @@ textarea {
   .content-grid,
   .journeys-hero-grid,
   .journeys-phase-grid,
-  .journeys-filter-grid,
   .hero,
   .detail-facts-row-3,
   .detail-facts-row-4,
@@ -2277,7 +2279,7 @@ textarea {
   .journeys-subview-bar,
   .journeys-callout-top,
   .journey-list-preview-top,
-  .journeys-filter-header,
+  .journeys-filter-row,
   .journey-list-card-top,
   .journey-list-card-heading,
   .section-page-header-main,

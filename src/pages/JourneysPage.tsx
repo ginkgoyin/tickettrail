@@ -422,15 +422,8 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
   const listView = (
     <section className="section-stack">
       <div className="panel journeys-filter-card">
-        <div className="journeys-filter-header">
-          <h3>Filters</h3>
-          <span className="ticket-row-submeta">
-            <span>Default: All years</span>
-            <span>Sorted by start date descending</span>
-          </span>
-        </div>
-        <div className="journeys-filter-grid">
-          <label className="field-group">
+        <div className="journeys-filter-row">
+          <label className="journeys-inline-filter">
             <span>Year</span>
             <select value={yearFilter} onChange={(event) => setYearFilter(event.target.value as JourneyYearFilter)}>
               <option value="all">All years</option>
@@ -442,7 +435,7 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
             </select>
           </label>
 
-          <label className="field-group">
+          <label className="journeys-inline-filter">
             <span>Month</span>
             <select
               disabled={yearFilter === "all"}
