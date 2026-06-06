@@ -22,7 +22,7 @@ import type {
 
 const RouteMap = lazy(async () => import("./RouteMap").then((module) => ({ default: module.RouteMap })));
 
-export type DashboardMode = "overview" | "tickets" | "journeys" | "map";
+export type DashboardMode = "overview" | "tickets" | "journeys";
 
 interface DashboardProps {
   detail: TicketDetailPayload | null;
@@ -209,8 +209,15 @@ interface DetailDisplaySegment {
   arrivalTimeLocal: string;
   classInfo: string;
   seatInfo: string;
+  notes: string;
   departureTerminal?: string;
   arrivalTerminal?: string;
+}
+
+interface SegmentStubPreviewOption {
+  segmentIndex: number;
+  label: string;
+  payload: TicketDetailPayload["stub"];
 }
 
 function cloneTicketLocation(location: TicketLocation): TicketLocation {
@@ -242,6 +249,7 @@ function buildDetailDisplaySegments(ticket: TicketRecord): DetailDisplaySegment[
     arrivalTimeLocal: ticket.arrivalTimeLocal,
     classInfo: ticket.classInfo,
     seatInfo: ticket.seatInfo,
+    notes: ticket.notes,
     departureTerminal: ticket.departureTerminal,
     arrivalTerminal: ticket.arrivalTerminal,
   };
@@ -258,6 +266,7 @@ function buildDetailDisplaySegments(ticket: TicketRecord): DetailDisplaySegment[
     arrivalTimeLocal: segment.arrivalTimeLocal,
     classInfo: segment.classInfo,
     seatInfo: segment.seatInfo,
+    notes: segment.notes,
   }));
 
   if (!onwardSegments.length) {
@@ -279,6 +288,7 @@ function buildDetailDisplaySegments(ticket: TicketRecord): DetailDisplaySegment[
     arrivalTimeLocal: "",
     classInfo: ticket.classInfo,
     seatInfo: ticket.seatInfo,
+    notes: ticket.notes,
     departureTerminal: ticket.departureTerminal,
     arrivalTerminal: undefined,
   };
@@ -296,6 +306,46 @@ function buildTransferLabel(previousSegment: DetailDisplaySegment, nextSegment: 
   }
 
   return `Transfer at ${transferLocation}`;
+}
+
+function buildStubSeatLabel(classInfo: unknown, seatInfo: unknown) {
+  return `${safeText(classInfo, "TBD") || "TBD"} / ${safeText(seatInfo, "TBD") || "TBD"}`;
+}
+
+function buildSegmentStubPreviewOptions(
+  ticket: TicketRecord,
+  detail: TicketDetailPayload,
+  displaySegments: DetailDisplaySegment[],
+): SegmentStubPreviewOption[] {
+  if (ticket.ticketType !== "flight" || displaySegments.length <= 1) {
+    return [
+      {
+        segmentIndex: 0,
+        label: "Segment 1",
+        payload: detail.stub,
+      },
+    ];
+  }
+
+  return displaySegments.map((segment, index) => ({
+    segmentIndex: index,
+    label: `Segment ${index + 1}`,
+    payload: {
+      ...detail.stub,
+      subtitle: `Segment ${index + 1} of ${displaySegments.length}`,
+      primaryCode: safeText(segment.code, detail.stub.primaryCode),
+      departureLabel: safeText(segment.departure.name, detail.stub.departureLabel),
+      departureTerminal: segment.departureTerminal,
+      departureTimeLocal: safeText(segment.departureTimeLocal, detail.stub.departureTimeLocal),
+      arrivalLabel: safeText(segment.arrival.name, detail.stub.arrivalLabel),
+      arrivalTerminal: segment.arrivalTerminal,
+      arrivalTimeLocal: safeText(segment.arrivalTimeLocal, detail.stub.arrivalTimeLocal),
+      carrierName: safeText(segment.carrierName, detail.stub.carrierName),
+      seatLabel: buildStubSeatLabel(segment.classInfo, segment.seatInfo),
+      notes: safeText(segment.notes, detail.stub.notes),
+      routeLabel: `${safeText(segment.departure.name, detail.stub.departureLabel)} -> ${safeText(segment.arrival.name, detail.stub.arrivalLabel)}`,
+    },
+  }));
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -338,18 +388,6 @@ function hasUsableMapSegment(segment: MapSegmentPayload | null | undefined): seg
       isFiniteNumber(segment.distanceHintKm) &&
       hasUsableMapPoint(segment.origin) &&
       hasUsableMapPoint(segment.destination),
-  );
-}
-
-function hasRenderableStub(detail: TicketDetailPayload | null) {
-  return Boolean(
-    detail &&
-      typeof detail.stub?.transportBadge === "string" &&
-      typeof detail.stub?.carrierName === "string" &&
-      typeof detail.stub?.departureLabel === "string" &&
-      typeof detail.stub?.arrivalLabel === "string" &&
-      typeof detail.stub?.departureTimeLocal === "string" &&
-      typeof detail.stub?.arrivalTimeLocal === "string",
   );
 }
 
@@ -436,6 +474,7 @@ export function Dashboard({
   const [scopeDetails, setScopeDetails] = useState<TicketDetailPayload[]>([]);
   const [scopeLoading, setScopeLoading] = useState(false);
   const [statusClockMs, setStatusClockMs] = useState(() => Date.now());
+  const [activeStubSegmentIndex, setActiveStubSegmentIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scopeDetailCacheRef = useRef(new Map<string, TicketDetailPayload>());
   const activeDetail = ticket && detail?.ticket.id === ticket.id ? detail : null;
@@ -444,7 +483,6 @@ export function Dashboard({
     Boolean(activeDetail) &&
     hasUsableMapRoute(activeDetail?.map) &&
     (activeDetail?.segments ?? []).every(hasUsableMapSegment);
-  const canRenderActiveStub = hasRenderableStub(activeDetail);
 
   useEffect(() => {
     if (!detail) {
@@ -461,6 +499,10 @@ export function Dashboard({
 
     setStubTheme(isTrainTicket ? "ledger" : "boarding");
   }, [isTrainTicket, ticket]);
+
+  useEffect(() => {
+    setActiveStubSegmentIndex(0);
+  }, [ticket?.id]);
 
   useEffect(() => {
     if (mode !== "tickets" || !ticket || ticket.status !== "saved") {
@@ -534,13 +576,6 @@ export function Dashboard({
         ? buildMapSvgFromSegments(activeDetail.map, activeDetail.segments)
         : "",
     [activeDetail, canRenderActiveMap],
-  );
-  const stubSvg = useMemo(
-    () =>
-      activeDetail && canRenderActiveStub
-        ? buildStubSvg(activeDetail.stub, stubTheme, activeDetail.segments)
-        : "",
-    [activeDetail, canRenderActiveStub, stubTheme],
   );
   const itinerarySummary = useMemo(() => {
     if (!activeDetail) {
@@ -642,7 +677,11 @@ export function Dashboard({
       setExportMessage("Ticket stub data is incomplete.");
       return;
     }
-    exportSvg(`${activeDetail.ticket.code}-ticket-stub.svg`, stubSvg);
+    const stubFileName =
+      segmentStubOptions.length > 1 && activeStubOption
+        ? `${activeDetail.ticket.code}-segment-${activeStubOption.segmentIndex + 1}-ticket-stub.svg`
+        : `${activeDetail.ticket.code}-ticket-stub.svg`;
+    exportSvg(stubFileName, stubSvg);
     setExportMessage("Stub SVG exported.");
   };
 
@@ -657,8 +696,12 @@ export function Dashboard({
     }
 
     try {
+      const stubFileName =
+        segmentStubOptions.length > 1 && activeStubOption
+          ? `${activeDetail.ticket.code}-segment-${activeStubOption.segmentIndex + 1}-ticket-stub.png`
+          : `${activeDetail.ticket.code}-ticket-stub.png`;
       await exportPng(
-        `${activeDetail.ticket.code}-ticket-stub.png`,
+        stubFileName,
         stubSvg,
         visualizationSizes.stub.width,
         visualizationSizes.stub.height,
@@ -711,12 +754,12 @@ export function Dashboard({
   const themeOptions: StubTheme[] = isTrainTicket
     ? ["ledger", "boarding", "night"]
     : ["boarding", "ledger", "night"];
-  const showsScopeContent = mode === "overview" || mode === "map";
+  const showsScopeContent = mode === "overview";
   const showsSelectedSummary = mode === "journeys";
-  const showsActiveRoute = mode === "tickets" || mode === "journeys" || mode === "map";
+  const showsActiveRoute = mode === "tickets";
   const showsStubPreview = mode === "tickets";
   const showsAttachments = mode === "tickets";
-  const showsTicketMeta = mode === "tickets" || mode === "journeys";
+  const showsTicketMeta = mode === "tickets";
   const showsSelectedHeading = mode === "journeys";
   const mapModuleLabel = t("routeMap");
   const stubModuleLabel = t("ticketStubPreview");
@@ -739,7 +782,40 @@ export function Dashboard({
     ? formatTimeWithTimezone(ticket.arrivalTimeLocal, ticket.arrival?.timezone)
     : { primary: "--", secondary: "" };
   const displaySegments = ticket ? buildDetailDisplaySegments(ticket) : [];
-  const showsSegmentDetailModule = ticket?.ticketType === "flight" && displaySegments.length > 1;
+  const showsSegmentDetailModule =
+    mode === "tickets" && ticket?.ticketType === "flight" && displaySegments.length > 1;
+  const segmentStubOptions = useMemo(
+    () => (ticket && activeDetail ? buildSegmentStubPreviewOptions(ticket, activeDetail, displaySegments) : []),
+    [activeDetail, displaySegments, ticket],
+  );
+  useEffect(() => {
+    if (activeStubSegmentIndex < segmentStubOptions.length) {
+      return;
+    }
+
+    setActiveStubSegmentIndex(0);
+  }, [activeStubSegmentIndex, segmentStubOptions.length]);
+  const activeStubOption = segmentStubOptions[activeStubSegmentIndex] ?? segmentStubOptions[0] ?? null;
+  const activeStubSegments =
+    activeDetail && activeStubOption && activeDetail.segments[activeStubOption.segmentIndex]
+      ? [activeDetail.segments[activeStubOption.segmentIndex]!]
+      : activeDetail?.segments ?? [];
+  const canRenderActiveStub = Boolean(
+    activeStubOption &&
+      typeof activeStubOption.payload.transportBadge === "string" &&
+      typeof activeStubOption.payload.carrierName === "string" &&
+      typeof activeStubOption.payload.departureLabel === "string" &&
+      typeof activeStubOption.payload.arrivalLabel === "string" &&
+      typeof activeStubOption.payload.departureTimeLocal === "string" &&
+      typeof activeStubOption.payload.arrivalTimeLocal === "string",
+  );
+  const stubSvg = useMemo(
+    () =>
+      activeStubOption && canRenderActiveStub
+        ? buildStubSvg(activeStubOption.payload, stubTheme, activeStubSegments)
+        : "",
+    [activeStubOption, activeStubSegments, canRenderActiveStub, stubTheme],
+  );
   const ticketInformationModule =
     ticket && showsTicketMeta ? (
       <article className="detail-facts-card detail-module-shell">
@@ -864,6 +940,22 @@ export function Dashboard({
         </div>
         {activeDetail && canRenderActiveStub ? (
           <>
+            {segmentStubOptions.length > 1 ? (
+              <div className="stub-segment-switcher" role="tablist" aria-label="Flight segment stub preview">
+                {segmentStubOptions.map((option) => (
+                  <button
+                    key={option.label}
+                    aria-selected={activeStubOption?.segmentIndex === option.segmentIndex}
+                    className={activeStubOption?.segmentIndex === option.segmentIndex ? "theme-chip active" : "theme-chip"}
+                    onClick={() => setActiveStubSegmentIndex(option.segmentIndex)}
+                    role="tab"
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="theme-switcher">
               {themeOptions.map((theme) => (
                 <button

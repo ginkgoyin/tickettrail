@@ -810,10 +810,6 @@ export default function App() {
         title: t("journeys"),
         copy: "Browse trip-level summaries and future journey records without duplicating single-ticket detail.",
       },
-      map: {
-        title: t("map"),
-        copy: "Inspect route-focused content in a dedicated section without repeating the home summary.",
-      },
       settings: {
         title: t("settings"),
         copy: "Review future desktop preferences, backup/export placeholders, and app information.",
@@ -850,26 +846,6 @@ export default function App() {
       </section>
     );
   };
-
-  const renderMapSection = () => (
-    <section className="section-stack">
-      <div className="panel section-placeholder">
-        <h3>Map view is available and navigation is now section-aware.</h3>
-        <p className="hero-copy">
-          This section reuses the current dashboard map/detail experience for now. A cleaner
-          dedicated map page can be extracted later without introducing a router first.
-        </p>
-      </div>
-      <Dashboard
-        {...dashboardProps}
-        mode="map"
-        onSelectTicket={(ticketId) => {
-          setSelectedId(ticketId);
-          setActiveSection("tickets");
-        }}
-      />
-    </section>
-  );
 
   const sectionContent =
     activeSection === "overview"
@@ -929,9 +905,7 @@ export default function App() {
           )
         : activeSection === "journeys"
           ? <JourneysPage tickets={tickets} />
-          : activeSection === "map"
-            ? renderMapSection()
-            : (
+          : (
                 <SettingsPage
                   backupPanelProps={{
                     backups,

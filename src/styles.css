@@ -1716,7 +1716,8 @@ textarea {
 }
 
 .export-row,
-.theme-switcher {
+.theme-switcher,
+.stub-segment-switcher {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;

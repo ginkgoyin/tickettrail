@@ -461,11 +461,11 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-The urgent next implementation task is still `SEGMENT-DETAIL-001` because multi-segment route-map legs, visible segment cards, and segment data preservation are now fixed, but ticket detail still has single-itinerary summary and single-stub semantics.
+The current IA cleanup removes selected-ticket detail content from Overview / Map responsibilities and removes the redundant Map page from primary navigation without redesigning Overview yet.
 
 The next follow-up should stay small and focused:
 
-1. `SEGMENT-DETAIL-001` first if the user wants the detail layout to match the accepted itinerary-container model.
-2. `SEGMENT-STUB-001` next if segment-level boarding-pass previews are the highest-value follow-up after detail layout work.
+1. `OVERVIEW-REDESIGN-001` next as a docs/design task before implementing any new Overview layout.
+2. `EXPORT-PATH-001` and `SEGMENT-STUB-003` remain separate follow-ups and should not be mixed into the Overview redesign pass.
 
-`MAP-004 / MAP-005` and `AIRLINE-DATA-001 / AIRLINE-LOGO-001` are paused until the multi-segment ticket issue is resolved or explicitly deprioritized.
+`SEGMENT-DURATION-001`, `SEGMENT-DETAIL-001`, `SEGMENT-FORM-001`, `MAP-004 / MAP-005`, and `AIRLINE-DATA-001 / AIRLINE-LOGO-001` stay open / future and should not be pulled into this IA cleanup by default.

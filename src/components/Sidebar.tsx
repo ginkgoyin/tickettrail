@@ -1,12 +1,11 @@
 import { useI18n } from "../lib/i18n";
 
-export type AppSection = "overview" | "tickets" | "journeys" | "map" | "exports" | "settings";
+export type AppSection = "overview" | "tickets" | "journeys" | "exports" | "settings";
 
-const navItems: Array<{ key: "overview" | "tickets" | "journeys" | "map"; section: AppSection }> = [
+const navItems: Array<{ key: "overview" | "tickets" | "journeys"; section: AppSection }> = [
   { key: "overview", section: "overview" },
   { key: "tickets", section: "tickets" },
   { key: "journeys", section: "journeys" },
-  { key: "map", section: "map" },
 ];
 
 const utilityItems: Array<{ key: "settings"; icon?: string; section: AppSection }> = [

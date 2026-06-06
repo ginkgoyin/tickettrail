@@ -172,8 +172,19 @@
 
 - `SEGMENT-STUB-001`
   - Render one ticket stub / boarding-pass-style card per segment.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Multi-segment flight detail now allows previewing one stub-style card per segment while keeping export scoped to the currently selected stub.
   - Priority: `High`
+
+- `SEGMENT-STUB-002`
+  - Multi-segment stub export can stay limited to the currently selected segment stub for now instead of exporting every segment stub at once.
+  - Status: `Open / future export refinement`
+  - Priority: `High`
+
+- `SEGMENT-STUB-003`
+  - Export all segment PNGs from the current multi-segment ticket.
+  - Status: `Open / future enhancement`
+  - Priority: `Medium`
 
 - `SEGMENT-DETAIL-001`
   - Redesign ticket detail into itinerary summary, segment list, route map, stubs, and attachments.
@@ -205,6 +216,26 @@
 - `SEGMENT-FORM-001`
   - Review Add/Edit multi-segment input UX after detail display semantics are accepted.
   - Status: `Open / future design`
+  - Priority: `Medium`
+
+- `IA-DETAIL-001`
+  - Single-ticket detail modules should only render inside Ticket detail, not Overview or the deprecated Map page.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `MAP-PAGE-001`
+  - Remove the redundant Map page from primary navigation because it overlaps with Overview and Ticket detail route maps.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `OVERVIEW-REDESIGN-001`
+  - Redesign Overview content and layout around global dashboard information rather than selected-ticket detail.
+  - Status: `Open / future design`
+  - Priority: `High`
+
+- `EXPORT-PATH-001`
+  - Settings should show the current export/download folder and provide a button to open that folder.
+  - Status: `Open / future implementation`
   - Priority: `Medium`
 
 ## 2. Implemented / Recorded / Needs Future Verification
