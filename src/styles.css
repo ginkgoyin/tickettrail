@@ -369,7 +369,7 @@ html {
 }
 
 .journey-create-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(320px, 0.8fr) minmax(420px, 1.2fr);
   align-items: stretch;
 }
 
@@ -464,16 +464,6 @@ html {
   margin: 4px 0 0;
 }
 
-.journey-ticket-option-icon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 1rem;
-}
-
 .journey-ticket-option-main {
   min-width: 0;
   display: grid;
@@ -488,12 +478,21 @@ html {
 }
 
 .journey-ticket-option-top strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.98rem;
 }
 
-.journey-ticket-option-subtitle {
-  color: var(--text-soft);
+.journey-ticket-inline-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
   font-size: 0.82rem;
+  flex-shrink: 0;
 }
 
 .journey-create-rating-block {

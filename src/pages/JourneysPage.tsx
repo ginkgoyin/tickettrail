@@ -1058,7 +1058,6 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
 
                   <div className="journey-create-fields">
                     <label>
-                      <span>Ticket selector search</span>
                       <input
                         onChange={(event) => setTicketSearch(event.target.value)}
                         placeholder="Search by date, month, year, code, route, departure, arrival..."
@@ -1085,12 +1084,14 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
                                 onChange={() => toggleSelectedTicket(ticket.id)}
                                 type="checkbox"
                               />
-                              <span className="journey-ticket-option-icon" aria-hidden="true">
-                                {transportIcon(ticket.ticketType)}
-                              </span>
                               <span className="journey-ticket-option-main">
                                 <span className="journey-ticket-option-top">
-                                  <strong>{routeSummary}</strong>
+                                  <strong>
+                                    <span aria-hidden="true" className="journey-ticket-inline-icon">
+                                      {transportIcon(ticket.ticketType)}
+                                    </span>
+                                    {routeSummary}
+                                  </strong>
                                 </span>
                                 <span className="ticket-row-meta">
                                   <span>{formatTicketDateLabel(ticket)}</span>
