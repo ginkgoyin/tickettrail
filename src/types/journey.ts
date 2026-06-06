@@ -32,3 +32,23 @@ export interface Journey {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface JourneyMutationInput {
+  title: string;
+  destination?: string;
+  dateMode: JourneyDateMode;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+  rating?: number;
+  mood?: string;
+  costAmount?: number;
+  costCurrency?: string;
+  lodging?: string;
+  companionNames: string[];
+  ticketIds: string[];
+}
+
+export type CreateJourneyInput = JourneyMutationInput;
+
+export type UpdateJourneyInput = JourneyMutationInput;

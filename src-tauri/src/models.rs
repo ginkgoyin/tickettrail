@@ -50,6 +50,27 @@ pub struct JourneyPayload {
     pub updated_at: String,
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JourneyMutationPayload {
+    pub title: String,
+    pub destination: Option<String>,
+    pub date_mode: String,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub notes: Option<String>,
+    pub rating: Option<i64>,
+    pub mood: Option<String>,
+    pub cost_amount: Option<f64>,
+    pub cost_currency: Option<String>,
+    pub lodging: Option<String>,
+    #[serde(default)]
+    pub companion_names: Vec<String>,
+    #[serde(default)]
+    pub ticket_ids: Vec<String>,
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TicketDraftPayload {

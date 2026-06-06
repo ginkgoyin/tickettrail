@@ -518,7 +518,10 @@
 
 - `JOURNEY-SERVICE-001`
   - Add Journey CRUD service and Tauri command boundaries after the Journey data model is accepted.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Current service boundary now provides `list/get/create/update/delete` commands plus a frontend `journeyService` wrapper.
+    - `dateMode = auto` should derive `startDate` / `endDate` from linked tickets instead of trusting manual input.
   - Priority: `High`
 
 - `JOURNEY-LIST-001`

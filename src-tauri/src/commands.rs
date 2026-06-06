@@ -6,10 +6,10 @@ use crate::{
     },
     models::{
         AirlinePayload, BackupReadinessPayload, BackupRecordPayload, ExportFolderPayload,
-        LocationDirectoryPayload, FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload,
-        FlightLookupCandidatePayload, FlightLookupRequestPayload, StubPreviewPayload,
-        TicketAttachmentPayload,
-        TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
+        FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload, FlightLookupCandidatePayload,
+        FlightLookupRequestPayload, JourneyMutationPayload, JourneyPayload, LocationDirectoryPayload,
+        StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
+        TicketDraftPayload, TicketRecordPayload,
     },
 };
 use chrono::Utc;
@@ -57,6 +57,35 @@ pub fn get_bootstrap_summary(app: AppHandle) -> Result<String, String> {
 #[command]
 pub fn list_tickets(app: AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
     db::list_tickets(&app)
+}
+
+#[command]
+pub fn list_journeys(app: AppHandle) -> Result<Vec<JourneyPayload>, String> {
+    db::list_journeys(&app)
+}
+
+#[command]
+pub fn get_journey(app: AppHandle, journey_id: String) -> Result<JourneyPayload, String> {
+    db::get_journey(&app, &journey_id)
+}
+
+#[command]
+pub fn create_journey(app: AppHandle, input: JourneyMutationPayload) -> Result<JourneyPayload, String> {
+    db::create_journey(&app, input)
+}
+
+#[command]
+pub fn update_journey(
+    app: AppHandle,
+    journey_id: String,
+    input: JourneyMutationPayload,
+) -> Result<JourneyPayload, String> {
+    db::update_journey(&app, &journey_id, input)
+}
+
+#[command]
+pub fn delete_journey(app: AppHandle, journey_id: String) -> Result<(), String> {
+    db::delete_journey(&app, &journey_id)
 }
 
 #[command]

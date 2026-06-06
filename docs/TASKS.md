@@ -461,23 +461,24 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-DATA-001`.
+Current task: `JOURNEY-SERVICE-001`.
 
 Journey List/Create UI should not start until the data/service boundary is in place.
 
-After this data-layer task, the recommended implementation order is:
+After this service-layer task, the recommended implementation order is:
 
-1. `JOURNEY-SERVICE-001`
-2. `JOURNEY-LIST-001`
-3. `JOURNEY-CREATE-001`
-4. Manually verify Journey List + Create together once both are implemented
-5. `JOURNEY-DETAIL-001`
-6. `JOURNEY-EDIT-001`
-7. `JOURNEY-DELETE-001`
-8. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
+1. `JOURNEY-LIST-001`
+2. `JOURNEY-CREATE-001`
+3. Manually verify Journey List + Create together once both are implemented
+4. `JOURNEY-DETAIL-001`
+5. `JOURNEY-EDIT-001`
+6. `JOURNEY-DELETE-001`
+7. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
 
 Implementation notes:
 
+- The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
+- `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
 - Ticket selector search belongs in the first `JOURNEY-CREATE-001` implementation, not a later polish pass.
 - `JOURNEY-LIST-001` may be manually verified together with `JOURNEY-CREATE-001`, but code changes still require normal automated build/test checks.
 - Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.

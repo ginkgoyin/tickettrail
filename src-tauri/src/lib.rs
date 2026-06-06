@@ -4,13 +4,12 @@ mod flight_lookup;
 mod models;
 
 use commands::{
-    add_ticket_attachment, create_backup, create_stub_preview, create_ticket, delete_ticket,
-    delete_ticket_attachment, export_archive_bundle, export_backup, get_backup_readiness,
-    get_bootstrap_summary, get_export_folder_info, get_flight_data_source_config, get_ticket_detail,
-    import_archive_bundle, list_backups, list_tickets, lookup_flight_candidates, open_export_folder,
-    restore_backup,
-    save_flight_data_source_config, search_airlines, search_locations, update_ticket,
-    update_ticket_status,
+    add_ticket_attachment, create_backup, create_journey, create_stub_preview, create_ticket,
+    delete_journey, delete_ticket, delete_ticket_attachment, export_archive_bundle, export_backup,
+    get_backup_readiness, get_bootstrap_summary, get_export_folder_info, get_flight_data_source_config,
+    get_journey, get_ticket_detail, import_archive_bundle, list_backups, list_journeys, list_tickets,
+    lookup_flight_candidates, open_export_folder, restore_backup, save_flight_data_source_config,
+    search_airlines, search_locations, update_journey, update_ticket, update_ticket_status,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -19,6 +18,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_bootstrap_summary,
             list_tickets,
+            list_journeys,
+            get_journey,
+            create_journey,
+            update_journey,
+            delete_journey,
             create_ticket,
             update_ticket,
             update_ticket_status,

@@ -1,13 +1,16 @@
 use crate::models::{
     AirlinePayload, BackupReadinessPayload, BackupRecordPayload, LocationDirectoryPayload,
-    MapPointPayload, MapRoutePayload, MapViewportPayload, MapSegmentPayload, StubPreviewPayload,
-    TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
-    TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
+    JourneyCompanionPayload, JourneyMutationPayload, JourneyPayload, MapPointPayload,
+    MapRoutePayload, MapViewportPayload, MapSegmentPayload, StubPreviewPayload, TicketAttachmentPayload,
+    TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketLocationPayload,
+    TicketRecordPayload, TicketSegmentPayload,
 };
-use chrono::{DateTime, LocalResult, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use rusqlite::{params, Connection, Row};
 use std::{
+    cmp::Ordering,
+    collections::HashSet,
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
@@ -71,6 +74,46 @@ struct AttachmentRowData {
     file_size: i64,
     file_path: String,
     created_at: String,
+}
+
+struct JourneyRowData {
+    id: String,
+    title: String,
+    destination: Option<String>,
+    date_mode: String,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    notes: Option<String>,
+    rating: Option<i64>,
+    mood: Option<String>,
+    cost_amount: Option<f64>,
+    cost_currency: Option<String>,
+    lodging: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+struct LinkedJourneyTicketRecord {
+    ticket_id: String,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    created_at: String,
+}
+
+struct NormalizedJourneyMutation {
+    title: String,
+    destination: Option<String>,
+    date_mode: String,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    notes: Option<String>,
+    rating: Option<i64>,
+    mood: Option<String>,
+    cost_amount: Option<f64>,
+    cost_currency: Option<String>,
+    lodging: Option<String>,
+    companion_names: Vec<String>,
+    ticket_ids: Vec<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -332,6 +375,170 @@ pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String>
     rows.map(|row| row.and_then(ticket_row_to_record))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| err.to_string())
+}
+
+pub fn list_journeys(app: &AppHandle) -> Result<Vec<JourneyPayload>, String> {
+    let conn = open_connection(app)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, destination, date_mode, start_date, end_date, notes,
+                    rating, mood, cost_amount, cost_currency, lodging, created_at, updated_at
+             FROM journeys
+             ORDER BY
+                COALESCE(start_date, end_date, updated_at) DESC,
+                updated_at DESC,
+                title COLLATE NOCASE ASC",
+        )
+        .map_err(|err| err.to_string())?;
+
+    let rows = stmt.query_map([], parse_journey_row).map_err(|err| err.to_string())?;
+    let journey_rows = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())?;
+
+    journey_rows
+        .into_iter()
+        .map(|row| journey_row_to_payload(&conn, row))
+        .collect()
+}
+
+pub fn get_journey(app: &AppHandle, journey_id: &str) -> Result<JourneyPayload, String> {
+    let conn = open_connection(app)?;
+    let row = get_journey_row(&conn, journey_id)?;
+    journey_row_to_payload(&conn, row)
+}
+
+pub fn create_journey(app: &AppHandle, input: JourneyMutationPayload) -> Result<JourneyPayload, String> {
+    let conn = open_connection(app)?;
+    let normalized = normalize_journey_mutation(&conn, input)?;
+    let journey_id = Uuid::new_v4().to_string();
+    let created_at = Utc::now().to_rfc3339();
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        conn.execute(
+            "INSERT INTO journeys (
+                id, title, destination, date_mode, start_date, end_date, notes,
+                rating, mood, cost_amount, cost_currency, lodging, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            params![
+                &journey_id,
+                &normalized.title,
+                &normalized.destination,
+                &normalized.date_mode,
+                &normalized.start_date,
+                &normalized.end_date,
+                &normalized.notes,
+                &normalized.rating,
+                &normalized.mood,
+                &normalized.cost_amount,
+                &normalized.cost_currency,
+                &normalized.lodging,
+                &created_at,
+                &created_at,
+            ],
+        )
+        .map_err(|err| err.to_string())?;
+
+        replace_journey_ticket_links(&conn, &journey_id, &normalized.ticket_ids, &created_at)?;
+        replace_journey_companions(&conn, &journey_id, &normalized.companion_names, &created_at)?;
+
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        get_journey_row(&conn, &journey_id)
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result.and_then(|row| journey_row_to_payload(&conn, row))
+}
+
+pub fn update_journey(
+    app: &AppHandle,
+    journey_id: &str,
+    input: JourneyMutationPayload,
+) -> Result<JourneyPayload, String> {
+    let conn = open_connection(app)?;
+    let existing = get_journey_row(&conn, journey_id)?;
+    let normalized = normalize_journey_mutation(&conn, input)?;
+    let updated_at = Utc::now().to_rfc3339();
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        conn.execute(
+            "UPDATE journeys
+             SET title = ?1,
+                 destination = ?2,
+                 date_mode = ?3,
+                 start_date = ?4,
+                 end_date = ?5,
+                 notes = ?6,
+                 rating = ?7,
+                 mood = ?8,
+                 cost_amount = ?9,
+                 cost_currency = ?10,
+                 lodging = ?11,
+                 updated_at = ?12
+             WHERE id = ?13",
+            params![
+                &normalized.title,
+                &normalized.destination,
+                &normalized.date_mode,
+                &normalized.start_date,
+                &normalized.end_date,
+                &normalized.notes,
+                &normalized.rating,
+                &normalized.mood,
+                &normalized.cost_amount,
+                &normalized.cost_currency,
+                &normalized.lodging,
+                &updated_at,
+                &existing.id,
+            ],
+        )
+        .map_err(|err| err.to_string())?;
+
+        replace_journey_ticket_links(&conn, &existing.id, &normalized.ticket_ids, &updated_at)?;
+        replace_journey_companions(&conn, &existing.id, &normalized.companion_names, &updated_at)?;
+
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        get_journey_row(&conn, &existing.id)
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result.and_then(|row| journey_row_to_payload(&conn, row))
+}
+
+pub fn delete_journey(app: &AppHandle, journey_id: &str) -> Result<(), String> {
+    let conn = open_connection(app)?;
+    let _ = get_journey_row(&conn, journey_id)?;
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        conn.execute("DELETE FROM journey_companions WHERE journey_id = ?1", [journey_id])
+            .map_err(|err| err.to_string())?;
+        conn.execute("DELETE FROM journey_tickets WHERE journey_id = ?1", [journey_id])
+            .map_err(|err| err.to_string())?;
+        conn.execute("DELETE FROM journeys WHERE id = ?1", [journey_id])
+            .map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result
 }
 
 pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<TicketRecordPayload, String> {
@@ -1098,6 +1305,235 @@ fn validate_status(status: &str) -> Result<(), String> {
     }
 }
 
+fn normalize_journey_mutation(
+    conn: &Connection,
+    input: JourneyMutationPayload,
+) -> Result<NormalizedJourneyMutation, String> {
+    let title = input.title.trim().to_string();
+    if title.is_empty() {
+        return Err("Journey title is required.".to_string());
+    }
+
+    let date_mode = input.date_mode.trim().to_lowercase();
+    if date_mode != "auto" && date_mode != "manual" {
+        return Err("Journey date mode must be either auto or manual.".to_string());
+    }
+
+    if let Some(rating) = input.rating {
+        if !(1..=5).contains(&rating) {
+            return Err("Journey rating must be between 1 and 5.".to_string());
+        }
+    }
+
+    if let Some(cost_amount) = input.cost_amount {
+        if !cost_amount.is_finite() || cost_amount < 0.0 {
+            return Err("Journey cost amount must be a non-negative number.".to_string());
+        }
+    }
+
+    let ticket_records = load_linked_journey_ticket_records(conn, &input.ticket_ids)?;
+    let normalized_ticket_ids = ticket_records
+        .iter()
+        .map(|record| record.ticket_id.clone())
+        .collect::<Vec<_>>();
+    let (start_date, end_date) = if date_mode == "auto" {
+        derive_journey_date_range_from_linked_tickets(&ticket_records)
+    } else {
+        let start_date = normalize_optional_date(input.start_date)?;
+        let end_date = normalize_optional_date(input.end_date)?;
+        validate_date_range(start_date.as_deref(), end_date.as_deref())?;
+        (start_date, end_date)
+    };
+
+    Ok(NormalizedJourneyMutation {
+        title,
+        destination: normalize_optional_text(input.destination),
+        date_mode,
+        start_date,
+        end_date,
+        notes: normalize_optional_text(input.notes),
+        rating: input.rating,
+        mood: normalize_optional_text(input.mood),
+        cost_amount: input.cost_amount,
+        cost_currency: normalize_optional_text(input.cost_currency).map(|value| value.to_uppercase()),
+        lodging: normalize_optional_text(input.lodging),
+        companion_names: normalize_companion_names(input.companion_names),
+        ticket_ids: normalized_ticket_ids,
+    })
+}
+
+fn normalize_optional_text(value: Option<String>) -> Option<String> {
+    value
+        .map(|entry| entry.trim().to_string())
+        .filter(|entry| !entry.is_empty())
+}
+
+fn normalize_optional_date(value: Option<String>) -> Result<Option<String>, String> {
+    let Some(trimmed) = normalize_optional_text(value) else {
+        return Ok(None);
+    };
+
+    NaiveDate::parse_from_str(&trimmed, "%Y-%m-%d")
+        .map_err(|_| format!("Journey dates must use YYYY-MM-DD, received {}.", trimmed))?;
+    Ok(Some(trimmed))
+}
+
+fn validate_date_range(start_date: Option<&str>, end_date: Option<&str>) -> Result<(), String> {
+    if let (Some(start_date), Some(end_date)) = (start_date, end_date) {
+        if start_date > end_date {
+            return Err("Journey start date cannot be later than end date.".to_string());
+        }
+    }
+
+    Ok(())
+}
+
+fn normalize_companion_names(values: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+
+    for value in values {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let dedupe_key = trimmed.to_lowercase();
+        if seen.insert(dedupe_key) {
+            normalized.push(trimmed.to_string());
+        }
+    }
+
+    normalized
+}
+
+fn load_linked_journey_ticket_records(
+    conn: &Connection,
+    ticket_ids: &[String],
+) -> Result<Vec<LinkedJourneyTicketRecord>, String> {
+    let mut seen = HashSet::new();
+    let mut records = Vec::new();
+
+    for ticket_id in ticket_ids {
+        let trimmed = ticket_id.trim();
+        if trimmed.is_empty() || !seen.insert(trimmed.to_string()) {
+            continue;
+        }
+
+        let ticket_row = get_ticket_row(conn, trimmed)?;
+        let draft = deserialize_ticket_draft(&ticket_row.raw_payload_json)?;
+        let effective_segments = build_effective_segments(&draft);
+        let first_segment = effective_segments.first();
+        let last_segment = effective_segments.last();
+        let start_date = first_segment
+            .and_then(|segment| extract_date_portion(&segment.departure_time_local));
+        let end_date = last_segment
+            .and_then(|segment| extract_date_portion(&segment.arrival_time_local))
+            .or_else(|| {
+                last_segment.and_then(|segment| extract_date_portion(&segment.departure_time_local))
+            });
+
+        records.push(LinkedJourneyTicketRecord {
+            ticket_id: trimmed.to_string(),
+            start_date,
+            end_date,
+            created_at: ticket_row.created_at,
+        });
+    }
+
+    sort_linked_journey_ticket_records(&mut records);
+    Ok(records)
+}
+
+fn derive_journey_date_range_from_linked_tickets(
+    ticket_records: &[LinkedJourneyTicketRecord],
+) -> (Option<String>, Option<String>) {
+    let start_date = ticket_records
+        .iter()
+        .filter_map(|record| record.start_date.as_deref())
+        .min()
+        .map(str::to_string);
+    let end_date = ticket_records
+        .iter()
+        .filter_map(|record| record.end_date.as_deref().or(record.start_date.as_deref()))
+        .max()
+        .map(str::to_string);
+
+    (start_date, end_date)
+}
+
+fn sort_linked_journey_ticket_records(ticket_records: &mut [LinkedJourneyTicketRecord]) {
+    ticket_records.sort_by(|left, right| {
+        compare_optional_date(left.start_date.as_deref(), right.start_date.as_deref())
+            .then(compare_optional_date(left.end_date.as_deref(), right.end_date.as_deref()))
+            .then(left.created_at.cmp(&right.created_at))
+            .then(left.ticket_id.cmp(&right.ticket_id))
+    });
+}
+
+fn compare_optional_date(left: Option<&str>, right: Option<&str>) -> Ordering {
+    match (left, right) {
+        (Some(left), Some(right)) => left.cmp(right),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    }
+}
+
+fn extract_date_portion(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.len() < 10 {
+        return None;
+    }
+
+    let date = &trimmed[..10];
+    NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .ok()
+        .map(|_| date.to_string())
+}
+
+fn replace_journey_ticket_links(
+    conn: &Connection,
+    journey_id: &str,
+    ticket_ids: &[String],
+    created_at: &str,
+) -> Result<(), String> {
+    conn.execute("DELETE FROM journey_tickets WHERE journey_id = ?1", [journey_id])
+        .map_err(|err| err.to_string())?;
+
+    for ticket_id in ticket_ids {
+        conn.execute(
+            "INSERT INTO journey_tickets (id, journey_id, ticket_id, created_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![Uuid::new_v4().to_string(), journey_id, ticket_id, created_at],
+        )
+        .map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
+}
+
+fn replace_journey_companions(
+    conn: &Connection,
+    journey_id: &str,
+    companion_names: &[String],
+    created_at: &str,
+) -> Result<(), String> {
+    conn.execute("DELETE FROM journey_companions WHERE journey_id = ?1", [journey_id])
+        .map_err(|err| err.to_string())?;
+
+    for companion_name in companion_names {
+        conn.execute(
+            "INSERT INTO journey_companions (id, journey_id, name, created_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![Uuid::new_v4().to_string(), journey_id, companion_name, created_at],
+        )
+        .map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
+}
+
 fn build_segment_metadata(segment: &TicketSegmentPayload) -> String {
     serde_json::json!({
         "notes": segment.notes,
@@ -1124,6 +1560,25 @@ fn parse_ticket_row(row: &Row<'_>) -> rusqlite::Result<TicketRowData> {
         journey_id: row.get(6)?,
         created_at: row.get(7)?,
         updated_at: row.get(8)?,
+    })
+}
+
+fn parse_journey_row(row: &Row<'_>) -> rusqlite::Result<JourneyRowData> {
+    Ok(JourneyRowData {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        destination: row.get(2)?,
+        date_mode: row.get(3)?,
+        start_date: row.get(4)?,
+        end_date: row.get(5)?,
+        notes: row.get(6)?,
+        rating: row.get(7)?,
+        mood: row.get(8)?,
+        cost_amount: row.get(9)?,
+        cost_currency: row.get(10)?,
+        lodging: row.get(11)?,
+        created_at: row.get(12)?,
+        updated_at: row.get(13)?,
     })
 }
 
@@ -1160,6 +1615,27 @@ fn ticket_row_to_record(row: TicketRowData) -> rusqlite::Result<TicketRecordPayl
     ))
 }
 
+fn journey_row_to_payload(conn: &Connection, row: JourneyRowData) -> Result<JourneyPayload, String> {
+    Ok(JourneyPayload {
+        id: row.id.clone(),
+        title: row.title,
+        destination: row.destination,
+        date_mode: row.date_mode,
+        start_date: row.start_date,
+        end_date: row.end_date,
+        notes: row.notes,
+        rating: row.rating,
+        mood: row.mood,
+        cost_amount: row.cost_amount,
+        cost_currency: row.cost_currency,
+        lodging: row.lodging,
+        companions: load_journey_companions(conn, &row.id)?,
+        ticket_ids: load_journey_ticket_ids(conn, &row.id)?,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    })
+}
+
 fn attachment_row_to_payload(row: AttachmentRowData) -> Result<TicketAttachmentPayload, String> {
     Ok(TicketAttachmentPayload {
         id: row.id,
@@ -1182,6 +1658,20 @@ fn get_ticket_row(conn: &Connection, ticket_id: &str) -> Result<TicketRowData, S
         .map_err(|err| err.to_string())?;
 
     stmt.query_row([ticket_id], parse_ticket_row)
+        .map_err(|err| err.to_string())
+}
+
+fn get_journey_row(conn: &Connection, journey_id: &str) -> Result<JourneyRowData, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, destination, date_mode, start_date, end_date, notes,
+                    rating, mood, cost_amount, cost_currency, lodging, created_at, updated_at
+             FROM journeys
+             WHERE id = ?1",
+        )
+        .map_err(|err| err.to_string())?;
+
+    stmt.query_row([journey_id], parse_journey_row)
         .map_err(|err| err.to_string())
 }
 
@@ -1217,6 +1707,90 @@ fn list_ticket_attachments(
 
     rows.map(|row| row.map_err(|err| err.to_string()).and_then(attachment_row_to_payload))
         .collect()
+}
+
+fn load_journey_companions(
+    conn: &Connection,
+    journey_id: &str,
+) -> Result<Vec<JourneyCompanionPayload>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, journey_id, name, created_at
+             FROM journey_companions
+             WHERE journey_id = ?1
+             ORDER BY created_at ASC, id ASC",
+        )
+        .map_err(|err| err.to_string())?;
+
+    let rows = stmt
+        .query_map([journey_id], |row| {
+            Ok(JourneyCompanionPayload {
+                id: row.get(0)?,
+                journey_id: row.get(1)?,
+                name: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })
+        .map_err(|err| err.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
+}
+
+fn load_journey_ticket_ids(conn: &Connection, journey_id: &str) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT ticket_id, created_at
+             FROM journey_tickets
+             WHERE journey_id = ?1",
+        )
+        .map_err(|err| err.to_string())?;
+
+    let rows = stmt
+        .query_map([journey_id], |row| {
+            Ok(LinkedJourneyTicketRecord {
+                ticket_id: row.get(0)?,
+                start_date: None,
+                end_date: None,
+                created_at: row.get(1)?,
+            })
+        })
+        .map_err(|err| err.to_string())?;
+
+    let raw_records = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())?;
+    let mut linked_ticket_records = raw_records
+        .into_iter()
+        .map(|record| hydrate_linked_journey_ticket_record(conn, record))
+        .collect::<Result<Vec<_>, _>>()?;
+    sort_linked_journey_ticket_records(&mut linked_ticket_records);
+
+    Ok(linked_ticket_records
+        .into_iter()
+        .map(|record| record.ticket_id)
+        .collect())
+}
+
+fn hydrate_linked_journey_ticket_record(
+    conn: &Connection,
+    mut record: LinkedJourneyTicketRecord,
+) -> Result<LinkedJourneyTicketRecord, String> {
+    if let Ok(ticket_row) = get_ticket_row(conn, &record.ticket_id) {
+        let draft = deserialize_ticket_draft(&ticket_row.raw_payload_json)?;
+        let effective_segments = build_effective_segments(&draft);
+        let first_segment = effective_segments.first();
+        let last_segment = effective_segments.last();
+        record.start_date = first_segment
+            .and_then(|segment| extract_date_portion(&segment.departure_time_local));
+        record.end_date = last_segment
+            .and_then(|segment| extract_date_portion(&segment.arrival_time_local))
+            .or_else(|| {
+                last_segment.and_then(|segment| extract_date_portion(&segment.departure_time_local))
+            });
+    }
+
+    Ok(record)
 }
 
 fn touch_ticket_updated_at(conn: &Connection, ticket_id: &str, updated_at: &str) -> Result<(), String> {
@@ -1702,9 +2276,10 @@ fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_effective_segments, migrate_legacy_ticket_journey_tables, normalize_to_utc,
-        sanitize_file_name, table_exists, validate_draft, TicketDraftPayload,
-        TicketLocationPayload, TicketSegmentPayload,
+        build_effective_segments, compare_optional_date, derive_journey_date_range_from_linked_tickets,
+        migrate_legacy_ticket_journey_tables, normalize_companion_names, normalize_to_utc,
+        sanitize_file_name, sort_linked_journey_ticket_records, table_exists, validate_draft,
+        LinkedJourneyTicketRecord, TicketDraftPayload, TicketLocationPayload, TicketSegmentPayload,
     };
     use rusqlite::Connection;
 
@@ -1924,6 +2499,60 @@ mod tests {
         assert!(table_exists(&conn, "ticket_segments").expect("should inspect tables"));
         assert!(!table_exists(&conn, "journeys").expect("should inspect tables"));
         assert!(!table_exists(&conn, "segments").expect("should inspect tables"));
+    }
+
+    #[test]
+    fn normalize_companion_names_trims_dedupes_and_ignores_empty_values() {
+        let companions = normalize_companion_names(vec![
+            " Alice ".to_string(),
+            "".to_string(),
+            "alice".to_string(),
+            "Bob".to_string(),
+            "  Bob  ".to_string(),
+        ]);
+
+        assert_eq!(companions, vec!["Alice".to_string(), "Bob".to_string()]);
+    }
+
+    #[test]
+    fn linked_ticket_records_sort_and_derive_auto_dates() {
+        let mut records = vec![
+            LinkedJourneyTicketRecord {
+                ticket_id: "late".to_string(),
+                start_date: Some("2026-07-04".to_string()),
+                end_date: Some("2026-07-05".to_string()),
+                created_at: "2026-06-01T01:00:00Z".to_string(),
+            },
+            LinkedJourneyTicketRecord {
+                ticket_id: "early".to_string(),
+                start_date: Some("2026-07-01".to_string()),
+                end_date: Some("2026-07-02".to_string()),
+                created_at: "2026-06-01T00:00:00Z".to_string(),
+            },
+            LinkedJourneyTicketRecord {
+                ticket_id: "unknown".to_string(),
+                start_date: None,
+                end_date: None,
+                created_at: "2026-06-02T00:00:00Z".to_string(),
+            },
+        ];
+
+        sort_linked_journey_ticket_records(&mut records);
+
+        assert_eq!(records[0].ticket_id, "early");
+        assert_eq!(records[1].ticket_id, "late");
+        assert_eq!(records[2].ticket_id, "unknown");
+        assert_eq!(
+            derive_journey_date_range_from_linked_tickets(&records),
+            (
+                Some("2026-07-01".to_string()),
+                Some("2026-07-05".to_string())
+            )
+        );
+        assert_eq!(
+            compare_optional_date(Some("2026-07-01"), None),
+            std::cmp::Ordering::Less
+        );
     }
 }
 
