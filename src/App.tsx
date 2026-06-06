@@ -93,20 +93,32 @@ function normalizeSavedViews(rawValue: unknown): SavedFilterView[] {
 }
 
 function buildDraftFromTicket(ticket: TicketRecord): TicketDraft {
+  const firstSavedSegment = ticket.segments?.[0];
+  const hasCompleteOrderedSegmentList =
+    Boolean(
+      firstSavedSegment &&
+        ((ticket.departure.code &&
+          firstSavedSegment.departure.code &&
+          ticket.departure.code.toLowerCase() === firstSavedSegment.departure.code.toLowerCase()) ||
+          (ticket.departure.name.trim().toLowerCase() === firstSavedSegment?.departure.name.trim().toLowerCase() &&
+            ticket.departure.timezone.trim().toLowerCase() === firstSavedSegment?.departure.timezone.trim().toLowerCase())),
+    );
+  const primarySegment = hasCompleteOrderedSegmentList ? firstSavedSegment! : null;
+
   return {
     ticketType: ticket.ticketType,
-    carrierName: ticket.carrierName,
-    code: ticket.code,
-    departure: { ...ticket.departure },
-    arrival: { ...ticket.arrival },
-    departureTerminal: ticket.departureTerminal,
-    arrivalTerminal: ticket.arrivalTerminal,
-    departureTimeLocal: ticket.departureTimeLocal,
-    arrivalTimeLocal: ticket.arrivalTimeLocal,
-    classInfo: ticket.classInfo,
-    seatInfo: ticket.seatInfo,
+    carrierName: primarySegment?.carrierName ?? ticket.carrierName,
+    code: primarySegment?.code ?? ticket.code,
+    departure: primarySegment ? { ...primarySegment.departure } : { ...ticket.departure },
+    arrival: primarySegment ? { ...primarySegment.arrival } : { ...ticket.arrival },
+    departureTerminal: primarySegment?.departureTerminal ?? ticket.departureTerminal,
+    arrivalTerminal: primarySegment?.arrivalTerminal ?? ticket.arrivalTerminal,
+    departureTimeLocal: primarySegment?.departureTimeLocal ?? ticket.departureTimeLocal,
+    arrivalTimeLocal: primarySegment?.arrivalTimeLocal ?? ticket.arrivalTimeLocal,
+    classInfo: primarySegment?.classInfo ?? ticket.classInfo,
+    seatInfo: primarySegment?.seatInfo ?? ticket.seatInfo,
     notes: ticket.notes,
-    segments: ticket.segments?.map((segment) => ({
+    segments: (hasCompleteOrderedSegmentList ? ticket.segments?.slice(1) : ticket.segments)?.map((segment) => ({
       ...segment,
       departure: { ...segment.departure },
       arrival: { ...segment.arrival },
@@ -144,6 +156,8 @@ function matchesQuery(ticket: TicketRecord, query: string) {
       asComparableText(segment.arrival?.name),
       asComparableText(segment.departure?.code),
       asComparableText(segment.arrival?.code),
+      asComparableText(segment.departureTerminal),
+      asComparableText(segment.arrivalTerminal),
       asComparableText(segment.departure?.timezone),
       asComparableText(segment.arrival?.timezone),
       asComparableText(segment.departureTimeLocal),

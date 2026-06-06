@@ -1766,6 +1766,55 @@ textarea {
   gap: 18px;
 }
 
+.segment-detail-module {
+  display: grid;
+  gap: 18px;
+}
+
+.segment-detail-list {
+  display: grid;
+  gap: 12px;
+}
+
+.segment-detail-entry {
+  display: grid;
+  gap: 10px;
+}
+
+.segment-detail-card {
+  display: grid;
+  gap: 16px;
+}
+
+.segment-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.segment-detail-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.segment-detail-grid > div {
+  display: grid;
+  gap: 4px;
+}
+
+.segment-detail-grid small {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+}
+
+.segment-transfer-indicator {
+  padding: 0 6px;
+  color: var(--text-soft);
+  font-size: 0.84rem;
+}
+
 .route-map-header {
   align-items: center;
 }
@@ -2131,6 +2180,7 @@ textarea {
   .hero,
   .detail-facts-row-3,
   .detail-facts-row-4,
+  .segment-detail-grid,
   .detail-ticket-module-row {
     grid-template-columns: 1fr;
   }

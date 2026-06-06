@@ -347,6 +347,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
   - The next live-provider step should begin with the validated AeroDataBox single-day endpoint/schema only: keep the current user-facing mock flow untouched until the real adapter maps `FlightContract` fields and provider HTTP statuses into the normalized candidate/error model.
   - Live AeroDataBox follow-up cleanup should stay small and practical: normalize provider-local times into the current `datetime-local` field shape, remove stale mock-only lookup copy from the live-provider path, and allow a short-lived repeated-lookup cache before moving on to provider test-connection work.
   - Current post-validation polish can also stay small: normalize inline terminal display to `T n`, show the derived auto-status label directly without `Auto:`, and let onward flight segments reuse the same lookup/apply flow as the primary flight leg.
+  - The urgent next design task is now `SEGMENT-DESIGN-001` because current multi-segment ticket detail display and route-map leg construction are semantically wrong.
+  - `MAP-004 / MAP-005` and `AIRLINE-DATA-001 / AIRLINE-LOGO-001` should stay paused until the multi-segment ticket issue is resolved or explicitly deprioritized.
 
 ### [ ] Document UX direction before implementation
 - Goal: Record the intended near-term UX structure before UI changes begin.
@@ -459,4 +461,11 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Continue next with manual verification for the latest `FLIGHT-LOOKUP-010` live-provider follow-up, then move to `FLIGHT-LOOKUP-011` provider test-connection work and `FLIGHT-LOOKUP-012` live error/rate-limit hardening before starting airline/operator data expansion.
+The urgent next implementation task is still `SEGMENT-DETAIL-001` because multi-segment route-map legs, visible segment cards, and segment data preservation are now fixed, but ticket detail still has single-itinerary summary and single-stub semantics.
+
+The next follow-up should stay small and focused:
+
+1. `SEGMENT-DETAIL-001` first if the user wants the detail layout to match the accepted itinerary-container model.
+2. `SEGMENT-STUB-001` next if segment-level boarding-pass previews are the highest-value follow-up after detail layout work.
+
+`MAP-004 / MAP-005` and `AIRLINE-DATA-001 / AIRLINE-LOGO-001` are paused until the multi-segment ticket issue is resolved or explicitly deprioritized.

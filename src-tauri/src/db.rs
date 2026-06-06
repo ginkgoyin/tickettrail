@@ -729,6 +729,8 @@ fn build_ticket_record(
         code: code.clone(),
         departure: draft.departure.clone(),
         arrival: draft.arrival.clone(),
+        departure_terminal: draft.departure_terminal.clone(),
+        arrival_terminal: draft.arrival_terminal.clone(),
         departure_time_local: draft.departure_time_local.clone(),
         arrival_time_local: draft.arrival_time_local.clone(),
         class_info: draft.class_info.clone(),
@@ -753,8 +755,8 @@ fn build_ticket_record(
             code: normalize_optional_string(last_segment.arrival.code),
             timezone: last_segment.arrival.timezone,
         },
-        departure_terminal: normalize_optional_string(draft.departure_terminal),
-        arrival_terminal: normalize_optional_string(draft.arrival_terminal),
+        departure_terminal: normalize_optional_string(first_segment.departure_terminal),
+        arrival_terminal: normalize_optional_string(last_segment.arrival_terminal),
         departure_time_local: first_segment.departure_time_local,
         arrival_time_local: last_segment.arrival_time_local,
         class_info: first_segment.class_info,
@@ -897,6 +899,8 @@ fn build_effective_segments(draft: &TicketDraftPayload) -> Vec<TicketSegmentPayl
         code: draft.code.clone(),
         departure: draft.departure.clone(),
         arrival: draft.arrival.clone(),
+        departure_terminal: draft.departure_terminal.clone(),
+        arrival_terminal: draft.arrival_terminal.clone(),
         departure_time_local: draft.departure_time_local.clone(),
         arrival_time_local: draft.arrival_time_local.clone(),
         class_info: draft.class_info.clone(),
@@ -904,11 +908,33 @@ fn build_effective_segments(draft: &TicketDraftPayload) -> Vec<TicketSegmentPayl
         notes: draft.notes.clone(),
     };
 
+    if draft
+        .segments
+        .as_ref()
+        .and_then(|segments| segments.first())
+        .map(|segment| is_same_ticket_location(&draft.departure, &segment.departure))
+        .unwrap_or(false)
+    {
+        return draft.segments.clone().unwrap_or_default();
+    }
+
     let mut segments = vec![primary_segment];
     if let Some(extra_segments) = &draft.segments {
         segments.extend(extra_segments.iter().cloned());
     }
     segments
+}
+
+fn is_same_ticket_location(left: &TicketLocationPayload, right: &TicketLocationPayload) -> bool {
+    let normalized_left_code = left.code.clone().unwrap_or_default().trim().to_lowercase();
+    let normalized_right_code = right.code.clone().unwrap_or_default().trim().to_lowercase();
+
+    if !normalized_left_code.is_empty() && !normalized_right_code.is_empty() {
+        return normalized_left_code == normalized_right_code;
+    }
+
+    left.name.trim().to_lowercase() == right.name.trim().to_lowercase()
+        && left.timezone.trim().to_lowercase() == right.timezone.trim().to_lowercase()
 }
 
 fn build_segments_viewport(segments: &[MapSegmentPayload]) -> MapViewportPayload {
@@ -1041,6 +1067,8 @@ fn validate_draft(draft: &TicketDraftPayload) -> Result<(), String> {
             code: draft.code.clone(),
             departure: draft.departure.clone(),
             arrival: draft.arrival.clone(),
+            departure_terminal: draft.departure_terminal.clone(),
+            arrival_terminal: draft.arrival_terminal.clone(),
             departure_time_local: draft.departure_time_local.clone(),
             arrival_time_local: draft.arrival_time_local.clone(),
             class_info: draft.class_info.clone(),
@@ -1068,7 +1096,9 @@ fn build_segment_metadata(segment: &TicketSegmentPayload) -> String {
     serde_json::json!({
         "notes": segment.notes,
         "departureCode": segment.departure.code,
-        "arrivalCode": segment.arrival.code
+        "arrivalCode": segment.arrival.code,
+        "departureTerminal": segment.departure_terminal,
+        "arrivalTerminal": segment.arrival_terminal
     })
     .to_string()
 }
@@ -1574,7 +1604,7 @@ fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_to_utc, sanitize_file_name, validate_draft, TicketDraftPayload, TicketLocationPayload,
+        build_effective_segments, normalize_to_utc, sanitize_file_name, validate_draft, TicketDraftPayload, TicketLocationPayload,
         TicketSegmentPayload,
     };
 
@@ -1605,6 +1635,8 @@ mod tests {
                 code: "MU562".to_string(),
                 departure: sample_location("Sydney", Some("SYD"), "Australia/Sydney"),
                 arrival: sample_location("Melbourne", Some("MEL"), "Australia/Melbourne"),
+                departure_terminal: Some("T2".to_string()),
+                arrival_terminal: Some("T4".to_string()),
                 departure_time_local: "2026-05-22T08:00".to_string(),
                 arrival_time_local: "2026-05-22T09:35".to_string(),
                 class_info: "Economy".to_string(),
@@ -1638,6 +1670,44 @@ mod tests {
         draft.departure.timezone = "".to_string();
         let result = validate_draft(&draft);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn build_effective_segments_does_not_duplicate_first_leg_for_complete_segment_lists() {
+        let mut draft = sample_draft();
+        draft.segments = Some(vec![
+            TicketSegmentPayload {
+                carrier_name: "China Eastern".to_string(),
+                code: "MU561".to_string(),
+                departure: sample_location("Shanghai Pudong", Some("PVG"), "Asia/Shanghai"),
+                arrival: sample_location("Sydney", Some("SYD"), "Australia/Sydney"),
+                departure_terminal: Some("T1".to_string()),
+                arrival_terminal: Some("T3".to_string()),
+                departure_time_local: "2026-05-21T09:30".to_string(),
+                arrival_time_local: "2026-05-21T21:30".to_string(),
+                class_info: "Economy".to_string(),
+                seat_info: "24A".to_string(),
+                notes: "".to_string(),
+            },
+            TicketSegmentPayload {
+                carrier_name: "China Eastern".to_string(),
+                code: "MU562".to_string(),
+                departure: sample_location("Sydney", Some("SYD"), "Australia/Sydney"),
+                arrival: sample_location("Melbourne", Some("MEL"), "Australia/Melbourne"),
+                departure_terminal: Some("T2".to_string()),
+                arrival_terminal: Some("T4".to_string()),
+                departure_time_local: "2026-05-22T08:00".to_string(),
+                arrival_time_local: "2026-05-22T09:35".to_string(),
+                class_info: "Economy".to_string(),
+                seat_info: "11C".to_string(),
+                notes: "".to_string(),
+            },
+        ]);
+
+        let segments = build_effective_segments(&draft);
+        assert_eq!(segments.len(), 2);
+        assert_eq!(segments[0].departure.code.as_deref(), Some("PVG"));
+        assert_eq!(segments[1].arrival.code.as_deref(), Some("MEL"));
     }
 }
 

@@ -160,6 +160,53 @@
   - Status: `Open / future hardening`
   - Priority: `High`
 
+- `SEGMENT-DESIGN-001`
+  - Redesign multi-segment ticket semantics and detail UI.
+  - Status: `Documented / docs-only`
+  - Priority: `High`
+
+- `SEGMENT-MAP-001`
+  - Fix multi-segment route map leg construction to use consecutive segment origin/destination pairs.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `SEGMENT-STUB-001`
+  - Render one ticket stub / boarding-pass-style card per segment.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `SEGMENT-DETAIL-001`
+  - Redesign ticket detail into itinerary summary, segment list, route map, stubs, and attachments.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `SEGMENT-DETAIL-001A`
+  - Move visible segment details out of Route map into a dedicated Flight segments / Route legs module.
+  - Follow-up `SEGMENT-DETAIL-001B` fixes the first-leg display bug found during manual verification.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `SEGMENT-DETAIL-001B`
+  - Fix the first displayed segment in multi-segment ticket detail so it uses the next segment departure as the inferred first-leg arrival when needed.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `SEGMENT-DATA-001`
+  - Audit and fix multi-segment segment-level data persistence, mapping, and display.
+  - Earlier `SEGMENT-DETAIL-001B` fixed first-leg route-label reconstruction; this task fixes the deeper segment data chain.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `SEGMENT-DURATION-001`
+  - Separate total travel duration, total flight time, and layover/transfer duration.
+  - Status: `Open / future implementation`
+  - Priority: `Medium`
+
+- `SEGMENT-FORM-001`
+  - Review Add/Edit multi-segment input UX after detail display semantics are accepted.
+  - Status: `Open / future design`
+  - Priority: `Medium`
+
 ## 2. Implemented / Recorded / Needs Future Verification
 
 - `UX-005L`

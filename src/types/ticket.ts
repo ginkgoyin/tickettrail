@@ -12,6 +12,8 @@ export interface TicketSegmentDraft {
   code: string;
   departure: TicketLocation;
   arrival: TicketLocation;
+  departureTerminal?: string;
+  arrivalTerminal?: string;
   departureTimeLocal: string;
   arrivalTimeLocal: string;
   classInfo: string;

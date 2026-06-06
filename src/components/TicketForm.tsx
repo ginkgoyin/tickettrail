@@ -57,6 +57,8 @@ function createEmptySegment(seed?: Partial<TicketSegmentDraft>): TicketSegmentDr
     },
     departureTimeLocal: seed?.departureTimeLocal ?? "",
     arrivalTimeLocal: seed?.arrivalTimeLocal ?? "",
+    departureTerminal: seed?.departureTerminal ?? "",
+    arrivalTerminal: seed?.arrivalTerminal ?? "",
     classInfo: seed?.classInfo ?? "",
     seatInfo: seed?.seatInfo ?? "",
     notes: seed?.notes ?? "",
@@ -898,10 +900,12 @@ export function TicketForm({
       ["departure", segment.departure.name, candidate.departure.name],
       ["departure code", segment.departure.code ?? "", candidate.departure.code],
       ["departure timezone", segment.departure.timezone, candidate.departure.timezone],
+      ["departure terminal", segment.departureTerminal ?? "", candidate.departureTerminal ?? ""],
       ["departure time", segment.departureTimeLocal, candidate.departureTimeLocal],
       ["arrival", segment.arrival.name, candidate.arrival.name],
       ["arrival code", segment.arrival.code ?? "", candidate.arrival.code],
       ["arrival timezone", segment.arrival.timezone, candidate.arrival.timezone],
+      ["arrival terminal", segment.arrivalTerminal ?? "", candidate.arrivalTerminal ?? ""],
       ["arrival time", segment.arrivalTimeLocal, candidate.arrivalTimeLocal],
     ].filter(
       ([, currentValue, nextValue]) =>
@@ -936,6 +940,8 @@ export function TicketForm({
         code: candidate.arrival.code,
         timezone: candidate.arrival.timezone,
       },
+      departureTerminal: candidate.departureTerminal ?? "",
+      arrivalTerminal: candidate.arrivalTerminal ?? "",
       departureTimeLocal: candidate.departureTimeLocal,
       arrivalTimeLocal: candidate.arrivalTimeLocal,
     }));
@@ -1643,6 +1649,28 @@ export function TicketForm({
                         ) : null}
                       </div>
                     </label>
+
+                    {draft.ticketType === "flight" ? (
+                      <>
+                        <label>
+                          {t("departureTerminal")}
+                          <input
+                            onChange={(event) => updateExtraSegmentField(index, "departureTerminal", event.target.value)}
+                            placeholder="T1"
+                            value={segment.departureTerminal ?? ""}
+                          />
+                        </label>
+
+                        <label>
+                          {t("arrivalTerminal")}
+                          <input
+                            onChange={(event) => updateExtraSegmentField(index, "arrivalTerminal", event.target.value)}
+                            placeholder="T2"
+                            value={segment.arrivalTerminal ?? ""}
+                          />
+                        </label>
+                      </>
+                    ) : null}
 
                     <label>
                       {t("departureCode")}

@@ -15,6 +15,7 @@ import type {
   MapSegmentPayload,
   TicketAttachment,
   TicketDetailPayload,
+  TicketLocation,
   TicketRecord,
   TicketStatus,
 } from "../types/ticket";
@@ -196,6 +197,105 @@ function formatTimeWithTimezone(value: unknown, timezone: unknown) {
 
 function formatCoordinate(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
+}
+
+interface DetailDisplaySegment {
+  index: number;
+  carrierName: string;
+  code: string;
+  departure: TicketLocation;
+  arrival: TicketLocation;
+  departureTimeLocal: string;
+  arrivalTimeLocal: string;
+  classInfo: string;
+  seatInfo: string;
+  departureTerminal?: string;
+  arrivalTerminal?: string;
+}
+
+function cloneTicketLocation(location: TicketLocation): TicketLocation {
+  return { ...location };
+}
+
+function isSameTicketLocation(left: TicketLocation, right: TicketLocation) {
+  const leftCode = safeText(left.code).trim().toLowerCase();
+  const rightCode = safeText(right.code).trim().toLowerCase();
+
+  if (leftCode && rightCode) {
+    return leftCode === rightCode;
+  }
+
+  return (
+    safeText(left.name).trim().toLowerCase() === safeText(right.name).trim().toLowerCase() &&
+    safeText(left.timezone).trim().toLowerCase() === safeText(right.timezone).trim().toLowerCase()
+  );
+}
+
+function buildDetailDisplaySegments(ticket: TicketRecord): DetailDisplaySegment[] {
+  const primarySegment: DetailDisplaySegment = {
+    index: 0,
+    carrierName: ticket.carrierName,
+    code: ticket.code,
+    departure: cloneTicketLocation(ticket.departure),
+    arrival: cloneTicketLocation(ticket.arrival),
+    departureTimeLocal: ticket.departureTimeLocal,
+    arrivalTimeLocal: ticket.arrivalTimeLocal,
+    classInfo: ticket.classInfo,
+    seatInfo: ticket.seatInfo,
+    departureTerminal: ticket.departureTerminal,
+    arrivalTerminal: ticket.arrivalTerminal,
+  };
+
+  const onwardSegments = (ticket.segments ?? []).map((segment, index): DetailDisplaySegment => ({
+    index: index + 1,
+    carrierName: segment.carrierName,
+    code: segment.code,
+    departure: cloneTicketLocation(segment.departure),
+    arrival: cloneTicketLocation(segment.arrival),
+    departureTerminal: segment.departureTerminal,
+    arrivalTerminal: segment.arrivalTerminal,
+    departureTimeLocal: segment.departureTimeLocal,
+    arrivalTimeLocal: segment.arrivalTimeLocal,
+    classInfo: segment.classInfo,
+    seatInfo: segment.seatInfo,
+  }));
+
+  if (!onwardSegments.length) {
+    return [primarySegment];
+  }
+
+  const firstOnwardSegment = onwardSegments[0]!;
+  if (isSameTicketLocation(ticket.departure, firstOnwardSegment.departure)) {
+    return onwardSegments;
+  }
+
+  const inferredFirstSegment: DetailDisplaySegment = {
+    index: 0,
+    carrierName: ticket.carrierName,
+    code: ticket.code,
+    departure: cloneTicketLocation(ticket.departure),
+    arrival: cloneTicketLocation(firstOnwardSegment.departure),
+    departureTimeLocal: ticket.departureTimeLocal,
+    arrivalTimeLocal: "",
+    classInfo: ticket.classInfo,
+    seatInfo: ticket.seatInfo,
+    departureTerminal: ticket.departureTerminal,
+    arrivalTerminal: undefined,
+  };
+
+  return [inferredFirstSegment, ...onwardSegments];
+}
+
+function buildTransferLabel(previousSegment: DetailDisplaySegment, nextSegment: DetailDisplaySegment) {
+  const transferLocation = safeText(nextSegment.departure.code).trim() || safeText(nextSegment.departure.name).trim() || "--";
+  const previousArrival = Date.parse(safeText(previousSegment.arrivalTimeLocal));
+  const nextDeparture = Date.parse(safeText(nextSegment.departureTimeLocal));
+
+  if (Number.isFinite(previousArrival) && Number.isFinite(nextDeparture) && nextDeparture >= previousArrival) {
+    return `Transfer at ${transferLocation} · ${formatDuration(nextDeparture - previousArrival)}`;
+  }
+
+  return `Transfer at ${transferLocation}`;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -638,6 +738,8 @@ export function Dashboard({
   const arrivalTimeDisplay = ticket
     ? formatTimeWithTimezone(ticket.arrivalTimeLocal, ticket.arrival?.timezone)
     : { primary: "--", secondary: "" };
+  const displaySegments = ticket ? buildDetailDisplaySegments(ticket) : [];
+  const showsSegmentDetailModule = ticket?.ticketType === "flight" && displaySegments.length > 1;
   const ticketInformationModule =
     ticket && showsTicketMeta ? (
       <article className="detail-facts-card detail-module-shell">
@@ -881,6 +983,102 @@ export function Dashboard({
         )}
       </article>
     ) : null;
+  const segmentModule =
+    ticket && showsSegmentDetailModule ? (
+      <article className="segment-detail-module detail-module-shell">
+        <div className="panel-heading">
+          <div>
+            <h3 className="detail-module-title">Flight segments</h3>
+          </div>
+          <span className="status-pill">{`${displaySegments.length} segments`}</span>
+        </div>
+        <div className="segment-detail-list">
+          {displaySegments.map((segment, index) => {
+            const departureDisplay = formatTimeWithTimezone(
+              segment.departureTimeLocal,
+              segment.departure.timezone,
+            );
+            const arrivalDisplay = formatTimeWithTimezone(
+              segment.arrivalTimeLocal,
+              segment.arrival.timezone,
+            );
+
+            return (
+              <div className="segment-detail-entry" key={`${segment.code || "segment"}-${segment.index}`}>
+                <article className="detail-card segment-detail-card">
+                  <div className="segment-detail-header">
+                    <div>
+                      <span className="ticket-kind">{`Segment ${index + 1}`}</span>
+                      <strong>{`${safeText(segment.departure.code, "--")} -> ${safeText(segment.arrival.code, "--")}`}</strong>
+                    </div>
+                    <span className="status-pill">{safeText(segment.code, "--")}</span>
+                  </div>
+                  <div className="segment-detail-grid">
+                    <div>
+                      <span>{getOperatorLabel(ticket.ticketType, t("carrierOperator"), t("operator"))}</span>
+                      <strong>{safeText(segment.carrierName, "--")}</strong>
+                    </div>
+                    <div>
+                      <span>{getTicketNumberLabel(ticket.ticketType, t("flightNo"), t("trainNo"))}</span>
+                      <strong>{safeText(segment.code, "--")}</strong>
+                    </div>
+                    <div>
+                      <span>{getDepartureLabel(ticket.ticketType, t("departure"), t("departureStation"))}</span>
+                      <strong>
+                        {formatLocationWithTerminal(
+                          ticket.ticketType,
+                          segment.departure.name,
+                          segment.departureTerminal,
+                        )}
+                      </strong>
+                      <small>{safeText(segment.departure.code, "--")}</small>
+                    </div>
+                    <div>
+                      <span>{getArrivalLabel(ticket.ticketType, t("arrival"), t("arrivalStation"))}</span>
+                      <strong>
+                        {formatLocationWithTerminal(
+                          ticket.ticketType,
+                          segment.arrival.name,
+                          segment.arrivalTerminal,
+                        )}
+                      </strong>
+                      <small>{safeText(segment.arrival.code, "--")}</small>
+                    </div>
+                    <div>
+                      <span>{t("departureTime")}</span>
+                      <strong>{departureDisplay.primary}</strong>
+                      {departureDisplay.secondary ? <small>{departureDisplay.secondary}</small> : null}
+                    </div>
+                    <div>
+                      <span>{t("arrivalTime")}</span>
+                      <strong>{arrivalDisplay.primary}</strong>
+                      {arrivalDisplay.secondary ? <small>{arrivalDisplay.secondary}</small> : null}
+                    </div>
+                    {segment.classInfo ? (
+                      <div>
+                        <span>{t("cabinClass")}</span>
+                        <strong>{segment.classInfo}</strong>
+                      </div>
+                    ) : null}
+                    {segment.seatInfo ? (
+                      <div>
+                        <span>{t("seat")}</span>
+                        <strong>{segment.seatInfo}</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+                {index < displaySegments.length - 1 ? (
+                  <div className="segment-transfer-indicator">
+                    <span>{buildTransferLabel(segment, displaySegments[index + 1]!)}</span>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </article>
+    ) : null;
   const routeMapModule =
     ticket && showsActiveRoute ? (
       <article className="route-map-card detail-module-shell">
@@ -898,26 +1096,6 @@ export function Dashboard({
               <Suspense fallback={<p className="detail-loading">Loading route map...</p>}>
                 <RouteMap route={activeDetail.map} segments={activeDetail.segments} variant="detail" />
               </Suspense>
-              {activeDetail.segments.length > 1 ? (
-                <div className="segment-stack">
-                  {activeDetail.segments.map((segment) => (
-                    <article className="segment-card" key={`${segment.code}-${segment.segmentIndex}`}>
-                      <div className="segment-card-top">
-                        <div>
-                          <span className="ticket-kind">{`Segment ${segment.segmentIndex + 1}`}</span>
-                          <strong>{segment.lineLabel}</strong>
-                        </div>
-                        <span className="status-pill">{segment.distanceHintKm} km</span>
-                      </div>
-                      <div className="ticket-meta">
-                        <span>{segment.code || "--"}</span>
-                        <span>{segment.carrierName}</span>
-                        <span>{segment.directionHint}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
             </>
           ) : (
             <div className="empty-state">
@@ -1162,19 +1340,7 @@ export function Dashboard({
 
       {exportMessage ? <p className="detail-loading">{exportMessage}</p> : null}
 
-      {ticket?.segments?.length && showsTicketMeta ? (
-        <article className="detail-card">
-          <span>Onward itinerary</span>
-          <strong>{`${ticket.segments.length} saved onward segment(s)`}</strong>
-          <p className="map-summary">
-            {ticket.segments.map((segment, index) => (
-              <span key={`${segment.code}-${index}`}>
-                {`${index + 2}. ${segment.departure.name} -> ${segment.arrival.name} (${segment.code || "--"})`}
-              </span>
-            ))}
-          </p>
-        </article>
-      ) : null}
+      {segmentModule}
 
     </section>
   );

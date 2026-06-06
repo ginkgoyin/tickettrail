@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  buildRouteMapSegments,
   createBackup,
   createTicket,
   deleteTicket,
@@ -136,5 +137,112 @@ describe("ticketService web fallback", () => {
   it("throws clear errors for missing fallback backup records", async () => {
     await expect(restoreBackup("missing-backup")).rejects.toThrow("Backup record not found.");
     await expect(exportBackup("missing-backup")).rejects.toThrow("Backup record not found.");
+  });
+
+  it("builds consecutive map legs for multi-segment itineraries", () => {
+    const segments = buildRouteMapSegments(
+      buildDraft({
+        departure: {
+          name: "Sydney",
+          code: "SYD",
+          timezone: "Australia/Sydney",
+        },
+        arrival: {
+          name: "Ayers Rock",
+          code: "AYQ",
+          timezone: "Australia/Darwin",
+        },
+        segments: [
+          {
+            carrierName: "Qantas",
+            code: "QF790",
+            departure: {
+              name: "Brisbane",
+              code: "BNE",
+              timezone: "Australia/Brisbane",
+            },
+            arrival: {
+              name: "Ayers Rock",
+              code: "AYQ",
+              timezone: "Australia/Darwin",
+            },
+            departureTimeLocal: "2026-05-21T13:10",
+            arrivalTimeLocal: "2026-05-21T16:25",
+            classInfo: "Economy",
+            seatInfo: "18C",
+            notes: "",
+          },
+        ],
+      }),
+    );
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]?.departure.code).toBe("SYD");
+    expect(segments[0]?.arrival.code).toBe("BNE");
+    expect(segments[1]?.departure.code).toBe("BNE");
+    expect(segments[1]?.arrival.code).toBe("AYQ");
+  });
+
+  it("preserves full ordered multi-segment records in web fallback storage", async () => {
+    const created = await createTicket(
+      buildDraft({
+        departure: {
+          name: "Changsha",
+          code: "CSX",
+          timezone: "Asia/Shanghai",
+        },
+        arrival: {
+          name: "Shanghai Pudong",
+          code: "PVG",
+          timezone: "Asia/Shanghai",
+        },
+        departureTerminal: "T2",
+        arrivalTerminal: "T1",
+        departureTimeLocal: "2026-06-01T08:10",
+        arrivalTimeLocal: "2026-06-01T09:50",
+        segments: [
+          {
+            carrierName: "China Eastern",
+            code: "MU739",
+            departure: {
+              name: "Shanghai Pudong",
+              code: "PVG",
+              timezone: "Asia/Shanghai",
+            },
+            arrival: {
+              name: "Sydney",
+              code: "SYD",
+              timezone: "Australia/Sydney",
+            },
+            departureTerminal: "T1",
+            arrivalTerminal: "T1",
+            departureTimeLocal: "2026-06-01T12:15",
+            arrivalTimeLocal: "2026-06-01T22:20",
+            classInfo: "Economy",
+            seatInfo: "31A",
+            notes: "Onward leg",
+          },
+        ],
+      }),
+    );
+
+    expect(created.arrival.code).toBe("SYD");
+    expect(created.arrivalTimeLocal).toBe("2026-06-01T22:20");
+    expect(created.segments).toHaveLength(2);
+    expect(created.segments?.[0]?.departure.code).toBe("CSX");
+    expect(created.segments?.[0]?.arrival.code).toBe("PVG");
+    expect(created.segments?.[0]?.arrivalTimeLocal).toBe("2026-06-01T09:50");
+    expect(created.segments?.[0]?.arrivalTerminal).toBe("T1");
+    expect(created.segments?.[1]?.departure.code).toBe("PVG");
+    expect(created.segments?.[1]?.arrival.code).toBe("SYD");
+    expect(created.segments?.[1]?.arrivalTimeLocal).toBe("2026-06-01T22:20");
+    expect(created.segments?.[1]?.arrivalTerminal).toBe("T1");
+
+    const detail = await getTicketDetail(created.id);
+    expect(detail.ticket.segments).toHaveLength(2);
+    expect(detail.ticket.segments?.[0]?.arrival.code).toBe("PVG");
+    expect(detail.ticket.segments?.[0]?.arrivalTimeLocal).toBe("2026-06-01T09:50");
+    expect(detail.ticket.segments?.[1]?.arrival.code).toBe("SYD");
+    expect(detail.ticket.segments?.[1]?.arrivalTimeLocal).toBe("2026-06-01T22:20");
   });
 });

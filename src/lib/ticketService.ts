@@ -337,7 +337,7 @@ async function buildResolvedDetailFromAirportData(
     return null;
   }
 
-  const effectiveSegments = getEffectiveSegments(ticket);
+  const effectiveSegments = buildRouteMapSegments(ticket);
   const resolvedSegments = await Promise.all<MapSegmentPayload | null>(
     effectiveSegments.map(async (segment, index): Promise<MapSegmentPayload | null> => {
       const origin = await resolveMapPoint(ticket.ticketType, segment.departure);
@@ -412,24 +412,88 @@ function buildRouteLabel(ticket: TicketDraft) {
   return `${firstSegment.departure.name} -> ${lastSegment.arrival.name}`;
 }
 
-function getEffectiveSegments(ticket: TicketDraft): TicketSegmentDraft[] {
-  const primarySegment: TicketSegmentDraft = {
+function cloneTicketLocation(location: TicketLocation): TicketLocation {
+  return { ...location };
+}
+
+function cloneTicketSegment(segment: TicketSegmentDraft): TicketSegmentDraft {
+  return {
+    ...segment,
+    departure: cloneTicketLocation(segment.departure),
+    arrival: cloneTicketLocation(segment.arrival),
+  };
+}
+
+function isSameTicketLocation(left: TicketLocation, right: TicketLocation) {
+  const normalizedLeftCode = normalizeLookupValue(left.code);
+  const normalizedRightCode = normalizeLookupValue(right.code);
+  if (normalizedLeftCode && normalizedRightCode) {
+    return normalizedLeftCode === normalizedRightCode;
+  }
+
+  return (
+    normalizeLookupValue(left.name) === normalizeLookupValue(right.name) &&
+    normalizeLookupValue(left.timezone) === normalizeLookupValue(right.timezone)
+  );
+}
+
+function buildPrimarySegment(ticket: TicketDraft): TicketSegmentDraft {
+  return {
     carrierName: ticket.carrierName,
     code: ticket.code,
-    departure: { ...ticket.departure },
-    arrival: { ...ticket.arrival },
+    departure: cloneTicketLocation(ticket.departure),
+    arrival: cloneTicketLocation(ticket.arrival),
+    departureTerminal: ticket.departureTerminal,
+    arrivalTerminal: ticket.arrivalTerminal,
     departureTimeLocal: ticket.departureTimeLocal,
     arrivalTimeLocal: ticket.arrivalTimeLocal,
     classInfo: ticket.classInfo,
     seatInfo: ticket.seatInfo,
     notes: ticket.notes,
   };
+}
 
-  return [primarySegment, ...(ticket.segments ?? []).map((segment) => ({
-    ...segment,
-    departure: { ...segment.departure },
-    arrival: { ...segment.arrival },
-  }))];
+function hasCompleteOrderedSegmentList(ticket: TicketDraft) {
+  const firstSegment = ticket.segments?.[0];
+  return Boolean(firstSegment && isSameTicketLocation(ticket.departure, firstSegment.departure));
+}
+
+function getEffectiveSegments(ticket: TicketDraft): TicketSegmentDraft[] {
+  if (hasCompleteOrderedSegmentList(ticket)) {
+    return (ticket.segments ?? []).map(cloneTicketSegment);
+  }
+
+  return [buildPrimarySegment(ticket), ...(ticket.segments ?? []).map(cloneTicketSegment)];
+}
+
+function normalizeDraftForPersistence(draft: TicketDraft): TicketDraft {
+  return {
+    ...draft,
+    departure: cloneTicketLocation(draft.departure),
+    arrival: cloneTicketLocation(draft.arrival),
+    segments: getEffectiveSegments(draft).map(cloneTicketSegment),
+  };
+}
+
+export function buildRouteMapSegments(ticket: TicketDraft): TicketSegmentDraft[] {
+  const extraSegments = (ticket.segments ?? []).map(cloneTicketSegment);
+  if (!extraSegments.length) {
+    return [buildPrimarySegment(ticket)];
+  }
+
+  const firstExtraSegment = extraSegments[0];
+  if (isSameTicketLocation(ticket.departure, firstExtraSegment.departure)) {
+    return extraSegments;
+  }
+
+  const primaryMapSegment: TicketSegmentDraft = {
+    ...buildPrimarySegment(ticket),
+    arrival: cloneTicketLocation(firstExtraSegment.departure),
+    arrivalTimeLocal: firstExtraSegment.departureTimeLocal || ticket.arrivalTimeLocal,
+    arrivalTerminal: undefined,
+  };
+
+  return [primaryMapSegment, ...extraSegments];
 }
 
 function buildSegmentCount(ticket: TicketDraft) {
@@ -515,21 +579,31 @@ function writeFallbackBackups(backups: WebFallbackBackupSnapshot[]) {
 }
 
 function createFallbackTicket(draft: TicketDraft): TicketRecord {
+  const normalizedDraft = normalizeDraftForPersistence(draft);
+  const effectiveSegments = getEffectiveSegments(normalizedDraft);
+  const firstSegment = effectiveSegments[0] ?? buildPrimarySegment(normalizedDraft);
+  const lastSegment = effectiveSegments[effectiveSegments.length - 1] ?? firstSegment;
   const now = new Date().toISOString();
-  const segments = draft.segments?.map((segment) => ({
-    ...segment,
-    departure: { ...segment.departure },
-    arrival: { ...segment.arrival },
-  }));
+  const segments = normalizedDraft.segments?.map(cloneTicketSegment);
 
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `ticket-${Date.now()}`,
     createdAt: now,
     updatedAt: now,
-    routeLabel: buildRouteLabel(draft),
-    segmentCount: buildSegmentCount(draft),
+    routeLabel: buildRouteLabel(normalizedDraft),
+    segmentCount: buildSegmentCount(normalizedDraft),
     status: "saved",
-    ...draft,
+    ...normalizedDraft,
+    carrierName: firstSegment.carrierName,
+    code: firstSegment.code,
+    departure: cloneTicketLocation(firstSegment.departure),
+    arrival: cloneTicketLocation(lastSegment.arrival),
+    departureTerminal: firstSegment.departureTerminal,
+    arrivalTerminal: lastSegment.arrivalTerminal,
+    departureTimeLocal: firstSegment.departureTimeLocal,
+    arrivalTimeLocal: lastSegment.arrivalTimeLocal,
+    classInfo: firstSegment.classInfo,
+    seatInfo: firstSegment.seatInfo,
     ...(segments ? { segments } : {}),
   };
 }
@@ -539,6 +613,8 @@ function getTicketAttachments(ticketId: string): TicketAttachment[] {
 }
 
 function createFallbackDetail(ticket: TicketRecord): TicketDetailPayload {
+  const mapSegments = buildRouteMapSegments(ticket);
+
   return {
     ticket,
     map: {
@@ -566,7 +642,7 @@ function createFallbackDetail(ticket: TicketRecord): TicketDetailPayload {
         maxLongitude: Number.NaN,
       },
     },
-    segments: getEffectiveSegments(ticket).map((segment, index) => ({
+    segments: mapSegments.map((segment, index) => ({
       segmentIndex: index,
       transportType: ticket.ticketType,
       carrierName: segment.carrierName,
@@ -657,19 +733,21 @@ export async function listTickets(): Promise<TicketRecord[]> {
 }
 
 export async function createTicket(draft: TicketDraft): Promise<TicketRecord> {
+  const normalizedDraft = normalizeDraftForPersistence(draft);
   if (supportsTauri()) {
-    return invoke<TicketRecord>("create_ticket", { draft });
+    return invoke<TicketRecord>("create_ticket", { draft: normalizedDraft });
   }
 
-  const nextTicket = createFallbackTicket(draft);
+  const nextTicket = createFallbackTicket(normalizedDraft);
   const current = readFallbackTickets();
   writeFallbackTickets([nextTicket, ...current]);
   return nextTicket;
 }
 
 export async function updateTicket(ticketId: string, draft: TicketDraft): Promise<TicketRecord> {
+  const normalizedDraft = normalizeDraftForPersistence(draft);
   if (supportsTauri()) {
-    return invoke<TicketRecord>("update_ticket", { ticketId, draft });
+    return invoke<TicketRecord>("update_ticket", { ticketId, draft: normalizedDraft });
   }
 
   const current = readFallbackTickets().find((item) => item.id === ticketId);
@@ -679,10 +757,10 @@ export async function updateTicket(ticketId: string, draft: TicketDraft): Promis
 
   const nextTicket: TicketRecord = {
     ...current,
-    ...draft,
+    ...createFallbackTicket(normalizedDraft),
     id: current.id,
-    routeLabel: buildRouteLabel(draft),
-    segmentCount: buildSegmentCount(draft),
+    routeLabel: buildRouteLabel(normalizedDraft),
+    segmentCount: buildSegmentCount(normalizedDraft),
     updatedAt: new Date().toISOString(),
   };
 

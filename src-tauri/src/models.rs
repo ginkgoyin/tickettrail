@@ -33,6 +33,8 @@ pub struct TicketSegmentPayload {
     pub code: String,
     pub departure: TicketLocationPayload,
     pub arrival: TicketLocationPayload,
+    pub departure_terminal: Option<String>,
+    pub arrival_terminal: Option<String>,
     pub departure_time_local: String,
     pub arrival_time_local: String,
     pub class_info: String,
