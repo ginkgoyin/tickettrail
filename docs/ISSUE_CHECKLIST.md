@@ -526,7 +526,7 @@
 
 - `JOURNEY-LIST-001`
   - Replace the current Journey List scaffold with stored Journey rows, filters, sorting, and compact trip cards.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification with JOURNEY-CREATE-001`
   - Priority: `High`
 
 - `JOURNEY-CREATE-001`
