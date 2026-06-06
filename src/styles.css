@@ -313,7 +313,6 @@ html {
 
 .journeys-filter-row,
 .journey-list-card-top,
-.journey-list-card-heading,
 .journeys-feedback-actions {
   display: flex;
   gap: 12px;
@@ -323,11 +322,6 @@ html {
 .journeys-filter-row,
 .journey-list-card-top {
   align-items: center;
-}
-
-.journey-list-card-heading {
-  flex-direction: column;
-  align-items: flex-start;
 }
 
 .journey-list-card-date,
@@ -363,6 +357,180 @@ html {
   grid-template-columns: 1fr;
 }
 
+.journey-create-modal {
+  width: min(1120px, 100%);
+}
+
+.journey-create-grid,
+.journey-create-fields,
+.journey-ticket-selector {
+  display: grid;
+  gap: 16px;
+}
+
+.journey-create-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.journey-create-section {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-height: 100%;
+}
+
+.journey-create-section-top,
+.journey-ticket-option-top,
+.journey-ticket-option {
+  display: flex;
+  gap: 12px;
+}
+
+.journey-create-section-top {
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+}
+
+.journey-create-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.journey-create-derived-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(112, 212, 255, 0.16);
+  background: rgba(112, 212, 255, 0.08);
+}
+
+.journey-create-derived-card span {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.journey-create-derived-card strong {
+  font-size: 0.98rem;
+}
+
+.journey-create-feedback {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.journey-create-feedback-error,
+.journey-create-field-error {
+  color: #ffcab7;
+}
+
+.journey-create-feedback-error {
+  border-color: rgba(255, 112, 92, 0.22);
+  background: rgba(255, 112, 92, 0.08);
+}
+
+.journey-create-field-error {
+  font-size: 0.8rem;
+}
+
+.journey-ticket-selector {
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.journey-ticket-option {
+  align-items: start;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.journey-ticket-option.selected {
+  border-color: rgba(112, 212, 255, 0.3);
+  background: rgba(112, 212, 255, 0.08);
+}
+
+.journey-ticket-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 4px 0 0;
+}
+
+.journey-ticket-option-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 1rem;
+}
+
+.journey-ticket-option-main {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  flex: 1;
+}
+
+.journey-ticket-option-top {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.journey-ticket-option-top strong {
+  font-size: 0.98rem;
+}
+
+.journey-ticket-option-subtitle {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
+.journey-create-rating-block {
+  display: grid;
+  gap: 10px;
+}
+
+.journey-create-rating-block > span {
+  color: var(--text-soft);
+  font-size: 0.92rem;
+}
+
+.journey-rating-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.journey-rating-button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.32);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.journey-rating-button.active {
+  border-color: rgba(255, 177, 90, 0.26);
+  background: rgba(255, 177, 90, 0.12);
+  color: #ffd79e;
+}
+
 .journey-list-card,
 .journeys-list-feedback-card {
   display: grid;
@@ -373,16 +541,57 @@ html {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.journey-list-card {
+  align-content: start;
+}
+
+.journey-list-card-top {
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.journey-list-card-top strong {
+  font-size: 1.1rem;
+}
+
+.journey-list-card-date {
+  font-size: 0.98rem;
+}
+
 .journey-list-metadata {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .journey-list-meta-chip {
-  padding: 10px 12px;
-  border-radius: 14px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+  border-radius: 999px;
   border: 1px solid rgba(112, 212, 255, 0.12);
   background: rgba(112, 212, 255, 0.05);
   color: var(--text-soft);
+  line-height: 1.35;
+}
+
+.journey-list-meta-chip-rating {
+  color: #ffd79e;
+  border-color: rgba(255, 177, 90, 0.18);
+  background: rgba(255, 177, 90, 0.1);
+}
+
+.journey-list-meta-chip-mood {
+  color: #ffc1b6;
+  border-color: rgba(255, 112, 92, 0.18);
+  background: rgba(255, 112, 92, 0.1);
+}
+
+.journey-list-meta-chip-cost {
+  color: #ffe0a6;
+  border-color: rgba(255, 210, 102, 0.2);
+  background: rgba(255, 210, 102, 0.1);
 }
 
 .journeys-inline-note {
@@ -2259,6 +2468,8 @@ textarea {
   .content-grid,
   .journeys-hero-grid,
   .journeys-phase-grid,
+  .journey-create-grid,
+  .journey-create-inline-grid,
   .hero,
   .detail-facts-row-3,
   .detail-facts-row-4,
@@ -2280,8 +2491,11 @@ textarea {
   .journeys-callout-top,
   .journey-list-preview-top,
   .journeys-filter-row,
+  .journey-create-section-top,
+  .journey-ticket-option,
+  .journey-ticket-option-top,
+  .journey-rating-row,
   .journey-list-card-top,
-  .journey-list-card-heading,
   .section-page-header-main,
   .header-actions,
   .analytics-toolbar,

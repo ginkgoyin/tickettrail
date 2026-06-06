@@ -461,25 +461,26 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-LIST-001`.
+Current task: `JOURNEY-CREATE-002 + JOURNEY-LIST-002`.
 
 Journey List/Create UI should not start until the data/service boundary is in place.
 
-After this list task, the recommended implementation order is:
+After this create/list polish task, the recommended implementation order is:
 
-1. `JOURNEY-CREATE-001`
-2. Manually verify Journey List + Create together once both are implemented
-3. `JOURNEY-DETAIL-001`
-4. `JOURNEY-EDIT-001`
-5. `JOURNEY-DELETE-001`
-6. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
+1. Manually verify Journey List + Create together after this polish pass
+2. `JOURNEY-DETAIL-001`
+3. `JOURNEY-EDIT-001`
+4. `JOURNEY-DELETE-001`
+5. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
 
 Implementation notes:
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
-- `JOURNEY-LIST-001` may be manually verified together with `JOURNEY-CREATE-001`, but automated tests/build are still required for this code change.
-- Ticket selector search belongs in the first `JOURNEY-CREATE-001` implementation, not a later polish pass.
+- `JOURNEY-LIST-001` should now be manually verified together with `JOURNEY-CREATE-001`.
+- Ticket selector search now belongs to the implemented `JOURNEY-CREATE-001` baseline rather than a later polish pass.
+- `JOURNEY-CREATE-002 + JOURNEY-LIST-002` should stay limited to layout polish plus live derived date/currency preview and compact Journey cards.
+- Record `STATUS-009` as a separate future task; do not mix ticket-status semantics work into Journey polish.
 - Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.
 - `OVERVIEW-REDESIGN-001` remains a separate docs/design task.
 - UI art-style redesign remains deferred and should not block Journey MVP implementation.

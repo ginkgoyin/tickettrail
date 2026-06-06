@@ -393,6 +393,11 @@
   - Remove the Status info icon/helper and keep the Ticket information layout visually clean.
   - Status: `Implemented / needs manual verification`
 
+- `STATUS-009`
+  - Ticket status should not show duplicate Completed entries from separate auto-derived and manual status concepts.
+  - Status: `Open / future status semantics fix`
+  - Priority: `Medium`
+
 - `ROUTE-MAP-001`
   - Ticket detail route map should avoid repeating the route title once the header already provides the context.
   - Status: `Implemented / needs manual verification`
@@ -531,7 +536,17 @@
 
 - `JOURNEY-CREATE-001`
   - Implement manual Journey creation with metadata fields, ticket selector search, and linked-ticket save flow.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `JOURNEY-CREATE-002`
+  - Polish Create Journey modal layout and add live auto date/currency preview after ticket selection.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `JOURNEY-LIST-002`
+  - Make Journey cards more compact by removing Auto dates tag and using inline title/date plus fit-content metadata tags.
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `JOURNEY-DETAIL-001`
@@ -572,6 +587,9 @@
 - `TICKET-LIST-SEGMENT-CODE-001`
   - Ticket List and Journey linked-ticket rows should show multi-segment code summaries such as `HO1230 / HO1669` instead of only one flight/train code.
   - Status: `Open / future implementation`
+  - Notes:
+    - Journey Create linked-ticket selector now shows multi-segment code summaries.
+    - The main Ticket List still needs its own follow-up.
   - Priority: `Medium`
 
 - `UI-DIALOG-001`
