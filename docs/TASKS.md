@@ -461,16 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-DETAIL-003 + JOURNEY-NAV-001`.
+Current task: `JOURNEY-DELETE-001`.
 
-Journey Detail polish is now the current Journey MVP checkpoint after the first read-only detail pass.
+Journey delete is now the current Journey MVP checkpoint after the read-only detail and return-navigation passes.
 
-After this polish checkpoint, the recommended implementation order is:
+After this delete checkpoint, the recommended implementation order is:
 
-1. Manually verify `JOURNEY-DETAIL-003 + JOURNEY-NAV-001`.
+1. Manually verify `JOURNEY-DELETE-001`.
 2. `JOURNEY-EDIT-001`
-3. `JOURNEY-DELETE-001`
-4. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
+3. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
 
 Implementation notes:
 
@@ -482,6 +481,7 @@ Implementation notes:
 - `JOURNEY-DETAIL-001` is read-only: Edit/Delete remain future scoped tasks, and no Journey map or summary statistics are included yet.
 - `JOURNEY-DETAIL-003` should hide the outer Journeys page header during detail mode only; Summary/List keep the normal page title.
 - `JOURNEY-NAV-001` should preserve the return path from Journey Detail -> Ticket Detail -> Back without changing normal Ticket List -> Ticket Detail behavior.
+- `JOURNEY-DELETE-001` should remove only the Journey and related links/companions, keep original tickets untouched, and use an app-themed centered confirm dialog instead of `window.confirm`.
 - Record `STATUS-009` as a separate future task; do not mix ticket-status semantics work into Journey polish.
 - Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.
 - `OVERVIEW-REDESIGN-001` remains a separate docs/design task.

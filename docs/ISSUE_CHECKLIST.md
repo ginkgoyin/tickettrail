@@ -581,7 +581,7 @@
 
 - `JOURNEY-DELETE-001`
   - Implement Journey delete using a centered app-themed confirm dialog that removes only the Journey and links, not the original tickets.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
 - `JOURNEY-COMPANION-001`
@@ -614,7 +614,7 @@
 
 - `UI-DIALOG-001`
   - Destructive confirm dialogs should use centered app-themed dialogs instead of browser/system confirms, starting with Delete Journey.
-  - Status: `Open / future UI cleanup`
+  - Status: `Implemented for Delete Journey / future cleanup for other destructive actions`
   - Priority: `Medium`
 
 - `JOURNEY-003`

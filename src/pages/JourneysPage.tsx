@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createJourney, getJourney, listJourneys } from "../lib/journeyService";
+import { createJourney, deleteJourney, getJourney, listJourneys } from "../lib/journeyService";
 import type { CreateJourneyInput, Journey, JourneyDateMode } from "../types/journey";
 import type { TicketLocation, TicketRecord } from "../types/ticket";
 
@@ -640,6 +640,9 @@ export function JourneysPage({
   const [createError, setCreateError] = useState("");
   const [titleError, setTitleError] = useState("");
   const [costCurrencyTouched, setCostCurrencyTouched] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deletePending, setDeletePending] = useState(false);
 
   const archiveRange = useMemo(() => getArchiveDateRange(tickets), [tickets]);
   const flightCount = useMemo(
@@ -727,6 +730,9 @@ export function JourneysPage({
     setJourneyDetail(null);
     setJourneyDetailError("");
     setJourneyDetailLoading(false);
+    setIsDeleteDialogOpen(false);
+    setDeleteError("");
+    setDeletePending(false);
     onJourneyDetailChange?.(null);
   };
 
@@ -770,6 +776,42 @@ export function JourneysPage({
   const handleRetryJourneys = async () => {
     setJourneysLoaded(false);
     await loadStoredJourneys();
+  };
+
+  const openDeleteDialog = () => {
+    setDeleteError("");
+    setIsDeleteDialogOpen(true);
+  };
+
+  const closeDeleteDialog = () => {
+    if (deletePending) {
+      return;
+    }
+
+    setIsDeleteDialogOpen(false);
+    setDeleteError("");
+  };
+
+  const handleConfirmDeleteJourney = async () => {
+    if (!selectedJourneyId) {
+      return;
+    }
+
+    const deletingJourneyId = selectedJourneyId;
+    setDeletePending(true);
+    setDeleteError("");
+
+    try {
+      await deleteJourney(deletingJourneyId);
+      setJourneys((current) => current.filter((journey) => journey.id !== deletingJourneyId));
+      setSubview("list");
+      closeJourneyDetail();
+      await loadStoredJourneys();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete journey.");
+    } finally {
+      setDeletePending(false);
+    }
   };
 
   const availableYears = useMemo(() => {
@@ -1107,7 +1149,12 @@ export function JourneysPage({
             <button className="ghost-button compact-button" disabled title="Future task" type="button">
               Edit
             </button>
-            <button className="ghost-button compact-button danger-button" disabled title="Future task" type="button">
+            <button
+              className="ghost-button compact-button danger-button"
+              disabled={journeyDetailLoading || deletePending}
+              onClick={openDeleteDialog}
+              type="button"
+            >
               Delete
             </button>
           </div>
@@ -1289,6 +1336,62 @@ export function JourneysPage({
               </section>
             </div>
           </>
+        ) : null}
+
+        {isDeleteDialogOpen && displayedJourney ? (
+          <div className="modal-backdrop" role="presentation">
+            <div
+              aria-labelledby="journey-delete-dialog-title"
+              aria-modal="true"
+              className="modal-shell tickets-modal journey-delete-modal"
+              role="dialog"
+            >
+              <div className="tickets-modal-header">
+                <div>
+                  <h3 id="journey-delete-dialog-title">Delete this journey?</h3>
+                  <p className="hero-copy">
+                    This will remove the journey and its ticket links, but your original tickets will not be deleted.
+                  </p>
+                </div>
+                <button
+                  aria-label="Close delete journey dialog"
+                  className="modal-close-button"
+                  disabled={deletePending}
+                  onClick={closeDeleteDialog}
+                  type="button"
+                >
+                  X
+                </button>
+              </div>
+
+              <div className="tickets-modal-body">
+                <div className="journey-delete-summary">
+                  <strong>{displayedJourney.title}</strong>
+                  <span>{formatJourneyDateRange(displayedJourney)}</span>
+                </div>
+
+                {deleteError ? (
+                  <div className="journey-create-feedback journey-create-feedback-error" role="alert">
+                    {deleteError}
+                  </div>
+                ) : null}
+
+                <div className="form-actions">
+                  <button className="ghost-button" disabled={deletePending} onClick={closeDeleteDialog} type="button">
+                    Cancel
+                  </button>
+                  <button
+                    className="ghost-button danger-button"
+                    disabled={deletePending}
+                    onClick={() => void handleConfirmDeleteJourney()}
+                    type="button"
+                  >
+                    {deletePending ? "Deleting..." : "Delete journey"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : null}
       </section>
     );

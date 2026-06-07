@@ -361,6 +361,10 @@ html {
   width: min(1120px, 100%);
 }
 
+.journey-delete-modal {
+  width: min(520px, 100%);
+}
+
 .journey-create-grid,
 .journey-create-fields,
 .journey-ticket-selector {
@@ -740,6 +744,19 @@ html {
   margin: 0;
   white-space: pre-wrap;
   line-height: 1.65;
+}
+
+.journey-delete-summary {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 122, 122, 0.16);
+  background: rgba(255, 122, 122, 0.08);
+}
+
+.journey-delete-summary span {
+  color: var(--text-soft);
 }
 
 .journeys-placeholder-item,
