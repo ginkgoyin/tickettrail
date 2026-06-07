@@ -220,6 +220,11 @@ export default function App() {
   const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>("overview");
   const [activeJourneyId, setActiveJourneyId] = useState("");
+  const [journeyHeaderSummary, setJourneyHeaderSummary] = useState<{
+    showTotals: boolean;
+    journeyCount: number;
+    travelDayCount: number;
+  } | null>(null);
   const [ticketDetailOpenRequest, setTicketDetailOpenRequest] = useState("");
   const [ticketDetailReturnContext, setTicketDetailReturnContext] =
     useState<TicketDetailReturnContext>(null);
@@ -884,6 +889,18 @@ export default function App() {
               </span>
             </div>
           </div>
+          {activeSection === "journeys" && journeyHeaderSummary?.showTotals ? (
+            <div className="journey-page-header-totals" aria-label="All-time journey totals">
+              <span>
+                <strong>{journeyHeaderSummary.journeyCount.toLocaleString("en-AU")}</strong>
+                journeys
+              </span>
+              <span>
+                <strong>{journeyHeaderSummary.travelDayCount.toLocaleString("en-AU")}</strong>
+                travel days
+              </span>
+            </div>
+          ) : null}
           {errorMessage ? <p className="error-banner section-page-error">{errorMessage}</p> : null}
         </div>
       </section>
@@ -954,6 +971,7 @@ export default function App() {
           ? (
               <JourneysPage
                 activeJourneyId={activeJourneyId}
+                onHeaderSummaryChange={setJourneyHeaderSummary}
                 onJourneyDetailChange={handleJourneyDetailChange}
                 onOpenTicket={(ticketId, journeyId) =>
                   handleOpenTicketDetail(ticketId, {

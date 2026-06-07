@@ -9,6 +9,13 @@ type JourneyMonthFilter = "all" | `${number}${number}`;
 
 interface JourneysPageProps {
   activeJourneyId?: string;
+  onHeaderSummaryChange?: (
+    summary: {
+      showTotals: boolean;
+      journeyCount: number;
+      travelDayCount: number;
+    } | null,
+  ) => void;
   onJourneyDetailChange?: (journeyId: string | null) => void;
   tickets: TicketRecord[];
   onOpenTicket?: (ticketId: string, journeyId: string) => void;
@@ -404,7 +411,7 @@ function buildJourneySummaryCalendarWeeks(
       const isCurrentYear = currentYear === year;
       const entries = isCurrentYear ? dayEntries.get(currentDateKey) ?? [] : [];
 
-      if (!monthLabel && isCurrentYear && current.getDate() <= 7) {
+      if (!monthLabel && isCurrentYear && current.getDate() === 1) {
         monthLabel = current.toLocaleDateString("en-AU", { month: "short" });
       }
 
@@ -917,6 +924,7 @@ function buildJourneyDraftFromJourney(journey: Journey): CreateJourneyDraft {
 
 export function JourneysPage({
   activeJourneyId,
+  onHeaderSummaryChange,
   onJourneyDetailChange,
   tickets,
   onOpenTicket,
@@ -1318,6 +1326,18 @@ export function JourneysPage({
     setSummaryYear(summaryBase.availableYears[0] ?? currentSummaryYear);
   }, [currentSummaryYear, summaryBase.availableYears, summaryYear]);
 
+  useEffect(() => {
+    onHeaderSummaryChange?.({
+      showTotals: subview === "summary",
+      journeyCount: journeys.length,
+      travelDayCount: summaryBase.allTravelDays,
+    });
+
+    return () => {
+      onHeaderSummaryChange?.(null);
+    };
+  }, [journeys.length, onHeaderSummaryChange, subview, summaryBase.allTravelDays]);
+
   const handleRetryJourneys = async () => {
     setJourneysLoaded(false);
     await loadStoredJourneys();
@@ -1512,23 +1532,6 @@ export function JourneysPage({
 
   const summaryView = (
     <section className="section-stack journey-summary-view">
-      <div className="journey-summary-header-row">
-        <div>
-          <span className="ticket-kind">Journey recap</span>
-          <h3>Travel summaries</h3>
-        </div>
-        <div className="journey-summary-top-totals" aria-label="All-time journey totals">
-          <span>
-            <strong>{journeysLoaded ? formatSummaryNumber(journeys.length) : "--"}</strong>
-            journeys
-          </span>
-          <span>
-            <strong>{journeysLoaded ? formatSummaryNumber(summaryBase.allTravelDays) : "--"}</strong>
-            travel days
-          </span>
-        </div>
-      </div>
-
       {journeysLoading ? (
         <div className="panel journey-summary-empty-panel">
           <h3>Loading journey statistics...</h3>
@@ -1548,17 +1551,14 @@ export function JourneysPage({
         <>
           <div className="panel journey-summary-calendar-card">
             <div className="journey-summary-calendar-header">
-              <div>
+              <div className="journey-summary-calendar-title-group">
                 <h3>Travel calendar</h3>
-                <p className="hero-copy">
-                  Monday-first year grid showing deduped travel days across all stored journeys.
-                </p>
-              </div>
-              <div className="journey-summary-calendar-controls">
                 <div className="journey-summary-calendar-meta">
                   <span>{formatCountLabel(summaryCalendar.selectedYearJourneys, "journey")}</span>
                   <span>{formatCountLabel(summaryCalendar.selectedYearTravelDays, "travel day")}</span>
                 </div>
+              </div>
+              <div className="journey-summary-calendar-controls">
                 <label className="journeys-inline-filter journey-summary-year-filter">
                   <span>Year</span>
                   <select value={summaryYear} onChange={(event) => setSummaryYear(event.target.value)}>
