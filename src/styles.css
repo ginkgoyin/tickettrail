@@ -470,9 +470,14 @@ html {
 }
 
 .journey-summary-month-row {
+  --journey-summary-gap: 5px;
+  --journey-summary-day-size: calc(
+    (100% - (var(--journey-summary-week-count, 53) - 1) * var(--journey-summary-gap)) /
+      var(--journey-summary-week-count, 53)
+  );
   display: grid;
-  grid-template-columns: repeat(var(--journey-summary-week-count, 53), minmax(0, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(var(--journey-summary-week-count, 53), var(--journey-summary-day-size));
+  gap: var(--journey-summary-gap);
   margin-left: 34px;
 }
 
@@ -492,30 +497,31 @@ html {
 
 .journey-summary-weekday-column {
   display: grid;
-  grid-template-rows: repeat(7, minmax(0, 1fr));
-  gap: 5px;
+  grid-template-rows: repeat(7, var(--journey-summary-day-size));
+  gap: var(--journey-summary-gap);
   padding-top: 2px;
 }
 
 .journey-summary-week-columns {
   display: grid;
-  grid-template-columns: repeat(var(--journey-summary-week-count, 53), minmax(0, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(var(--journey-summary-week-count, 53), var(--journey-summary-day-size));
+  gap: var(--journey-summary-gap);
   overflow: visible;
   padding-bottom: 0;
   align-items: start;
 }
 
 .journey-summary-week-column {
-  gap: 5px;
+  display: grid;
+  grid-template-rows: repeat(7, var(--journey-summary-day-size));
+  gap: var(--journey-summary-gap);
   min-width: 0;
 }
 
 .journey-summary-day {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  height: auto;
+  height: 100%;
   padding: 0;
   border-radius: 5px;
   border: 1px solid rgba(255, 255, 255, 0.08);
