@@ -461,13 +461,13 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-SUMMARY-001`.
+Current task: `JOURNEY-SUMMARY-002`.
 
-The real Journeys Summary runtime is now implemented and needs manual verification against the accepted Summary design.
+Journeys Summary information hierarchy is now being polished without rebuilding the Summary runtime.
 
 The recommended implementation order is now:
 
-1. Manually verify `JOURNEY-SUMMARY-001`
+1. Manually verify `JOURNEY-SUMMARY-002`
 2. Another explicitly chosen functional issue
 3. Keep follow-up Summary polish scoped to any concrete issue found during manual verification
 
@@ -476,6 +476,7 @@ Implementation notes:
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
 - `JOURNEY-SUMMARY-001` now owns the real Summary dashboard, including all-time totals, the Monday-first yearly travel calendar, and the 2x2 stats modules.
+- `JOURNEY-SUMMARY-002` should stay limited to information hierarchy and wording polish inside the existing Summary runtime.
 - `JOURNEY-LIST-001` should now be manually verified together with `JOURNEY-CREATE-001`.
 - Ticket selector search now belongs to the implemented `JOURNEY-CREATE-001` baseline rather than a later polish pass.
 - `JOURNEY-CREATE-002 + JOURNEY-LIST-002` should stay limited to layout polish plus live derived date/currency preview and compact Journey cards.

@@ -613,6 +613,11 @@
   - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
+- `JOURNEY-SUMMARY-002`
+  - Polish Journeys Summary information hierarchy by moving all-time totals into an inline Summary strip and clarifying calendar/highlight wording.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
 - `JOURNEY-MAP-004`
   - Add later Journey-colored map and yearly filtering only after the non-map Journey CRUD flow is stable.
   - Status: `Open / future enhancement`

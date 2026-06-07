@@ -148,6 +148,7 @@ interface JourneySummaryBase {
   topCompanions: JourneySummaryCompanionStat[];
   topCompanionGroups: JourneySummaryCompanionGroup[];
   costByCurrency: JourneySummaryCurrencyStat[];
+  comparableCostCnyTotal: number | null;
   journeysWithoutCost: number;
   missingExchangeRateCount: number;
   longestJourney: JourneySummaryLongestJourney | null;
@@ -207,7 +208,7 @@ function formatJourneyDateRange(journey: Journey) {
   const formattedEnd = formatDisplayDate(journey.endDate);
 
   if (formattedStart && formattedEnd) {
-    return formattedStart === formattedEnd ? formattedStart : `${formattedStart} 鈫?${formattedEnd}`;
+    return formattedStart === formattedEnd ? formattedStart : `${formattedStart} 闂?${formattedEnd}`;
   }
 
   return formattedStart ?? formattedEnd ?? "No date yet";
@@ -734,7 +735,7 @@ function buildCalendarMonths(journey: Journey): JourneyCalendarMonth[] {
 }
 
 function transportIcon(ticketType: TicketRecord["ticketType"]) {
-  return ticketType === "flight" ? "✈" : "🚆";
+  return ticketType === "flight" ? "F" : "R";
 }
 
 function buildTicketSearchText(ticket: TicketRecord) {
@@ -763,11 +764,12 @@ function buildTicketSearchText(ticket: TicketRecord) {
 
 function parseCompanionNames(value: string) {
   return value
-    .split(/[,\n，、]+/u)
-    .map((entry) => entry.trim())
+    .split("\uFF0C").join(",")
+    .split("\u3001").join(",")
+    .split(/[,\n]+/u)
+    .map((entry: string) => entry.trim())
     .filter(Boolean);
 }
-
 function extractTicketStartDate(ticket: TicketRecord) {
   return (ticket.departureTimeLocal || ticket.arrivalTimeLocal || "").slice(0, 10);
 }
@@ -804,7 +806,7 @@ function formatPreviewDateRange(preview: DerivedJourneyDatePreview) {
   const formattedStart = formatDisplayDate(preview.startDate) ?? "No date yet";
   const formattedEnd = formatDisplayDate(preview.endDate) ?? "No date yet";
 
-  return preview.startDate === preview.endDate ? formattedStart : `${formattedStart} 鈫?${formattedEnd}`;
+  return preview.startDate === preview.endDate ? formattedStart : `${formattedStart} 闂?${formattedEnd}`;
 }
 
 function lookupTimezoneCurrency(timezone?: string) {
@@ -1008,6 +1010,8 @@ export function JourneysPage({
     const destinationMap = new Map<string, { label: string; journeyIds: Set<string>; travelDays: Set<string> }>();
     const companionMap = new Map<string, { label: string; journeyIds: Set<string> }>();
     const costByCurrencyMap = new Map<string, { totalAmount: number; journeyCount: number }>();
+    let comparableCostCnyTotal = 0;
+    let hasComparableCost = false;
     let journeysWithoutCost = 0;
     let missingExchangeRateCount = 0;
     let longestJourney: JourneySummaryLongestJourney | null = null;
@@ -1099,6 +1103,8 @@ export function JourneysPage({
         const exchangeRate = journey.costExchangeRateToCny;
         if (costCurrency === "CNY") {
           const convertedCny = journey.costAmount;
+          comparableCostCnyTotal += convertedCny;
+          hasComparableCost = true;
           if (!highestCostJourney || convertedCny > highestCostJourney.convertedCny) {
             highestCostJourney = {
               title: journey.title,
@@ -1109,6 +1115,8 @@ export function JourneysPage({
           }
         } else if (costCurrency && typeof exchangeRate === "number" && Number.isFinite(exchangeRate) && exchangeRate > 0) {
           const convertedCny = journey.costAmount * exchangeRate;
+          comparableCostCnyTotal += convertedCny;
+          hasComparableCost = true;
           if (!highestCostJourney || convertedCny > highestCostJourney.convertedCny) {
             highestCostJourney = {
               title: journey.title,
@@ -1202,6 +1210,7 @@ export function JourneysPage({
       topCompanions,
       topCompanionGroups,
       costByCurrency,
+      comparableCostCnyTotal: hasComparableCost ? comparableCostCnyTotal : null,
       journeysWithoutCost,
       missingExchangeRateCount,
       longestJourney,
@@ -1348,16 +1357,12 @@ export function JourneysPage({
   }, [currentSummaryYear, summaryBase.availableYears, summaryYear]);
 
   useEffect(() => {
-    onHeaderSummaryChange?.({
-      showTotals: subview === "summary",
-      journeyCount: journeys.length,
-      travelDayCount: summaryBase.allTravelDays,
-    });
+    onHeaderSummaryChange?.(null);
 
     return () => {
       onHeaderSummaryChange?.(null);
     };
-  }, [journeys.length, onHeaderSummaryChange, subview, summaryBase.allTravelDays]);
+  }, [onHeaderSummaryChange]);
 
   const handleRetryJourneys = async () => {
     setJourneysLoaded(false);
@@ -1551,8 +1556,21 @@ export function JourneysPage({
     }
   };
 
-  const summaryView = (
+    const summaryView = (
     <section className="section-stack journey-summary-view">
+      <div className="journey-summary-strip" aria-label="All-time summary totals">
+        <span className="journey-summary-strip-label">ALL-TIME SUMMARY</span>
+        <div className="journey-summary-strip-metrics">
+          <span>{formatCountLabel(journeys.length, "journey")}</span>
+          <span>{formatCountLabel(summaryBase.allTravelDays, "travel day")}</span>
+          <span>
+            {summaryBase.comparableCostCnyTotal !== null
+              ? `${summaryBase.missingExchangeRateCount > 0 ? "Comparable cost" : "Total cost"} ~= CNY ${formatCurrencyAmount(summaryBase.comparableCostCnyTotal)}`
+              : "Comparable cost unavailable"}
+          </span>
+        </div>
+      </div>
+
       {journeysLoading ? (
         <div className="panel journey-summary-empty-panel">
           <h3>Loading journey statistics...</h3>
@@ -1575,8 +1593,9 @@ export function JourneysPage({
               <div className="journey-summary-calendar-title-group">
                 <h3>Travel calendar</h3>
                 <div className="journey-summary-calendar-meta">
-                  <span>{formatCountLabel(summaryCalendar.selectedYearJourneys, "journey")}</span>
-                  <span>{formatCountLabel(summaryCalendar.selectedYearTravelDays, "travel day")}</span>
+                  <span>
+                    {`${formatCountLabel(summaryCalendar.selectedYearJourneys, "journey")} · ${formatCountLabel(summaryCalendar.selectedYearTravelDays, "travel day")} in ${summaryYear}`}
+                  </span>
                 </div>
               </div>
               <div className="journey-summary-calendar-controls">
@@ -1593,12 +1612,11 @@ export function JourneysPage({
               </div>
             </div>
 
-              <div className="journey-summary-calendar-shell">
-              <div
-                className="journey-summary-month-row"
-                aria-hidden="true"
-                style={{ "--journey-summary-week-count": String(summaryCalendar.weeks.length) } as CSSProperties}
-              >
+            <div
+              className="journey-summary-calendar-shell"
+              style={{ "--journey-summary-week-count": String(summaryCalendar.weeks.length) } as CSSProperties}
+            >
+              <div className="journey-summary-month-row" aria-hidden="true">
                 {summaryCalendar.weeks.map((week) => (
                   <span key={`${week.key}-month`}>{week.monthLabel}</span>
                 ))}
@@ -1617,7 +1635,6 @@ export function JourneysPage({
                   className="journey-summary-week-columns"
                   role="img"
                   aria-label={`Travel calendar for ${summaryYear}`}
-                  style={{ "--journey-summary-week-count": String(summaryCalendar.weeks.length) } as CSSProperties}
                 >
                   {summaryCalendar.weeks.map((week) => (
                     <div key={week.key} className="journey-summary-week-column">
@@ -1660,48 +1677,52 @@ export function JourneysPage({
               <div className="journey-summary-highlight-grid">
                 <div className="journey-summary-highlight-item">
                   <span className="ticket-kind">Longest journey</span>
-                  <strong>
-                    {summaryBase.longestJourney
-                      ? `${summaryBase.longestJourney.title} · ${formatCountLabel(summaryBase.longestJourney.durationDays, "day")}`
-                      : "No dated journeys yet"}
-                  </strong>
-                  {summaryBase.longestJourney ? (
-                    <span className="journey-summary-item-note">{summaryBase.longestJourney.rangeLabel}</span>
-                  ) : null}
+                  <div className="journey-summary-highlight-row">
+                    <strong>
+                      {summaryBase.longestJourney
+                        ? `${summaryBase.longestJourney.title} / ${formatCountLabel(summaryBase.longestJourney.durationDays, "day")}`
+                        : "No dated journeys yet"}
+                    </strong>
+                    {summaryBase.longestJourney ? (
+                      <span className="journey-summary-item-note">{summaryBase.longestJourney.rangeLabel}</span>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="journey-summary-highlight-item">
                   <span className="ticket-kind">Busiest month</span>
-                  <strong>
-                    {summaryBase.busiestMonth
-                      ? `${formatMonthYearLabel(summaryBase.busiestMonth.monthKey)} · ${formatCountLabel(summaryBase.busiestMonth.dedupedTravelDays, "day")}`
-                      : "No travel month yet"}
-                  </strong>
+                  <div className="journey-summary-highlight-row">
+                    <strong>
+                      {summaryBase.busiestMonth
+                        ? `${formatMonthYearLabel(summaryBase.busiestMonth.monthKey)} / ${formatCountLabel(summaryBase.busiestMonth.dedupedTravelDays, "travel day")}`
+                        : "No travel month yet"}
+                    </strong>
+                  </div>
                 </div>
                 <div className="journey-summary-highlight-item">
                   <span className="ticket-kind">Highest recorded cost</span>
-                  <strong>
-                    {summaryBase.highestCostJourney
-                      ? `${summaryBase.highestCostJourney.title} · ${summaryBase.highestCostJourney.amountLabel}`
-                      : "No comparable cost yet"}
-                  </strong>
-                  {summaryBase.highestCostJourney ? (
-                    <span className="journey-summary-item-note">
-                      Approx. CNY {summaryBase.highestCostJourney.convertedLabel}
-                    </span>
-                  ) : null}
+                  <div className="journey-summary-highlight-row">
+                    <strong>
+                      {summaryBase.highestCostJourney
+                        ? `${summaryBase.highestCostJourney.title} / ${summaryBase.highestCostJourney.amountLabel}`
+                        : "No comparable cost yet"}
+                    </strong>
+                    {summaryBase.highestCostJourney ? (
+                      <span className="journey-summary-item-note">~= CNY {summaryBase.highestCostJourney.convertedLabel}</span>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="journey-summary-highlight-item">
                   <span className="ticket-kind">Most visited destination</span>
-                  <strong>
-                    {summaryBase.topDestinations[0]
-                      ? `${summaryBase.topDestinations[0].label} · ${formatCountLabel(summaryBase.topDestinations[0].journeyCount, "journey")}`
-                      : "No destination data yet"}
-                  </strong>
-                  {summaryBase.topDestinations[0] ? (
-                    <span className="journey-summary-item-note">
-                      {formatCountLabel(summaryBase.topDestinations[0].dedupedTravelDays, "deduped day", "deduped days")}
-                    </span>
-                  ) : null}
+                  <div className="journey-summary-highlight-row">
+                    <strong>
+                      {summaryBase.topDestinations[0]
+                        ? `${summaryBase.topDestinations[0].label} / ${formatCountLabel(summaryBase.topDestinations[0].journeyCount, "journey")}`
+                        : "No destination data yet"}
+                    </strong>
+                    {summaryBase.topDestinations[0] ? (
+                      <span className="journey-summary-item-note">{formatCountLabel(summaryBase.topDestinations[0].dedupedTravelDays, "day")}</span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               {summaryBase.missingExchangeRateCount > 0 ? (
@@ -1742,7 +1763,7 @@ export function JourneysPage({
                   {summaryBase.topCompanionGroups[0] ? (
                     <div className="journey-summary-podium-first">
                       <span className="ticket-kind">1st</span>
-                      <strong>{summaryBase.topCompanionGroups[0].labels.join("、")}</strong>
+                      <strong>{summaryBase.topCompanionGroups[0].labels.join(" / ")}</strong>
                       <span className="journey-summary-item-note">
                         {formatCountLabel(summaryBase.topCompanionGroups[0].journeyCount, "journey")}
                       </span>
@@ -1752,7 +1773,7 @@ export function JourneysPage({
                     {summaryBase.topCompanionGroups.slice(1, 3).map((group, index) => (
                       <div key={`group-${group.journeyCount}`} className="journey-summary-podium-card">
                         <span className="ticket-kind">{index === 0 ? "2nd" : "3rd"}</span>
-                        <strong>{group.labels.join("、")}</strong>
+                        <strong>{group.labels.join(" / ")}</strong>
                         <span className="journey-summary-item-note">
                           {formatCountLabel(group.journeyCount, "journey")}
                         </span>
@@ -1763,7 +1784,7 @@ export function JourneysPage({
                     {summaryBase.topCompanionGroups.slice(3, 5).map((group, index) => (
                       <div key={`rest-group-${group.journeyCount}`} className="journey-summary-podium-rest-row">
                         <span className="journey-summary-podium-rank">{index === 0 ? "4th" : "5th"}</span>
-                        <strong>{group.labels.join("、")}</strong>
+                        <strong>{group.labels.join(" / ")}</strong>
                         <span className="journey-summary-item-note">
                           {formatCountLabel(group.journeyCount, "journey")}
                         </span>
@@ -1909,8 +1930,8 @@ export function JourneysPage({
                   ) : null}
                   {typeof journey.rating === "number" ? (
                     <span className="journey-list-meta-chip journey-list-meta-chip-rating">
-                      {"★".repeat(journey.rating)}
-                      {"☆".repeat(5 - journey.rating)}
+                      {"*".repeat(journey.rating)}
+                      {".".repeat(5 - journey.rating)}
                     </span>
                   ) : null}
                   {journey.mood ? (
@@ -1957,8 +1978,7 @@ export function JourneysPage({
             onClick={closeJourneyModal}
             type="button"
           >
-            脳
-          </button>
+            闂?          </button>
         </div>
 
         <div className="tickets-modal-body">
@@ -2174,7 +2194,8 @@ export function JourneysPage({
                         }
                         type="button"
                       >
-                        ★                      </button>
+                        *
+                      </button>
                     ))}
                     {journeyDraft.rating ? (
                       <button

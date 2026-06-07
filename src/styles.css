@@ -433,6 +433,34 @@ html {
   place-content: center;
 }
 
+.journey-summary-strip {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  color: #d9e8f2;
+}
+
+.journey-summary-strip-label {
+  color: var(--accent-warm);
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.journey-summary-strip-metrics {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-size: 1.28rem;
+  font-weight: 600;
+}
+
+.journey-summary-strip-metrics span {
+  line-height: 1.25;
+}
+
 .journey-summary-calendar-header {
   align-items: center;
 }
@@ -469,12 +497,15 @@ html {
   padding-right: 32px;
 }
 
-.journey-summary-month-row {
+.journey-summary-calendar-shell {
   --journey-summary-gap: 5px;
   --journey-summary-day-size: calc(
     (100% - (var(--journey-summary-week-count, 53) - 1) * var(--journey-summary-gap)) /
       var(--journey-summary-week-count, 53)
   );
+}
+
+.journey-summary-month-row {
   display: grid;
   grid-template-columns: repeat(var(--journey-summary-week-count, 53), var(--journey-summary-day-size));
   gap: var(--journey-summary-gap);
@@ -590,6 +621,18 @@ html {
   gap: 4px;
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.journey-summary-highlight-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.journey-summary-highlight-row strong {
+  min-width: 0;
 }
 
 .journey-summary-highlight-item:first-child {
@@ -3052,8 +3095,11 @@ textarea {
   }
 
   .journey-page-header-totals,
+  .journey-summary-strip,
+  .journey-summary-strip-metrics,
   .journey-summary-calendar-controls,
   .journey-summary-calendar-header,
+  .journey-summary-highlight-row,
   .journey-summary-list-row,
   .journey-summary-podium-rest-row {
     flex-direction: column;
