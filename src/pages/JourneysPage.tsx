@@ -208,7 +208,7 @@ function formatJourneyDateRange(journey: Journey) {
   const formattedEnd = formatDisplayDate(journey.endDate);
 
   if (formattedStart && formattedEnd) {
-    return formattedStart === formattedEnd ? formattedStart : `${formattedStart} 闂?${formattedEnd}`;
+    return formattedStart === formattedEnd ? formattedStart : `${formattedStart} ~ ${formattedEnd}`;
   }
 
   return formattedStart ?? formattedEnd ?? "No date yet";
@@ -806,7 +806,7 @@ function formatPreviewDateRange(preview: DerivedJourneyDatePreview) {
   const formattedStart = formatDisplayDate(preview.startDate) ?? "No date yet";
   const formattedEnd = formatDisplayDate(preview.endDate) ?? "No date yet";
 
-  return preview.startDate === preview.endDate ? formattedStart : `${formattedStart} 闂?${formattedEnd}`;
+  return preview.startDate === preview.endDate ? formattedStart : `${formattedStart} ~ ${formattedEnd}`;
 }
 
 function lookupTimezoneCurrency(timezone?: string) {
@@ -1932,8 +1932,8 @@ export function JourneysPage({
                   ) : null}
                   {typeof journey.rating === "number" ? (
                     <span className="journey-list-meta-chip journey-list-meta-chip-rating">
-                      {"*".repeat(journey.rating)}
-                      {".".repeat(5 - journey.rating)}
+                      {"★".repeat(journey.rating)}
+                      {"☆".repeat(5 - journey.rating)}
                     </span>
                   ) : null}
                   {journey.mood ? (
@@ -1980,7 +1980,7 @@ export function JourneysPage({
             onClick={closeJourneyModal}
             type="button"
           >
-            闂?          </button>
+            ×          </button>
         </div>
 
         <div className="tickets-modal-body">

@@ -497,57 +497,62 @@ html {
   padding-right: 32px;
 }
 
-.journey-summary-month-row {
-  --journey-summary-gap: 5px;
+.journey-summary-calendar-shell {
   --journey-summary-day-size: 14px;
+  --journey-summary-gap: 5px;
+  --journey-summary-weekday-label-width: 24px;
+  --journey-summary-label-gap: 10px;
+}
+
+.journey-summary-month-row {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: var(--journey-summary-day-size);
-  gap: var(--journey-summary-gap);
-  margin-left: 34px;
+  grid-auto-columns: minmax(var(--journey-summary-day-size), 1fr);
+  column-gap: 0;
+  margin-left: calc(var(--journey-summary-weekday-label-width) + var(--journey-summary-label-gap));
 }
 
 .journey-summary-month-row span,
 .journey-summary-weekday-column span {
-  min-height: var(--journey-summary-day-size);
+  min-height: 16px;
   color: var(--text-soft);
   font-size: 0.72rem;
 }
 
 .journey-summary-month-row span {
   display: flex;
-  justify-content: center;
   align-items: flex-end;
   line-height: 1;
-  text-align: center;
 }
 
 .journey-summary-calendar-grid {
   display: grid;
-  grid-template-columns: 24px 1fr;
-  gap: 10px;
+  grid-template-columns: var(--journey-summary-weekday-label-width) minmax(0, 1fr);
+  column-gap: var(--journey-summary-label-gap);
   align-items: start;
 }
 
 .journey-summary-weekday-column {
   display: grid;
   grid-template-rows: repeat(7, var(--journey-summary-day-size));
-  gap: var(--journey-summary-gap);
+  row-gap: var(--journey-summary-gap);
   align-items: center;
+  justify-items: end;
 }
 
 .journey-summary-weekday-column span {
   display: flex;
   align-items: center;
   height: var(--journey-summary-day-size);
-  line-height: var(--journey-summary-day-size);
+  line-height: 1;
 }
 
 .journey-summary-week-columns {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: var(--journey-summary-day-size);
-  gap: var(--journey-summary-gap);
+  grid-auto-columns: minmax(var(--journey-summary-day-size), 1fr);
+  column-gap: 0;
+  width: 100%;
   overflow: visible;
   padding-bottom: 0;
   align-items: start;
@@ -556,14 +561,15 @@ html {
 .journey-summary-week-column {
   display: grid;
   grid-template-rows: repeat(7, var(--journey-summary-day-size));
-  gap: var(--journey-summary-gap);
+  row-gap: var(--journey-summary-gap);
+  justify-items: center;
   min-width: 0;
 }
 
 .journey-summary-day {
   position: relative;
-  width: 14px;
-  height: 14px;
+  width: var(--journey-summary-day-size);
+  height: var(--journey-summary-day-size);
   padding: 0;
   border-radius: 5px;
   border: 1px solid rgba(255, 255, 255, 0.08);
