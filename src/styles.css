@@ -740,6 +740,11 @@ html {
   gap: 12px;
 }
 
+.journey-detail-cost-stack {
+  display: grid;
+  gap: 8px;
+}
+
 .journey-detail-note-text {
   margin: 0;
   white-space: pre-wrap;

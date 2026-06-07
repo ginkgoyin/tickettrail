@@ -37,6 +37,7 @@ interface CreateJourneyDraft {
   mood: string;
   costAmount: string;
   costCurrency: string;
+  costExchangeRateToCny: string;
   lodging: string;
   notes: string;
   selectedTicketIds: string[];
@@ -60,6 +61,7 @@ const EMPTY_CREATE_JOURNEY_DRAFT: CreateJourneyDraft = {
   mood: "",
   costAmount: "",
   costCurrency: "",
+  costExchangeRateToCny: "",
   lodging: "",
   notes: "",
   selectedTicketIds: [],
@@ -161,6 +163,34 @@ function formatJourneyCost(journey: Journey) {
   return journey.costCurrency
     ? `${journey.costCurrency.toUpperCase()} ${formattedAmount}`
     : formattedAmount;
+}
+
+function formatJourneyExchangeRate(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return value.toLocaleString("en-AU", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  });
+}
+
+function formatJourneyApproximateCny(journey: Journey) {
+  if (
+    typeof journey.costAmount !== "number" ||
+    !Number.isFinite(journey.costAmount) ||
+    typeof journey.costExchangeRateToCny !== "number" ||
+    !Number.isFinite(journey.costExchangeRateToCny) ||
+    journey.costExchangeRateToCny <= 0
+  ) {
+    return null;
+  }
+
+  return (journey.costAmount * journey.costExchangeRateToCny).toLocaleString("en-AU", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
 }
 
 function summarizeCompanions(journey: Journey) {
@@ -599,6 +629,10 @@ function buildCreateJourneyInput(draft: CreateJourneyDraft): CreateJourneyInput 
   const trimmedCostAmount = draft.costAmount.trim();
   const parsedCostAmount =
     trimmedCostAmount.length > 0 ? Number.parseFloat(trimmedCostAmount) : Number.NaN;
+  const normalizedCostCurrency = draft.costCurrency.trim().toUpperCase();
+  const trimmedExchangeRate = draft.costExchangeRateToCny.trim();
+  const parsedExchangeRate =
+    trimmedExchangeRate.length > 0 ? Number.parseFloat(trimmedExchangeRate) : Number.NaN;
 
   return {
     title: draft.title.trim(),
@@ -611,7 +645,11 @@ function buildCreateJourneyInput(draft: CreateJourneyDraft): CreateJourneyInput 
     rating: draft.rating ?? undefined,
     mood: draft.mood.trim() || undefined,
     costAmount: Number.isFinite(parsedCostAmount) ? parsedCostAmount : undefined,
-    costCurrency: draft.costCurrency.trim() || undefined,
+    costCurrency: normalizedCostCurrency || undefined,
+    costExchangeRateToCny:
+      normalizedCostCurrency && normalizedCostCurrency !== "CNY" && Number.isFinite(parsedExchangeRate)
+        ? parsedExchangeRate
+        : undefined,
     lodging: draft.lodging.trim() || undefined,
     companionNames: parseCompanionNames(draft.companionsText),
     ticketIds: draft.selectedTicketIds,
@@ -630,6 +668,8 @@ function buildJourneyDraftFromJourney(journey: Journey): CreateJourneyDraft {
     mood: journey.mood ?? "",
     costAmount: typeof journey.costAmount === "number" ? String(journey.costAmount) : "",
     costCurrency: journey.costCurrency ?? "",
+    costExchangeRateToCny:
+      typeof journey.costExchangeRateToCny === "number" ? String(journey.costExchangeRateToCny) : "",
     lodging: journey.lodging ?? "",
     notes: journey.notes ?? "",
     selectedTicketIds: [...journey.ticketIds],
@@ -659,6 +699,7 @@ export function JourneysPage({
   const [journeySaving, setJourneySaving] = useState(false);
   const [journeyError, setJourneyError] = useState("");
   const [journeyTitleError, setJourneyTitleError] = useState("");
+  const [journeyExchangeRateError, setJourneyExchangeRateError] = useState("");
   const [journeyCostCurrencyTouched, setJourneyCostCurrencyTouched] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -704,6 +745,9 @@ export function JourneysPage({
   );
 
   const autoDatePreview = useMemo(() => deriveJourneyDatePreview(selectedTickets), [selectedTickets]);
+  const normalizedJourneyCostCurrency = journeyDraft.costCurrency.trim().toUpperCase();
+  const showJourneyExchangeRateField =
+    normalizedJourneyCostCurrency.length > 0 && normalizedJourneyCostCurrency !== "CNY";
 
   const loadStoredJourneys = async () => {
     setJourneysLoading(true);
@@ -796,6 +840,24 @@ export function JourneysPage({
     });
   }, [journeyCostCurrencyTouched, journeyDraft.costCurrency, selectedTickets]);
 
+  useEffect(() => {
+    if (showJourneyExchangeRateField) {
+      return;
+    }
+
+    setJourneyDraft((current) => {
+      if (!current.costExchangeRateToCny) {
+        return current;
+      }
+
+      return {
+        ...current,
+        costExchangeRateToCny: "",
+      };
+    });
+    setJourneyExchangeRateError("");
+  }, [showJourneyExchangeRateField]);
+
   const handleRetryJourneys = async () => {
     setJourneysLoaded(false);
     await loadStoredJourneys();
@@ -878,6 +940,7 @@ export function JourneysPage({
     setJourneyTicketSearch("");
     setJourneyError("");
     setJourneyTitleError("");
+    setJourneyExchangeRateError("");
     setJourneyCostCurrencyTouched(false);
   };
 
@@ -887,6 +950,7 @@ export function JourneysPage({
     setJourneyTicketSearch("");
     setJourneyError("");
     setJourneyTitleError("");
+    setJourneyExchangeRateError("");
     setJourneyCostCurrencyTouched(false);
   };
 
@@ -895,6 +959,7 @@ export function JourneysPage({
     setJourneyDraft(EMPTY_CREATE_JOURNEY_DRAFT);
     setJourneyError("");
     setJourneyTitleError("");
+    setJourneyExchangeRateError("");
     setJourneyTicketSearch("");
     setJourneyCostCurrencyTouched(false);
   };
@@ -928,9 +993,22 @@ export function JourneysPage({
       return;
     }
 
+    if (showJourneyExchangeRateField) {
+      const trimmedExchangeRate = journeyDraft.costExchangeRateToCny.trim();
+      if (trimmedExchangeRate.length > 0) {
+        const parsedExchangeRate = Number.parseFloat(trimmedExchangeRate);
+        if (!Number.isFinite(parsedExchangeRate) || parsedExchangeRate <= 0) {
+          setJourneyExchangeRateError("Exchange rate to CNY must be a positive number.");
+          setJourneyError("");
+          return;
+        }
+      }
+    }
+
     setJourneySaving(true);
     setJourneyError("");
     setJourneyTitleError("");
+    setJourneyExchangeRateError("");
 
     try {
       if (journeyModalMode === "edit") {
@@ -1487,6 +1565,31 @@ export function JourneysPage({
                   </label>
                 </div>
 
+                {showJourneyExchangeRateField ? (
+                  <label>
+                    <span>Exchange rate to CNY</span>
+                    <input
+                      inputMode="decimal"
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setJourneyDraft((current) => ({ ...current, costExchangeRateToCny: value }));
+                        if (journeyExchangeRateError) {
+                          setJourneyExchangeRateError("");
+                        }
+                      }}
+                      placeholder={`1 ${normalizedJourneyCostCurrency} = 4.8 CNY`}
+                      type="number"
+                      value={journeyDraft.costExchangeRateToCny}
+                    />
+                    <span className="detail-helper-text">
+                      Example: 1 AUD = 4.8 CNY. 1 JPY = 0.05 CNY.
+                    </span>
+                    {journeyExchangeRateError ? (
+                      <span className="journey-create-field-error">{journeyExchangeRateError}</span>
+                    ) : null}
+                  </label>
+                ) : null}
+
                 <label>
                   <span>Lodging</span>
                   <input
@@ -1543,6 +1646,12 @@ export function JourneysPage({
     const segmentCount = countJourneySegments(detailLinkedTickets);
     const cost = displayedJourney ? formatJourneyCost(displayedJourney) : null;
     const rating = displayedJourney ? formatJourneyRating(displayedJourney.rating) : null;
+    const exchangeRate =
+      displayedJourney && displayedJourney.costCurrency
+        ? formatJourneyExchangeRate(displayedJourney.costExchangeRateToCny)
+        : null;
+    const approximateCny =
+      displayedJourney ? formatJourneyApproximateCny(displayedJourney) : null;
 
     return (
       <section className="section-stack journeys-page journey-detail-view">
@@ -1743,6 +1852,28 @@ export function JourneysPage({
                       </span>
                     ))}
                   </div>
+                )}
+
+                <h3>Cost</h3>
+                {cost ? (
+                  <div className="journey-detail-cost-stack">
+                    <p className="journey-detail-route-line">{cost}</p>
+                    {displayedJourney.costCurrency?.toUpperCase() !== "CNY" && exchangeRate ? (
+                      <>
+                        <p className="journey-detail-note-text">
+                          {`Exchange rate: 1 ${displayedJourney.costCurrency?.toUpperCase()} = ${exchangeRate} CNY`}
+                        </p>
+                        {approximateCny ? (
+                          <p className="journey-detail-note-text">{`Approx. CNY: ${approximateCny}`}</p>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {displayedJourney.costCurrency?.toUpperCase() !== "CNY" && !exchangeRate ? (
+                      <p className="journey-detail-note-text">Exchange rate to CNY not set.</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="hero-copy">No cost recorded.</p>
                 )}
 
                 <h3>Notes</h3>

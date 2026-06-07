@@ -26,6 +26,7 @@ export interface Journey {
   mood?: string;
   costAmount?: number;
   costCurrency?: string;
+  costExchangeRateToCny?: number;
   lodging?: string;
   companions: JourneyCompanion[];
   ticketIds: string[];
@@ -44,6 +45,7 @@ export interface JourneyMutationInput {
   mood?: string;
   costAmount?: number;
   costCurrency?: string;
+  costExchangeRateToCny?: number;
   lodging?: string;
   companionNames: string[];
   ticketIds: string[];

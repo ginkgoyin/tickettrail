@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS journeys (
     mood TEXT,
     cost_amount REAL,
     cost_currency TEXT,
+    cost_exchange_rate_to_cny REAL,
     lodging TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL

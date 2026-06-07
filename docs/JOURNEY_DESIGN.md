@@ -32,11 +32,9 @@ It does not:
 
 Current repo inspection shows:
 
-- `JourneysPage` scaffold already exists.
-- `Summary` and `List` subviews already exist as placeholders inside the scaffold.
-- The current scaffold is manually verified as a safe placeholder and no longer duplicates Tickets single-ticket detail.
-- Real Journey data model is not implemented yet.
-- Real Journey create, edit, delete, and detail behavior is not implemented yet.
+- Real Journey schema, CRUD service, List, Create, Detail, Edit, and Delete are now implemented.
+- `JourneysPage` still keeps `Summary` as a placeholder scaffold.
+- The current Summary view remains intentionally lightweight and does not yet implement real Summary statistics/runtime modules.
 - Real Journey Summary statistics are not implemented yet.
 - Journey map coloring and yearly filtering remain future work.
 
@@ -555,6 +553,7 @@ journeys
 - mood
 - cost_amount
 - cost_currency
+- cost_exchange_rate_to_cny
 - lodging
 - created_at
 - updated_at
@@ -618,6 +617,7 @@ type Journey = {
   mood?: string;
   costAmount?: number;
   costCurrency?: string;
+  costExchangeRateToCny?: number;
   lodging?: string;
   companions: JourneyCompanion[];
   ticketIds: string[];
@@ -663,81 +663,327 @@ Related future item:
 
 ## 16. Journeys Summary design
 
+Journeys Summary is a Journey-level travel recap dashboard.
+It is not Overview, and it is not Journey Detail.
+
+Its first runtime goal is to answer:
+
+- How many journeys do I have?
+- How many unique travel days do I have?
+- Which years/months had travel?
+- What are my top destinations?
+- Who do I travel with most often?
+- How much did I spend by currency?
+- What are my travel highlights?
+
 ### JOURNEY-DECISION-058
 
-Journeys Summary needs year/month filter.
-Default:
+The page header direction is:
 
-- `All years`
-- `All months`
+- `Journeys [info]                                      4 journeys    27 travel days`
+- `[Summary] [List]`
 
-Stats update with filters.
+Rules:
+
+- Top page totals are plain text.
+- Do not use cards, badges, borders, pills, or colored backgrounds for these top metrics.
+- Top page totals are all-time totals.
+- They do not change when the Travel calendar year dropdown changes.
 
 ### JOURNEY-DECISION-059
 
-Journey status:
+The top Summary module is a Travel calendar / travel heatmap.
 
-- `endDate < today -> Completed`
-- `startDate > today -> Upcoming`
-- `startDate <= today <= endDate -> Ongoing`
-- `No date -> Unscheduled`
+Rules:
+
+- Use a GitHub contribution-style week grid.
+- Each square represents one day.
+- Horizontal axis is weeks.
+- Vertical axis is weekdays.
+- Week starts on Monday.
+- The calendar occupies a full row.
+- The module has a year dropdown on the right.
+- Default year is the current year.
+- Year dropdown options include the current year and all years covered by Journey dates.
+- The year dropdown affects only the Travel calendar module and its local year-specific metrics.
+- It does not filter the whole Summary page.
+
+Travel calendar header concept:
+
+- `Travel calendar        4 journeys    27 travel days        Year: 2026`
+
+Rules:
+
+- The `4 journeys / 27 travel days` shown inside the Travel calendar are selected-year statistics.
+- The top page totals remain all-time totals.
 
 ### JOURNEY-DECISION-060
 
-Summary should show Ongoing journeys.
+Travel calendar colors must use fixed month-based tokens, not dynamically generated colors.
+
+Rules:
+
+- Adjacent months must stay visually distinguishable because dates such as Apr 30 and May 1 can be adjacent in the same week grid.
+- No-travel days use the light / inactive version of that month color.
+- Travel days use the dark / active version of that month color.
+- Overlapping journey days can use an even darker shade, a border, shadow, or a small marker.
+- Colors should lean khaki, warm, low-saturation, and pastel.
+- ColorHunt-style palette direction can inspire the look, but the app must not depend on any external palette site at runtime.
+- Both light mode and dark mode need corresponding month color tokens.
+- Use theme/color tokens later rather than scattering hardcoded colors across runtime components.
+
+Example semantics:
+
+- Jan inactive = light dusty pink
+- Jan active = deeper dusty pink
+- Feb inactive = light warm orange
+- Feb active = deeper warm orange
 
 ### JOURNEY-DECISION-061
 
-Top destinations MVP can count by destination text.
-Future can add smarter place splitting.
+Travel calendar supports hover tooltip details for travel days.
+
+For a day with one Journey:
+
+```text
+2026-07-09
+Japan trip (2026-07-09 ~ 2026-07-23)
+first day
+```
+
+For a middle travel day:
+
+```text
+2026-07-10
+Japan trip (2026-07-09 ~ 2026-07-23)
+travel day
+```
+
+For the last day:
+
+```text
+2026-07-23
+Japan trip (2026-07-09 ~ 2026-07-23)
+last day
+```
+
+If `startDate = endDate`, show:
+
+- `single-day trip`
+
+If multiple journeys overlap on one day:
+
+```text
+2026-07-09
+2 journeys
+
+Japan trip (2026-07-09 ~ 2026-07-23) · first day
+Tokyo weekend (2026-07-08 ~ 2026-07-10) · travel day
+```
+
+Rules:
+
+- No-travel days may omit tooltip to avoid noise.
 
 ### JOURNEY-DECISION-062
 
-Summary needs transport summary:
+Travel days are deduplicated.
 
-- flight / rail / train ticket count
-- total ticket count
-- total segment count
+Example:
+
+- Journey A = July 1 - July 5
+- Journey B = July 4 - July 8
+- Travel days count = `8`, not `10`
+
+Rules:
+
+- All-time travel days use one deduped date set across all journeys.
+- Selected-year calendar travel days use only dates inside that year.
+- Overlapping journeys must not double-count travel days.
 
 ### JOURNEY-DECISION-063
 
-Summary can show total cost grouped by currency.
-No exchange-rate conversion.
+The main Summary grid uses a fixed `2 x 2` layout:
+
+- Top left: Travel highlights
+- Top right: Top destinations
+- Bottom left: Top companions
+- Bottom right: Cost by currency
+
+Do not include in the first Summary runtime:
+
+- Transport summary
+- Upcoming journeys list
+- Recently completed journeys list
 
 ### JOURNEY-DECISION-064
 
-Summary can include a simple bar chart, but the Summary layout must be designed before runtime UI changes.
+Travel highlights first version should include:
 
-### Recommended Summary sections
+- Longest journey
+- Busiest month
+- Highest recorded cost / most expensive journey
+- Most visited destination
 
-Filter row:
+Rules:
 
-- year
-- month
+- Highlights are all-time by default.
+- They do not follow the Travel calendar year dropdown.
+- Longest journey uses journey duration.
+- Busiest month should prefer deduped travel days if practical; journey count is a fallback rule only if needed later.
+- Most visited destination should align with Top destinations ranking.
+- Highest recorded cost uses the CNY comparison rule documented below.
 
-Top metrics:
+### JOURNEY-DECISION-065
 
-- total journeys
-- travel days
-- upcoming
-- ongoing
-- completed
-- unscheduled
+Top destinations display as a list, not tags.
 
-Main content:
+Sort:
 
-- recent / upcoming journeys
-- top destinations
+- Primary: journey count descending
+- Tiebreaker: total deduped travel days descending
 
-Stats:
+Each row shows:
 
-- transport summary
-- cost by currency
-- companion summary
+- destination
+- journey count
+- total days
 
-Optional visual:
+Example:
 
-- simple bar chart after layout design
+```text
+Sydney        2 journeys · 20 days
+Uluru         1 journey  · 4 days
+No destination 1 journey · 2 days
+```
+
+Rules:
+
+- MVP counts destination text as entered.
+- Future work can add smarter destination/place splitting.
+- Top destinations are all-time by default and do not follow the Travel calendar year dropdown.
+
+### JOURNEY-DECISION-066
+
+Top companions use a compact podium-style display.
+
+Concept:
+
+```text
+Top companions
+
+          1. Mom
+          5 journeys
+
+2. Dad                  3. Ava
+3 journeys              2 journeys
+
+4. Lily · 1 journey
+5. Xiaowang · 1 journey
+```
+
+Rules:
+
+- Show top 5 companions.
+- First place is centered and more prominent.
+- Second and third are left/right below first.
+- Fourth and fifth are smaller list rows.
+- If no companions exist, show `No companions recorded yet.`
+
+### JOURNEY-DECISION-067
+
+Cost by currency stays grouped by original currency.
+
+Rules:
+
+- No automatic exchange-rate API.
+- No realtime conversion.
+- No exchange-rate lookup.
+
+Example:
+
+```text
+AUD 1,200
+CNY 3,000
+JPY 200,000
+5 journeys without cost
+```
+
+Rules:
+
+- Journeys without cost should be counted and shown as a small note.
+- This note is not clickable in MVP.
+- Editing cost belongs in Journey Detail / Edit.
+
+### JOURNEY-DECISION-068
+
+Cross-currency cost comparison uses CNY as the fixed comparison base.
+
+Rules:
+
+- Journey storage still keeps original `costAmount` and `costCurrency`.
+- For non-CNY journeys, users can optionally enter `costExchangeRateToCny` later.
+- Exchange-rate meaning: `1 foreign currency unit = X CNY`
+- Example:
+  - `1 AUD = 4.8 CNY`
+  - `1 JPY = 0.05 CNY`
+- Formula:
+  - `convertedCostCny = costAmount * costExchangeRateToCny`
+- If `costCurrency = CNY`:
+  - `convertedCostCny = costAmount`
+  - `costExchangeRateToCny` can be empty or `1`
+- If a non-CNY journey has no `costExchangeRateToCny`:
+  - it can still be saved
+  - it still appears in Cost by currency
+  - it is excluded from Highest recorded cost / most expensive journey comparison
+  - Summary should show a warning:
+    - `Some journeys are missing exchange rates and are excluded from cost comparison.`
+
+### JOURNEY-DECISION-069
+
+Summary needs a future cost data task before runtime cross-currency comparison can be completed safely.
+
+Future task:
+
+- `JOURNEY-COST-001`
+  - Add optional `costExchangeRateToCny` to Journey schema/model/service/Create/Edit form.
+  - Use it for Summary cross-currency cost comparison.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+This task should happen before or together with `JOURNEY-SUMMARY-001`, but should stay separate if possible.
+
+### JOURNEY-DECISION-070
+
+If there are no journeys, Summary uses this empty state:
+
+- `No journey statistics yet`
+- `Create journeys from the List tab to unlock travel summaries.`
+
+Rules:
+
+- Top page totals still show `0 journeys` and `0 travel days`.
+
+### JOURNEY-DECISION-071
+
+When the real Summary runtime is implemented, remove old placeholder copy such as:
+
+- `Travel records will live here.`
+- `Journey list is now backed by stored data.`
+- `Summary still stays lightweight for now.`
+- `Archive context.`
+
+### JOURNEY-DECISION-072
+
+Future enhancements, not for this checkpoint:
+
+- selected-year vs all-time Summary scope toggle
+- click month/day in calendar to filter
+- Journey map
+- smarter destination parsing
+- companion suggestions
+- travel-days vs journey-count toggle
+- refined color tokens after final UI art direction is chosen
 
 ## 17. Implementation phases
 
@@ -785,9 +1031,17 @@ Optional visual:
 
 - Suggest previously used companion names later.
 
+### JOURNEY-SUMMARY-DESIGN-001
+
+- Document Journeys Summary layout, Travel calendar behavior, all-time vs selected-year scope, top destinations, companion podium, and cost-comparison rules before runtime UI work begins.
+
+### JOURNEY-COST-001
+
+- Add optional `costExchangeRateToCny` to Journey schema/model/service/Create/Edit form before cross-currency Summary comparison is implemented.
+
 ### JOURNEY-SUMMARY-001
 
-- Implement real Journeys Summary after CRUD is stable.
+- Implement real Journeys Summary runtime after Summary design is accepted and `JOURNEY-COST-001` is available or explicitly deferred.
 
 ### JOURNEY-MAP-001
 

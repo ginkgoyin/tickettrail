@@ -461,15 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `STATUS-009`.
+Current task: `JOURNEY-COST-001`.
 
-Ticket status semantics cleanup is now the current focused checkpoint after the recent Journey detail/edit work.
+The Journey cost exchange-rate foundation is now the current checkpoint before real Summary runtime work begins.
 
-After this status checkpoint, the recommended implementation order is:
+The recommended implementation order is now:
 
-1. Manually verify `STATUS-009`.
+1. Manually verify `JOURNEY-COST-001`
 2. `JOURNEY-SUMMARY-001`
-3. Another explicitly chosen functional issue after status semantics are accepted
+3. Another explicitly chosen functional issue after Journey Summary runtime scope is accepted
 
 Implementation notes:
 
@@ -483,7 +483,10 @@ Implementation notes:
 - `JOURNEY-NAV-001` should preserve the return path from Journey Detail -> Ticket Detail -> Back without changing normal Ticket List -> Ticket Detail behavior.
 - `JOURNEY-DELETE-001` should remove only the Journey and related links/companions, keep original tickets untouched, and use an app-themed centered confirm dialog instead of `window.confirm`.
 - `JOURNEY-EDIT-001` should reuse the current modal-based Journey form where safe: prefill metadata, manual dates, companions, notes, and linked tickets; save through `updateJourney`; refresh both Journey Detail and Journey List; and keep the user on the same Journey Detail after save.
-- `STATUS-009` should keep the persisted `saved / used / archived` model compatible, remove duplicate Completed choices from Ticket detail, treat Upcoming / Completed as time-derived display states for active tickets, and avoid mixing real Cancelled semantics into this fix.
+- The Travel calendar year dropdown should affect only the calendar module and its local year-specific metrics.
+- Top Summary totals and the `2 x 2` Summary modules should stay all-time by default.
+- `JOURNEY-COST-001` should introduce optional `costExchangeRateToCny` before Summary cross-currency cost comparison is implemented.
+- Do not start Summary runtime until `costExchangeRateToCny` is manually verified.
 - Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.
 - `OVERVIEW-REDESIGN-001` remains a separate docs/design task.
 - UI art-style redesign remains deferred and should not block Journey MVP implementation.

@@ -88,6 +88,7 @@ struct JourneyRowData {
     mood: Option<String>,
     cost_amount: Option<f64>,
     cost_currency: Option<String>,
+    cost_exchange_rate_to_cny: Option<f64>,
     lodging: Option<String>,
     created_at: String,
     updated_at: String,
@@ -111,6 +112,7 @@ struct NormalizedJourneyMutation {
     mood: Option<String>,
     cost_amount: Option<f64>,
     cost_currency: Option<String>,
+    cost_exchange_rate_to_cny: Option<f64>,
     lodging: Option<String>,
     companion_names: Vec<String>,
     ticket_ids: Vec<String>,
@@ -382,7 +384,8 @@ pub fn list_journeys(app: &AppHandle) -> Result<Vec<JourneyPayload>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT id, title, destination, date_mode, start_date, end_date, notes,
-                    rating, mood, cost_amount, cost_currency, lodging, created_at, updated_at
+                    rating, mood, cost_amount, cost_currency, cost_exchange_rate_to_cny,
+                    lodging, created_at, updated_at
              FROM journeys
              ORDER BY
                 COALESCE(start_date, end_date, updated_at) DESC,
@@ -421,8 +424,9 @@ pub fn create_journey(app: &AppHandle, input: JourneyMutationPayload) -> Result<
         conn.execute(
             "INSERT INTO journeys (
                 id, title, destination, date_mode, start_date, end_date, notes,
-                rating, mood, cost_amount, cost_currency, lodging, created_at, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                rating, mood, cost_amount, cost_currency, cost_exchange_rate_to_cny,
+                lodging, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 &journey_id,
                 &normalized.title,
@@ -435,6 +439,7 @@ pub fn create_journey(app: &AppHandle, input: JourneyMutationPayload) -> Result<
                 &normalized.mood,
                 &normalized.cost_amount,
                 &normalized.cost_currency,
+                &normalized.cost_exchange_rate_to_cny,
                 &normalized.lodging,
                 &created_at,
                 &created_at,
@@ -482,9 +487,10 @@ pub fn update_journey(
                  mood = ?8,
                  cost_amount = ?9,
                  cost_currency = ?10,
-                 lodging = ?11,
-                 updated_at = ?12
-             WHERE id = ?13",
+                 cost_exchange_rate_to_cny = ?11,
+                 lodging = ?12,
+                 updated_at = ?13
+             WHERE id = ?14",
             params![
                 &normalized.title,
                 &normalized.destination,
@@ -496,6 +502,7 @@ pub fn update_journey(
                 &normalized.mood,
                 &normalized.cost_amount,
                 &normalized.cost_currency,
+                &normalized.cost_exchange_rate_to_cny,
                 &normalized.lodging,
                 &updated_at,
                 &existing.id,
@@ -1331,6 +1338,12 @@ fn normalize_journey_mutation(
         }
     }
 
+    if let Some(cost_exchange_rate_to_cny) = input.cost_exchange_rate_to_cny {
+        if !cost_exchange_rate_to_cny.is_finite() || cost_exchange_rate_to_cny <= 0.0 {
+            return Err("Journey exchange rate to CNY must be a positive number.".to_string());
+        }
+    }
+
     let ticket_records = load_linked_journey_ticket_records(conn, &input.ticket_ids)?;
     let normalized_ticket_ids = ticket_records
         .iter()
@@ -1345,6 +1358,13 @@ fn normalize_journey_mutation(
         (start_date, end_date)
     };
 
+    let normalized_cost_currency =
+        normalize_optional_text(input.cost_currency).map(|value| value.to_uppercase());
+    let normalized_cost_exchange_rate_to_cny = normalize_journey_cost_exchange_rate(
+        normalized_cost_currency.as_deref(),
+        input.cost_exchange_rate_to_cny,
+    )?;
+
     Ok(NormalizedJourneyMutation {
         title,
         destination: normalize_optional_text(input.destination),
@@ -1355,11 +1375,36 @@ fn normalize_journey_mutation(
         rating: input.rating,
         mood: normalize_optional_text(input.mood),
         cost_amount: input.cost_amount,
-        cost_currency: normalize_optional_text(input.cost_currency).map(|value| value.to_uppercase()),
+        cost_currency: normalized_cost_currency,
+        cost_exchange_rate_to_cny: normalized_cost_exchange_rate_to_cny,
         lodging: normalize_optional_text(input.lodging),
         companion_names: normalize_companion_names(input.companion_names),
         ticket_ids: normalized_ticket_ids,
     })
+}
+
+fn normalize_journey_cost_exchange_rate(
+    cost_currency: Option<&str>,
+    cost_exchange_rate_to_cny: Option<f64>,
+) -> Result<Option<f64>, String> {
+    let normalized_currency = cost_currency
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_uppercase());
+
+    if normalized_currency.as_deref().is_none() || normalized_currency.as_deref() == Some("CNY") {
+        return Ok(None);
+    }
+
+    let Some(exchange_rate) = cost_exchange_rate_to_cny else {
+        return Ok(None);
+    };
+
+    if !exchange_rate.is_finite() || exchange_rate <= 0.0 {
+        return Err("Journey exchange rate to CNY must be a positive number.".to_string());
+    }
+
+    Ok(Some(exchange_rate))
 }
 
 fn normalize_optional_text(value: Option<String>) -> Option<String> {
@@ -1576,9 +1621,10 @@ fn parse_journey_row(row: &Row<'_>) -> rusqlite::Result<JourneyRowData> {
         mood: row.get(8)?,
         cost_amount: row.get(9)?,
         cost_currency: row.get(10)?,
-        lodging: row.get(11)?,
-        created_at: row.get(12)?,
-        updated_at: row.get(13)?,
+        cost_exchange_rate_to_cny: row.get(11)?,
+        lodging: row.get(12)?,
+        created_at: row.get(13)?,
+        updated_at: row.get(14)?,
     })
 }
 
@@ -1628,6 +1674,7 @@ fn journey_row_to_payload(conn: &Connection, row: JourneyRowData) -> Result<Jour
         mood: row.mood,
         cost_amount: row.cost_amount,
         cost_currency: row.cost_currency,
+        cost_exchange_rate_to_cny: row.cost_exchange_rate_to_cny,
         lodging: row.lodging,
         companions: load_journey_companions(conn, &row.id)?,
         ticket_ids: load_journey_ticket_ids(conn, &row.id)?,
@@ -1665,7 +1712,8 @@ fn get_journey_row(conn: &Connection, journey_id: &str) -> Result<JourneyRowData
     let mut stmt = conn
         .prepare(
             "SELECT id, title, destination, date_mode, start_date, end_date, notes,
-                    rating, mood, cost_amount, cost_currency, lodging, created_at, updated_at
+                    rating, mood, cost_amount, cost_currency, cost_exchange_rate_to_cny,
+                    lodging, created_at, updated_at
              FROM journeys
              WHERE id = ?1",
         )
@@ -1866,9 +1914,24 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(|err| err.to_string())?;
     migrate_legacy_ticket_journey_tables(&conn)?;
     conn.execute_batch(SCHEMA_SQL).map_err(|err| err.to_string())?;
+    ensure_journey_schema_columns(&conn)?;
     seed_airlines(&conn)?;
     seed_location_directory(&conn)?;
     Ok(conn)
+}
+
+fn ensure_journey_schema_columns(conn: &Connection) -> Result<(), String> {
+    if table_exists(conn, "journeys")?
+        && !table_has_column(conn, "journeys", "cost_exchange_rate_to_cny")?
+    {
+        conn.execute(
+            "ALTER TABLE journeys ADD COLUMN cost_exchange_rate_to_cny REAL",
+            [],
+        )
+        .map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
 }
 
 fn migrate_legacy_ticket_journey_tables(conn: &Connection) -> Result<(), String> {
@@ -2277,9 +2340,11 @@ fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
 mod tests {
     use super::{
         build_effective_segments, compare_optional_date, derive_journey_date_range_from_linked_tickets,
-        migrate_legacy_ticket_journey_tables, normalize_companion_names, normalize_to_utc,
-        sanitize_file_name, sort_linked_journey_ticket_records, table_exists, validate_draft,
-        LinkedJourneyTicketRecord, TicketDraftPayload, TicketLocationPayload, TicketSegmentPayload,
+        ensure_journey_schema_columns, migrate_legacy_ticket_journey_tables,
+        normalize_companion_names, normalize_journey_cost_exchange_rate, normalize_to_utc,
+        sanitize_file_name, sort_linked_journey_ticket_records, table_exists, table_has_column,
+        validate_draft, LinkedJourneyTicketRecord, TicketDraftPayload, TicketLocationPayload,
+        TicketSegmentPayload,
     };
     use rusqlite::Connection;
 
@@ -2553,6 +2618,53 @@ mod tests {
             compare_optional_date(Some("2026-07-01"), None),
             std::cmp::Ordering::Less
         );
+    }
+
+    #[test]
+    fn normalize_journey_cost_exchange_rate_ignores_cny_or_empty_currency() {
+        assert_eq!(
+            normalize_journey_cost_exchange_rate(None, Some(4.8)).expect("should ignore empty currency"),
+            None
+        );
+        assert_eq!(
+            normalize_journey_cost_exchange_rate(Some("CNY"), Some(1.0)).expect("should ignore cny"),
+            None
+        );
+        assert_eq!(
+            normalize_journey_cost_exchange_rate(Some("AUD"), Some(4.8)).expect("should keep foreign rate"),
+            Some(4.8)
+        );
+        assert!(normalize_journey_cost_exchange_rate(Some("AUD"), Some(0.0)).is_err());
+    }
+
+    #[test]
+    fn ensure_journey_schema_columns_adds_exchange_rate_column() {
+        let conn = Connection::open_in_memory().expect("should create in-memory db");
+        conn.execute_batch(
+            "
+            CREATE TABLE journeys (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                destination TEXT,
+                date_mode TEXT NOT NULL,
+                start_date TEXT,
+                end_date TEXT,
+                notes TEXT,
+                rating INTEGER,
+                mood TEXT,
+                cost_amount REAL,
+                cost_currency TEXT,
+                lodging TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            ",
+        )
+        .expect("should create journeys table without new column");
+
+        assert!(!table_has_column(&conn, "journeys", "cost_exchange_rate_to_cny").expect("should inspect columns"));
+        ensure_journey_schema_columns(&conn).expect("should add missing column");
+        assert!(table_has_column(&conn, "journeys", "cost_exchange_rate_to_cny").expect("should inspect columns"));
     }
 }
 

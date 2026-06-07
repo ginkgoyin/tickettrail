@@ -588,6 +588,16 @@
   - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
+- `JOURNEY-SUMMARY-DESIGN-001`
+  - Design Journeys Summary layout and statistics rules, including Travel calendar, all-time totals, top destinations, companion podium, cost by currency, and CNY exchange-rate comparison rules.
+  - Status: `Documented / docs-only`
+  - Priority: `High`
+
+- `JOURNEY-COST-001`
+  - Add optional `costExchangeRateToCny` to Journey schema/model/service/Create/Edit form for Summary cross-currency cost comparison.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
 - `JOURNEY-COMPANION-001`
   - Save Journey companions as parsed free-text names in MVP.
   - Status: `Open / future implementation`
@@ -599,7 +609,7 @@
   - Priority: `Medium`
 
 - `JOURNEY-SUMMARY-001`
-  - Implement real Journeys Summary metrics, filters, and destination / transport / cost aggregates after Journey CRUD is stable.
+  - Implement real Journeys Summary runtime after Summary design is accepted and `costExchangeRateToCny` support is available or explicitly deferred.
   - Status: `Open / future implementation`
   - Priority: `Medium`
 

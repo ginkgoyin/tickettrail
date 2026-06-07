@@ -43,6 +43,7 @@ pub struct JourneyPayload {
     pub mood: Option<String>,
     pub cost_amount: Option<f64>,
     pub cost_currency: Option<String>,
+    pub cost_exchange_rate_to_cny: Option<f64>,
     pub lodging: Option<String>,
     pub companions: Vec<JourneyCompanionPayload>,
     pub ticket_ids: Vec<String>,
@@ -64,6 +65,7 @@ pub struct JourneyMutationPayload {
     pub mood: Option<String>,
     pub cost_amount: Option<f64>,
     pub cost_currency: Option<String>,
+    pub cost_exchange_rate_to_cny: Option<f64>,
     pub lodging: Option<String>,
     #[serde(default)]
     pub companion_names: Vec<String>,
