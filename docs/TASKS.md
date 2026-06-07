@@ -461,20 +461,21 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-COST-001`.
+Current task: `JOURNEY-SUMMARY-001`.
 
-The Journey cost exchange-rate foundation is now the current checkpoint before real Summary runtime work begins.
+The real Journeys Summary runtime is now implemented and needs manual verification against the accepted Summary design.
 
 The recommended implementation order is now:
 
-1. Manually verify `JOURNEY-COST-001`
-2. `JOURNEY-SUMMARY-001`
-3. Another explicitly chosen functional issue after Journey Summary runtime scope is accepted
+1. Manually verify `JOURNEY-SUMMARY-001`
+2. Another explicitly chosen functional issue
+3. Keep follow-up Summary polish scoped to any concrete issue found during manual verification
 
 Implementation notes:
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
+- `JOURNEY-SUMMARY-001` now owns the real Summary dashboard, including all-time totals, the Monday-first yearly travel calendar, and the 2x2 stats modules.
 - `JOURNEY-LIST-001` should now be manually verified together with `JOURNEY-CREATE-001`.
 - Ticket selector search now belongs to the implemented `JOURNEY-CREATE-001` baseline rather than a later polish pass.
 - `JOURNEY-CREATE-002 + JOURNEY-LIST-002` should stay limited to layout polish plus live derived date/currency preview and compact Journey cards.

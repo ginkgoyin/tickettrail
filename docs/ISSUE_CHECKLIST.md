@@ -610,7 +610,7 @@
 
 - `JOURNEY-SUMMARY-001`
   - Implement real Journeys Summary runtime after Summary design is accepted and `costExchangeRateToCny` support is available or explicitly deferred.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
 - `JOURNEY-MAP-004`

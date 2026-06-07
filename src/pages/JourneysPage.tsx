@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { createJourney, deleteJourney, getJourney, listJourneys, updateJourney } from "../lib/journeyService";
 import type { CreateJourneyInput, Journey, JourneyDateMode } from "../types/journey";
 import type { TicketLocation, TicketRecord } from "../types/ticket";
@@ -67,20 +67,85 @@ const EMPTY_CREATE_JOURNEY_DRAFT: CreateJourneyDraft = {
   selectedTicketIds: [],
 };
 
-function getArchiveDateRange(tickets: TicketRecord[]) {
-  const dates = tickets
-    .flatMap((ticket) => [ticket.departureTimeLocal, ticket.arrivalTimeLocal])
-    .filter((value): value is string => Boolean(value))
-    .sort((left, right) => left.localeCompare(right));
+interface JourneySummaryCalendarDay {
+  key: string;
+  dateKey: string | null;
+  dayNumber: string;
+  monthIndex: number | null;
+  isCurrentYear: boolean;
+  isToday: boolean;
+  overlapCount: number;
+  entries: Array<{
+    journeyId: string;
+    title: string;
+    rangeLabel: string;
+    dayLabel: string;
+  }>;
+}
 
-  if (dates.length === 0) {
-    return null;
-  }
+interface JourneySummaryCalendarWeek {
+  key: string;
+  monthLabel: string;
+  days: JourneySummaryCalendarDay[];
+}
 
-  return {
-    start: dates[0],
-    end: dates[dates.length - 1],
-  };
+interface JourneySummaryDestinationStat {
+  label: string;
+  journeyCount: number;
+  dedupedTravelDays: number;
+}
+
+interface JourneySummaryCompanionStat {
+  label: string;
+  journeyCount: number;
+}
+
+interface JourneySummaryCurrencyStat {
+  currency: string;
+  totalAmount: number;
+  journeyCount: number;
+}
+
+interface JourneySummaryLongestJourney {
+  title: string;
+  durationDays: number;
+  rangeLabel: string;
+}
+
+interface JourneySummaryHighestCostJourney {
+  title: string;
+  amountLabel: string;
+  convertedCny: number;
+  convertedLabel: string;
+}
+
+interface JourneySummaryBusiestMonth {
+  monthKey: string;
+  dedupedTravelDays: number;
+}
+
+interface JourneySummaryBase {
+  travelDayEntries: Map<
+    string,
+    Array<{ journeyId: string; title: string; rangeLabel: string; dayLabel: string }>
+  >;
+  allTravelDays: number;
+  availableYears: string[];
+  journeysByYear: Map<string, Set<string>>;
+  topDestinations: JourneySummaryDestinationStat[];
+  topCompanions: JourneySummaryCompanionStat[];
+  costByCurrency: JourneySummaryCurrencyStat[];
+  journeysWithoutCost: number;
+  missingExchangeRateCount: number;
+  longestJourney: JourneySummaryLongestJourney | null;
+  busiestMonth: JourneySummaryBusiestMonth | null;
+  highestCostJourney: JourneySummaryHighestCostJourney | null;
+}
+
+interface JourneySummaryCalendar {
+  selectedYearJourneys: number;
+  selectedYearTravelDays: number;
+  weeks: JourneySummaryCalendarWeek[];
 }
 
 function parseJourneyDate(value?: string) {
@@ -129,7 +194,7 @@ function formatJourneyDateRange(journey: Journey) {
   const formattedEnd = formatDisplayDate(journey.endDate);
 
   if (formattedStart && formattedEnd) {
-    return formattedStart === formattedEnd ? formattedStart : `${formattedStart} → ${formattedEnd}`;
+    return formattedStart === formattedEnd ? formattedStart : `${formattedStart} 鈫?${formattedEnd}`;
   }
 
   return formattedStart ?? formattedEnd ?? "No date yet";
@@ -191,6 +256,180 @@ function formatJourneyApproximateCny(journey: Journey) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
+}
+
+function formatSummaryNumber(value: number) {
+  return value.toLocaleString("en-AU");
+}
+
+function formatCountLabel(count: number, singular: string, plural = `${singular}s`) {
+  return `${formatSummaryNumber(count)} ${count === 1 ? singular : plural}`;
+}
+
+function formatJourneyDateRangeCompact(journey: Journey) {
+  if (journey.startDate && journey.endDate) {
+    return journey.startDate === journey.endDate
+      ? journey.startDate
+      : `${journey.startDate} ~ ${journey.endDate}`;
+  }
+
+  return journey.startDate ?? journey.endDate ?? "No date yet";
+}
+
+function formatMonthYearLabel(value: string) {
+  if (!/^\d{4}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(`${value}-01T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString("en-AU", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatLocalDateKey(date: Date) {
+  return [
+    String(date.getFullYear()),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function incrementDateKey(dateKey: string) {
+  const parsed = new Date(`${dateKey}T00:00:00`);
+  parsed.setDate(parsed.getDate() + 1);
+  return formatLocalDateKey(parsed);
+}
+
+function enumerateJourneyDateKeys(journey: Journey) {
+  const range = getJourneyRange(journey);
+  if (!range) {
+    return [];
+  }
+
+  const dates: string[] = [];
+  let cursor = [
+    String(range.start.getFullYear()),
+    String(range.start.getMonth() + 1).padStart(2, "0"),
+    String(range.start.getDate()).padStart(2, "0"),
+  ].join("-");
+  const endKey = [
+    String(range.end.getFullYear()),
+    String(range.end.getMonth() + 1).padStart(2, "0"),
+    String(range.end.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  while (cursor <= endKey) {
+    dates.push(cursor);
+    cursor = incrementDateKey(cursor);
+  }
+
+  return dates;
+}
+
+function describeJourneyDay(journey: Journey, dateKey: string) {
+  if (journey.startDate && journey.endDate && journey.startDate === journey.endDate && journey.startDate === dateKey) {
+    return "single-day trip";
+  }
+  if (journey.startDate === dateKey) {
+    return "first day";
+  }
+  if (journey.endDate === dateKey) {
+    return "last day";
+  }
+  return "travel day";
+}
+
+function formatCurrencyAmount(value: number) {
+  return value.toLocaleString("en-AU", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function buildJourneySummaryTooltip(dateKey: string, entries: JourneySummaryCalendarDay["entries"]) {
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  const lines = [dateKey, entries.length > 1 ? `${entries.length} journeys` : "1 journey"];
+  entries.forEach((entry) => {
+    lines.push(`${entry.title} (${entry.rangeLabel})`);
+    lines.push(entry.dayLabel);
+  });
+  return lines.join("\n");
+}
+
+function getJourneySummaryMonthColor(monthIndex: number): CSSProperties {
+  const variableIndex = monthIndex + 1;
+  return {
+    "--journey-summary-month-rgb": `var(--journey-month-${variableIndex}-rgb)`,
+  } as CSSProperties;
+}
+
+function buildJourneySummaryCalendarWeeks(
+  year: number,
+  dayEntries: Map<string, Array<{ journeyId: string; title: string; rangeLabel: string; dayLabel: string }>>,
+) {
+  const firstDay = new Date(year, 0, 1);
+  const lastDay = new Date(year, 11, 31);
+  const firstMonday = new Date(firstDay);
+  const firstDayOffset = (firstMonday.getDay() + 6) % 7;
+  firstMonday.setDate(firstMonday.getDate() - firstDayOffset);
+  const lastSunday = new Date(lastDay);
+  const lastDayOffset = 6 - ((lastSunday.getDay() + 6) % 7);
+  lastSunday.setDate(lastSunday.getDate() + lastDayOffset);
+
+  const todayKey = formatLocalDateKey(new Date());
+  const weeks: JourneySummaryCalendarWeek[] = [];
+  const cursor = new Date(firstMonday);
+  let weekIndex = 0;
+
+  while (cursor <= lastSunday) {
+    const weekStart = new Date(cursor);
+    const days: JourneySummaryCalendarDay[] = [];
+    let monthLabel = "";
+
+    for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
+      const current = new Date(weekStart);
+      current.setDate(weekStart.getDate() + dayOffset);
+      const currentYear = current.getFullYear();
+      const currentMonth = current.getMonth();
+      const currentDateKey = formatLocalDateKey(current);
+      const isCurrentYear = currentYear === year;
+      const entries = isCurrentYear ? dayEntries.get(currentDateKey) ?? [] : [];
+
+      if (!monthLabel && isCurrentYear && current.getDate() <= 7) {
+        monthLabel = current.toLocaleDateString("en-AU", { month: "short" });
+      }
+
+      days.push({
+        key: `${currentDateKey}-${dayOffset}`,
+        dateKey: isCurrentYear ? currentDateKey : null,
+        dayNumber: isCurrentYear ? String(current.getDate()) : "",
+        monthIndex: isCurrentYear ? currentMonth : null,
+        isCurrentYear,
+        isToday: currentDateKey === todayKey,
+        overlapCount: entries.length,
+        entries,
+      });
+    }
+
+    weeks.push({
+      key: `${year}-week-${weekIndex}`,
+      monthLabel,
+      days,
+    });
+    cursor.setDate(cursor.getDate() + 7);
+    weekIndex += 1;
+  }
+
+  return weeks;
 }
 
 function summarizeCompanions(journey: Journey) {
@@ -437,7 +676,7 @@ function buildCalendarMonths(journey: Journey): JourneyCalendarMonth[] {
     monthStarts.push(endMonthStart);
   }
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = formatLocalDateKey(new Date());
 
   return monthStarts.slice(0, 2).map((monthStart) => {
     const year = monthStart.getFullYear();
@@ -552,7 +791,7 @@ function formatPreviewDateRange(preview: DerivedJourneyDatePreview) {
   const formattedStart = formatDisplayDate(preview.startDate) ?? "No date yet";
   const formattedEnd = formatDisplayDate(preview.endDate) ?? "No date yet";
 
-  return preview.startDate === preview.endDate ? formattedStart : `${formattedStart} → ${formattedEnd}`;
+  return preview.startDate === preview.endDate ? formattedStart : `${formattedStart} 鈫?${formattedEnd}`;
 }
 
 function lookupTimezoneCurrency(timezone?: string) {
@@ -682,6 +921,7 @@ export function JourneysPage({
   tickets,
   onOpenTicket,
 }: JourneysPageProps) {
+  const currentSummaryYear = String(new Date().getFullYear());
   const [subview, setSubview] = useState<JourneysSubview>("summary");
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [journeysLoading, setJourneysLoading] = useState(false);
@@ -693,6 +933,7 @@ export function JourneysPage({
   const [journeyDetailError, setJourneyDetailError] = useState("");
   const [yearFilter, setYearFilter] = useState<JourneyYearFilter>("all");
   const [monthFilter, setMonthFilter] = useState<JourneyMonthFilter>("all");
+  const [summaryYear, setSummaryYear] = useState(currentSummaryYear);
   const [journeyModalMode, setJourneyModalMode] = useState<JourneyModalMode | null>(null);
   const [journeyDraft, setJourneyDraft] = useState<CreateJourneyDraft>(EMPTY_CREATE_JOURNEY_DRAFT);
   const [journeyTicketSearch, setJourneyTicketSearch] = useState("");
@@ -704,13 +945,6 @@ export function JourneysPage({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deletePending, setDeletePending] = useState(false);
-
-  const archiveRange = useMemo(() => getArchiveDateRange(tickets), [tickets]);
-  const flightCount = useMemo(
-    () => tickets.filter((ticket) => ticket.ticketType === "flight").length,
-    [tickets],
-  );
-  const railCount = tickets.length - flightCount;
 
   const availableTickets = useMemo(() => {
     return [...tickets].sort((left, right) => {
@@ -748,6 +982,224 @@ export function JourneysPage({
   const normalizedJourneyCostCurrency = journeyDraft.costCurrency.trim().toUpperCase();
   const showJourneyExchangeRateField =
     normalizedJourneyCostCurrency.length > 0 && normalizedJourneyCostCurrency !== "CNY";
+
+  const summaryBase = useMemo<JourneySummaryBase>(() => {
+    const travelDayEntries = new Map<
+      string,
+      Array<{ journeyId: string; title: string; rangeLabel: string; dayLabel: string }>
+    >();
+    const allYears = new Set<string>([currentSummaryYear]);
+    const journeysByYear = new Map<string, Set<string>>();
+    const travelDaysByMonth = new Map<string, Set<string>>();
+    const destinationMap = new Map<string, { label: string; journeyIds: Set<string>; travelDays: Set<string> }>();
+    const companionMap = new Map<string, { label: string; journeyIds: Set<string> }>();
+    const costByCurrencyMap = new Map<string, { totalAmount: number; journeyCount: number }>();
+    let journeysWithoutCost = 0;
+    let missingExchangeRateCount = 0;
+    let longestJourney: JourneySummaryLongestJourney | null = null;
+    let highestCostJourney: JourneySummaryHighestCostJourney | null = null;
+
+    journeys.forEach((journey) => {
+      const journeyDateKeys = enumerateJourneyDateKeys(journey);
+      const rangeLabel = formatJourneyDateRangeCompact(journey);
+
+      if (journeyDateKeys.length > 0) {
+        if (
+          !longestJourney ||
+          journeyDateKeys.length > longestJourney.durationDays ||
+          (journeyDateKeys.length === longestJourney.durationDays && rangeLabel > longestJourney.rangeLabel)
+        ) {
+          longestJourney = {
+            title: journey.title,
+            durationDays: journeyDateKeys.length,
+            rangeLabel,
+          };
+        }
+      }
+
+      if (journeyDateKeys.length > 0) {
+        journeyDateKeys.forEach((dateKey) => {
+          const entries = travelDayEntries.get(dateKey) ?? [];
+          entries.push({
+            journeyId: journey.id,
+            title: journey.title,
+            rangeLabel,
+            dayLabel: describeJourneyDay(journey, dateKey),
+          });
+          travelDayEntries.set(dateKey, entries);
+
+          const year = dateKey.slice(0, 4);
+          allYears.add(year);
+          const yearJourneys = journeysByYear.get(year) ?? new Set<string>();
+          yearJourneys.add(journey.id);
+          journeysByYear.set(year, yearJourneys);
+
+          const monthKey = dateKey.slice(0, 7);
+          const monthDays = travelDaysByMonth.get(monthKey) ?? new Set<string>();
+          monthDays.add(dateKey);
+          travelDaysByMonth.set(monthKey, monthDays);
+        });
+      }
+
+      const destinationLabel = journey.destination?.trim() || "No destination";
+      const destinationKey = destinationLabel.toLowerCase();
+      const destinationStat =
+        destinationMap.get(destinationKey) ??
+        {
+          label: destinationLabel,
+          journeyIds: new Set<string>(),
+          travelDays: new Set<string>(),
+        };
+      destinationStat.journeyIds.add(journey.id);
+      journeyDateKeys.forEach((dateKey) => destinationStat.travelDays.add(dateKey));
+      destinationMap.set(destinationKey, destinationStat);
+
+      const uniqueCompanions = new Map<string, string>();
+      journey.companions.forEach((companion) => {
+        const label = companion.name.trim();
+        if (!label) {
+          return;
+        }
+        uniqueCompanions.set(label.toLowerCase(), label);
+      });
+      uniqueCompanions.forEach((label, companionKey) => {
+        const companionStat =
+          companionMap.get(companionKey) ??
+          {
+            label,
+            journeyIds: new Set<string>(),
+          };
+        companionStat.journeyIds.add(journey.id);
+        companionMap.set(companionKey, companionStat);
+      });
+
+      if (typeof journey.costAmount === "number" && Number.isFinite(journey.costAmount)) {
+        const costCurrency = journey.costCurrency?.trim().toUpperCase();
+        if (costCurrency) {
+          const currencyStat = costByCurrencyMap.get(costCurrency) ?? { totalAmount: 0, journeyCount: 0 };
+          currencyStat.totalAmount += journey.costAmount;
+          currencyStat.journeyCount += 1;
+          costByCurrencyMap.set(costCurrency, currencyStat);
+        }
+
+        const exchangeRate = journey.costExchangeRateToCny;
+        if (costCurrency === "CNY") {
+          const convertedCny = journey.costAmount;
+          if (!highestCostJourney || convertedCny > highestCostJourney.convertedCny) {
+            highestCostJourney = {
+              title: journey.title,
+              amountLabel: formatJourneyCost(journey) ?? formatCurrencyAmount(journey.costAmount),
+              convertedCny,
+              convertedLabel: formatCurrencyAmount(convertedCny),
+            };
+          }
+        } else if (costCurrency && typeof exchangeRate === "number" && Number.isFinite(exchangeRate) && exchangeRate > 0) {
+          const convertedCny = journey.costAmount * exchangeRate;
+          if (!highestCostJourney || convertedCny > highestCostJourney.convertedCny) {
+            highestCostJourney = {
+              title: journey.title,
+              amountLabel: formatJourneyCost(journey) ?? `${costCurrency} ${formatCurrencyAmount(journey.costAmount)}`,
+              convertedCny,
+              convertedLabel: formatCurrencyAmount(convertedCny),
+            };
+          }
+        } else if (costCurrency && costCurrency !== "CNY") {
+          missingExchangeRateCount += 1;
+        }
+      } else {
+        journeysWithoutCost += 1;
+      }
+    });
+
+    const topDestinations = [...destinationMap.values()]
+      .map<JourneySummaryDestinationStat>((value) => ({
+        label: value.label,
+        journeyCount: value.journeyIds.size,
+        dedupedTravelDays: value.travelDays.size,
+      }))
+      .sort((left, right) => {
+        if (right.journeyCount !== left.journeyCount) {
+          return right.journeyCount - left.journeyCount;
+        }
+        if (right.dedupedTravelDays !== left.dedupedTravelDays) {
+          return right.dedupedTravelDays - left.dedupedTravelDays;
+        }
+        return left.label.localeCompare(right.label);
+      });
+
+    const topCompanions = [...companionMap.values()]
+      .map<JourneySummaryCompanionStat>((value) => ({
+        label: value.label,
+        journeyCount: value.journeyIds.size,
+      }))
+      .sort((left, right) => {
+        if (right.journeyCount !== left.journeyCount) {
+          return right.journeyCount - left.journeyCount;
+        }
+        return left.label.localeCompare(right.label);
+      })
+      .slice(0, 5);
+
+    const costByCurrency = [...costByCurrencyMap.entries()]
+      .map<JourneySummaryCurrencyStat>(([currency, value]) => ({
+        currency,
+        totalAmount: value.totalAmount,
+        journeyCount: value.journeyCount,
+      }))
+      .sort((left, right) => {
+        if (right.totalAmount !== left.totalAmount) {
+          return right.totalAmount - left.totalAmount;
+        }
+        return left.currency.localeCompare(right.currency);
+      });
+
+    const busiestMonth: JourneySummaryBusiestMonth | null =
+      [...travelDaysByMonth.entries()]
+      .map(([monthKey, dates]) => ({ monthKey, dedupedTravelDays: dates.size }))
+      .sort((left, right) => {
+        if (right.dedupedTravelDays !== left.dedupedTravelDays) {
+          return right.dedupedTravelDays - left.dedupedTravelDays;
+        }
+        return right.monthKey.localeCompare(left.monthKey);
+      })[0] ?? null;
+
+    const availableYears = [...allYears].sort((left, right) => right.localeCompare(left));
+
+    return {
+      travelDayEntries,
+      allTravelDays: travelDayEntries.size,
+      availableYears,
+      journeysByYear,
+      topDestinations,
+      topCompanions,
+      costByCurrency,
+      journeysWithoutCost,
+      missingExchangeRateCount,
+      longestJourney,
+      busiestMonth,
+      highestCostJourney,
+    };
+  }, [currentSummaryYear, journeys]);
+
+  const summaryCalendar = useMemo<JourneySummaryCalendar>(() => {
+    const selectedYearJourneys = summaryBase.journeysByYear.get(summaryYear)?.size ?? 0;
+    const selectedYearEntries = new Map<
+      string,
+      Array<{ journeyId: string; title: string; rangeLabel: string; dayLabel: string }>
+    >();
+
+    summaryBase.travelDayEntries.forEach((entries, dateKey) => {
+      if (dateKey.startsWith(`${summaryYear}-`)) {
+        selectedYearEntries.set(dateKey, entries);
+      }
+    });
+
+    return {
+      selectedYearJourneys,
+      selectedYearTravelDays: selectedYearEntries.size,
+      weeks: buildJourneySummaryCalendarWeeks(Number.parseInt(summaryYear, 10), selectedYearEntries),
+    };
+  }, [summaryBase, summaryYear]);
 
   const loadStoredJourneys = async () => {
     setJourneysLoading(true);
@@ -804,12 +1256,12 @@ export function JourneysPage({
   };
 
   useEffect(() => {
-    if (subview !== "list" || journeysLoaded || journeysLoading) {
+    if (journeysLoaded || journeysLoading) {
       return;
     }
 
     void loadStoredJourneys();
-  }, [journeysLoaded, journeysLoading, subview]);
+  }, [journeysLoaded, journeysLoading]);
 
   useEffect(() => {
     if (activeJourneyId && activeJourneyId !== selectedJourneyId) {
@@ -857,6 +1309,14 @@ export function JourneysPage({
     });
     setJourneyExchangeRateError("");
   }, [showJourneyExchangeRateField]);
+
+  useEffect(() => {
+    if (summaryBase.availableYears.includes(summaryYear)) {
+      return;
+    }
+
+    setSummaryYear(summaryBase.availableYears[0] ?? currentSummaryYear);
+  }, [currentSummaryYear, summaryBase.availableYears, summaryYear]);
 
   const handleRetryJourneys = async () => {
     setJourneysLoaded(false);
@@ -1051,92 +1511,269 @@ export function JourneysPage({
   };
 
   const summaryView = (
-    <section className="section-stack">
-      <div className="journeys-hero-grid">
-        <div className="panel journeys-callout">
-          <div>
-            <span className="ticket-kind">Journey workspace</span>
-            <h3>Travel records will live here.</h3>
-          </div>
-          <p className="hero-copy">
-            Journeys are manually created trip collections. Use the List view to select existing tickets
-            and group them into one travel record.
-          </p>
+    <section className="section-stack journey-summary-view">
+      <div className="journey-summary-header-row">
+        <div>
+          <span className="ticket-kind">Journey recap</span>
+          <h3>Travel summaries</h3>
         </div>
-
-        <div className="journeys-summary-grid">
-          <div className="stat-card">
-            <span className="stat-value">{journeysLoaded ? journeys.length : "--"}</span>
-            <span className="stat-label">Journeys created</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-value">{tickets.length}</span>
-            <span className="stat-label">Tickets available to organize</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-value">{flightCount}</span>
-            <span className="stat-label">Flight tickets</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-value">{railCount}</span>
-            <span className="stat-label">Rail tickets</span>
-          </div>
+        <div className="journey-summary-top-totals" aria-label="All-time journey totals">
+          <span>
+            <strong>{journeysLoaded ? formatSummaryNumber(journeys.length) : "--"}</strong>
+            journeys
+          </span>
+          <span>
+            <strong>{journeysLoaded ? formatSummaryNumber(summaryBase.allTravelDays) : "--"}</strong>
+            travel days
+          </span>
         </div>
       </div>
 
-      <div className="content-grid journeys-phase-grid">
-        <div className="panel-stack">
-          <div className="panel">
-            <h3>Journey list is now backed by stored data</h3>
-            <p className="hero-copy">
-              Use the List subview to inspect real Journey rows, date filters, compact trip cards, and
-              the Create journey modal.
-            </p>
-          </div>
+      {journeysLoading ? (
+        <div className="panel journey-summary-empty-panel">
+          <h3>Loading journey statistics...</h3>
+          <p className="hero-copy">Stored journeys are being loaded for the Summary dashboard.</p>
+        </div>
+      ) : journeysError ? (
+        <div className="panel journey-summary-empty-panel">
+          <h3>Journey statistics could not be loaded</h3>
+          <p className="hero-copy">{journeysError}</p>
+        </div>
+      ) : journeys.length === 0 ? (
+        <div className="panel journey-summary-empty-panel">
+          <h3>No journey statistics yet</h3>
+          <p className="hero-copy">Create journeys from the List tab to unlock travel summaries.</p>
+        </div>
+      ) : (
+        <>
+          <div className="panel journey-summary-calendar-card">
+            <div className="journey-summary-calendar-header">
+              <div>
+                <h3>Travel calendar</h3>
+                <p className="hero-copy">
+                  Monday-first year grid showing deduped travel days across all stored journeys.
+                </p>
+              </div>
+              <div className="journey-summary-calendar-controls">
+                <div className="journey-summary-calendar-meta">
+                  <span>{formatCountLabel(summaryCalendar.selectedYearJourneys, "journey")}</span>
+                  <span>{formatCountLabel(summaryCalendar.selectedYearTravelDays, "travel day")}</span>
+                </div>
+                <label className="journeys-inline-filter journey-summary-year-filter">
+                  <span>Year</span>
+                  <select value={summaryYear} onChange={(event) => setSummaryYear(event.target.value)}>
+                    {summaryBase.availableYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
 
-          <div className="panel">
-            <h3>Summary still stays lightweight for now</h3>
-            <div className="journeys-placeholder-list">
-              <div className="journeys-placeholder-item">
-                <strong>Journey totals</strong>
-                <span>Stored Journey count is available; richer trip statistics will come later.</span>
+            <div className="journey-summary-calendar-shell">
+              <div className="journey-summary-month-row" aria-hidden="true">
+                {summaryCalendar.weeks.map((week) => (
+                  <span key={`${week.key}-month`}>{week.monthLabel}</span>
+                ))}
               </div>
-              <div className="journeys-placeholder-item">
-                <strong>Companion statistics</strong>
-                <span>Detailed companion summaries stay with a later Journey Summary phase.</span>
-              </div>
-              <div className="journeys-placeholder-item">
-                <strong>Journey map</strong>
-                <span>Trip-level route visuals remain a separate future task.</span>
+              <div className="journey-summary-calendar-grid">
+                <div className="journey-summary-weekday-column" aria-hidden="true">
+                  <span>Mon</span>
+                  <span />
+                  <span>Wed</span>
+                  <span />
+                  <span>Fri</span>
+                  <span />
+                  <span>Sun</span>
+                </div>
+                <div className="journey-summary-week-columns" role="img" aria-label={`Travel calendar for ${summaryYear}`}>
+                  {summaryCalendar.weeks.map((week) => (
+                    <div key={week.key} className="journey-summary-week-column">
+                      {week.days.map((day) => {
+                        const tooltip = day.dateKey ? buildJourneySummaryTooltip(day.dateKey, day.entries) : undefined;
+                        const isTravel = day.entries.length > 0;
+                        return (
+                          <button
+                            key={day.key}
+                            type="button"
+                            className={[
+                              "journey-summary-day",
+                              day.isCurrentYear ? "" : "is-outside-year",
+                              isTravel ? "is-travel" : "",
+                              day.overlapCount > 1 ? "is-overlap" : "",
+                              day.isToday ? "is-today" : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                            style={day.monthIndex === null ? undefined : getJourneySummaryMonthColor(day.monthIndex)}
+                            title={tooltip}
+                            aria-label={tooltip}
+                            tabIndex={isTravel ? 0 : -1}
+                          >
+                            <span className="sr-only">{day.dayNumber}</span>
+                            {day.overlapCount > 1 ? <span className="journey-summary-day-marker" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="panel-stack">
-          <div className="panel">
-            <h3>Archive context</h3>
-            <div className="journeys-archive-meta">
-              <div className="journeys-archive-meta-item">
-                <span>Tickets ready to group</span>
-                <strong>{tickets.length}</strong>
+          <div className="journey-summary-modules">
+            <div className="panel journey-summary-panel">
+              <h3>Travel highlights</h3>
+              <div className="journey-summary-highlight-grid">
+                <div className="journey-summary-highlight-item">
+                  <span className="ticket-kind">Longest journey</span>
+                  <strong>
+                    {summaryBase.longestJourney
+                      ? `${summaryBase.longestJourney.title} · ${formatCountLabel(summaryBase.longestJourney.durationDays, "day")}`
+                      : "No dated journeys yet"}
+                  </strong>
+                  {summaryBase.longestJourney ? (
+                    <span className="journey-summary-item-note">{summaryBase.longestJourney.rangeLabel}</span>
+                  ) : null}
+                </div>
+                <div className="journey-summary-highlight-item">
+                  <span className="ticket-kind">Busiest month</span>
+                  <strong>
+                    {summaryBase.busiestMonth
+                      ? `${formatMonthYearLabel(summaryBase.busiestMonth.monthKey)} · ${formatCountLabel(summaryBase.busiestMonth.dedupedTravelDays, "day")}`
+                      : "No travel month yet"}
+                  </strong>
+                </div>
+                <div className="journey-summary-highlight-item">
+                  <span className="ticket-kind">Highest recorded cost</span>
+                  <strong>
+                    {summaryBase.highestCostJourney
+                      ? `${summaryBase.highestCostJourney.title} · ${summaryBase.highestCostJourney.amountLabel}`
+                      : "No comparable cost yet"}
+                  </strong>
+                  {summaryBase.highestCostJourney ? (
+                    <span className="journey-summary-item-note">
+                      Approx. CNY {summaryBase.highestCostJourney.convertedLabel}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="journey-summary-highlight-item">
+                  <span className="ticket-kind">Most visited destination</span>
+                  <strong>
+                    {summaryBase.topDestinations[0]
+                      ? `${summaryBase.topDestinations[0].label} · ${formatCountLabel(summaryBase.topDestinations[0].journeyCount, "journey")}`
+                      : "No destination data yet"}
+                  </strong>
+                  {summaryBase.topDestinations[0] ? (
+                    <span className="journey-summary-item-note">
+                      {formatCountLabel(summaryBase.topDestinations[0].dedupedTravelDays, "deduped day", "deduped days")}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <div className="journeys-archive-meta-item">
-                <span>Archive date range</span>
-                <strong>
-                  {archiveRange
-                    ? `${archiveRange.start} -> ${archiveRange.end}`
-                    : "No ticket dates available yet"}
-                </strong>
-              </div>
-              <div className="journeys-archive-meta-item">
-                <span>Default year filter</span>
-                <strong>All years</strong>
-              </div>
+              {summaryBase.missingExchangeRateCount > 0 ? (
+                <p className="journey-summary-warning">
+                  {formatCountLabel(summaryBase.missingExchangeRateCount, "non-CNY journey", "non-CNY journeys")} without
+                  exchange rates {summaryBase.missingExchangeRateCount === 1 ? "is" : "are"} excluded from cost comparison.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="panel journey-summary-panel">
+              <h3>Top destinations</h3>
+              {summaryBase.topDestinations.length > 0 ? (
+                <div className="journey-summary-list">
+                  {summaryBase.topDestinations.slice(0, 6).map((destination) => (
+                    <div key={destination.label} className="journey-summary-list-row">
+                      <div>
+                        <strong>{destination.label}</strong>
+                        <div className="journey-summary-list-meta">
+                          {formatCountLabel(destination.journeyCount, "journey")}
+                        </div>
+                      </div>
+                      <span className="journey-summary-list-value">
+                        {formatCountLabel(destination.dedupedTravelDays, "day")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="hero-copy">No destination data recorded yet.</p>
+              )}
+            </div>
+
+            <div className="panel journey-summary-panel">
+              <h3>Top companions</h3>
+              {summaryBase.topCompanions.length > 0 ? (
+                <div className="journey-summary-podium">
+                  {summaryBase.topCompanions[0] ? (
+                    <div className="journey-summary-podium-first">
+                      <span className="ticket-kind">1st</span>
+                      <strong>{summaryBase.topCompanions[0].label}</strong>
+                      <span className="journey-summary-item-note">
+                        {formatCountLabel(summaryBase.topCompanions[0].journeyCount, "journey")}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="journey-summary-podium-next">
+                    {summaryBase.topCompanions.slice(1, 3).map((companion, index) => (
+                      <div key={companion.label} className="journey-summary-podium-card">
+                        <span className="ticket-kind">{index === 0 ? "2nd" : "3rd"}</span>
+                        <strong>{companion.label}</strong>
+                        <span className="journey-summary-item-note">
+                          {formatCountLabel(companion.journeyCount, "journey")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="journey-summary-podium-rest">
+                    {summaryBase.topCompanions.slice(3, 5).map((companion, index) => (
+                      <div key={companion.label} className="journey-summary-podium-rest-row">
+                        <span className="journey-summary-podium-rank">{index === 0 ? "4th" : "5th"}</span>
+                        <strong>{companion.label}</strong>
+                        <span className="journey-summary-item-note">
+                          {formatCountLabel(companion.journeyCount, "journey")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="hero-copy">No companions recorded yet.</p>
+              )}
+            </div>
+
+            <div className="panel journey-summary-panel">
+              <h3>Cost by currency</h3>
+              {summaryBase.costByCurrency.length > 0 ? (
+                <div className="journey-summary-list">
+                  {summaryBase.costByCurrency.map((item) => (
+                    <div key={item.currency} className="journey-summary-list-row">
+                      <div>
+                        <strong>{item.currency}</strong>
+                        <div className="journey-summary-list-meta">
+                          {formatCountLabel(item.journeyCount, "journey")}
+                        </div>
+                      </div>
+                      <span className="journey-summary-list-value">
+                        {item.currency} {formatCurrencyAmount(item.totalAmount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="hero-copy">No journey costs recorded yet.</p>
+              )}
+              <p className="journey-summary-item-note">
+                {formatCountLabel(summaryBase.journeysWithoutCost, "journey")} without recorded cost.
+              </p>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </section>
   );
 
@@ -1290,7 +1927,7 @@ export function JourneysPage({
             onClick={closeJourneyModal}
             type="button"
           >
-            ×
+            脳
           </button>
         </div>
 
@@ -1507,8 +2144,7 @@ export function JourneysPage({
                         }
                         type="button"
                       >
-                        ★
-                      </button>
+                        ★                      </button>
                     ))}
                     {journeyDraft.rating ? (
                       <button

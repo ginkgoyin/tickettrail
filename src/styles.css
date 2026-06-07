@@ -16,10 +16,39 @@
   --accent: #70d4ff;
   --accent-warm: #ffb15a;
   --text-soft: #9db4c0;
+  --journey-month-1-rgb: 172, 127, 131;
+  --journey-month-2-rgb: 179, 139, 103;
+  --journey-month-3-rgb: 171, 151, 98;
+  --journey-month-4-rgb: 134, 157, 108;
+  --journey-month-5-rgb: 107, 159, 128;
+  --journey-month-6-rgb: 95, 153, 149;
+  --journey-month-7-rgb: 99, 143, 171;
+  --journey-month-8-rgb: 120, 131, 181;
+  --journey-month-9-rgb: 145, 123, 177;
+  --journey-month-10-rgb: 168, 119, 158;
+  --journey-month-11-rgb: 178, 124, 136;
+  --journey-month-12-rgb: 182, 138, 112;
 }
 
 * {
   box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --journey-month-1-rgb: 191, 153, 157;
+    --journey-month-2-rgb: 195, 165, 130;
+    --journey-month-3-rgb: 190, 175, 123;
+    --journey-month-4-rgb: 154, 178, 134;
+    --journey-month-5-rgb: 132, 181, 148;
+    --journey-month-6-rgb: 121, 173, 170;
+    --journey-month-7-rgb: 124, 162, 187;
+    --journey-month-8-rgb: 142, 150, 192;
+    --journey-month-9-rgb: 161, 144, 191;
+    --journey-month-10-rgb: 184, 142, 177;
+    --journey-month-11-rgb: 191, 148, 158;
+    --journey-month-12-rgb: 194, 160, 134;
+  }
 }
 
 body {
@@ -351,6 +380,278 @@ html {
   background: rgba(8, 18, 28, 0.92);
   color: var(--text-main);
   padding: 10px 12px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.journey-summary-view,
+.journey-summary-calendar-card,
+.journey-summary-panel,
+.journey-summary-highlight-grid,
+.journey-summary-list,
+.journey-summary-podium,
+.journey-summary-calendar-shell,
+.journey-summary-week-column,
+.journey-summary-podium-rest {
+  display: grid;
+  gap: 16px;
+}
+
+.journey-summary-header-row,
+.journey-summary-calendar-header,
+.journey-summary-calendar-controls,
+.journey-summary-top-totals,
+.journey-summary-calendar-meta,
+.journey-summary-list-row,
+.journey-summary-podium-rest-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.journey-summary-header-row,
+.journey-summary-calendar-header,
+.journey-summary-list-row,
+.journey-summary-podium-rest-row {
+  justify-content: space-between;
+}
+
+.journey-summary-header-row,
+.journey-summary-list-row,
+.journey-summary-podium-rest-row {
+  align-items: center;
+}
+
+.journey-summary-top-totals {
+  justify-content: flex-end;
+  align-items: baseline;
+  color: var(--text-soft);
+  font-size: 0.94rem;
+}
+
+.journey-summary-top-totals strong {
+  color: #eef3f6;
+  font-size: 1.3rem;
+  margin-right: 8px;
+}
+
+.journey-summary-empty-panel {
+  min-height: 220px;
+  place-content: center;
+}
+
+.journey-summary-calendar-header {
+  align-items: flex-start;
+}
+
+.journey-summary-calendar-controls {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.journey-summary-calendar-meta {
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+
+.journey-summary-year-filter {
+  margin-left: auto;
+}
+
+.journey-summary-month-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-left: 34px;
+}
+
+.journey-summary-month-row span,
+.journey-summary-weekday-column span {
+  min-height: 16px;
+  color: var(--text-soft);
+  font-size: 0.72rem;
+}
+
+.journey-summary-calendar-grid {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.journey-summary-weekday-column {
+  display: grid;
+  grid-template-rows: repeat(7, 16px);
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.journey-summary-week-columns {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.journey-summary-week-column {
+  grid-template-rows: repeat(7, 16px);
+  gap: 6px;
+}
+
+.journey-summary-day {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(var(--journey-summary-month-rgb, 112, 212, 255), 0.18);
+  appearance: none;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.journey-summary-day.is-travel {
+  background: rgba(var(--journey-summary-month-rgb, 112, 212, 255), 0.72);
+  border-color: rgba(var(--journey-summary-month-rgb, 112, 212, 255), 0.94);
+}
+
+.journey-summary-day.is-overlap {
+  background: rgba(var(--journey-summary-month-rgb, 112, 212, 255), 0.92);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+
+.journey-summary-day.is-outside-year {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.journey-summary-day.is-today {
+  outline: 1px solid rgba(255, 255, 255, 0.82);
+  outline-offset: 2px;
+}
+
+.journey-summary-day:hover,
+.journey-summary-day:focus-visible {
+  transform: translateY(-1px);
+}
+
+.journey-summary-day:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(112, 212, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.journey-summary-day-marker {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.journey-summary-modules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.journey-summary-panel {
+  align-content: start;
+}
+
+.journey-summary-highlight-item {
+  display: grid;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.journey-summary-highlight-item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.journey-summary-item-note,
+.journey-summary-list-meta,
+.journey-summary-podium-rank {
+  color: var(--text-soft);
+  font-size: 0.84rem;
+}
+
+.journey-summary-list-row {
+  align-items: flex-start;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.journey-summary-list-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.journey-summary-list-value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.journey-summary-warning {
+  margin: 0;
+  color: #ffd79e;
+  font-size: 0.84rem;
+}
+
+.journey-summary-podium-first,
+.journey-summary-podium-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.journey-summary-podium-first {
+  justify-items: center;
+  text-align: center;
+}
+
+.journey-summary-podium-next {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.journey-summary-podium-card {
+  align-content: start;
+}
+
+.journey-summary-podium-rest-row {
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.journey-summary-podium-rest-row:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .journeys-list-grid {
@@ -2634,6 +2935,7 @@ textarea {
   .content-grid,
   .journeys-hero-grid,
   .journeys-phase-grid,
+  .journey-summary-modules,
   .journey-detail-hero-grid,
   .journey-detail-content-grid,
   .journey-detail-stat-grid,
@@ -2697,6 +2999,7 @@ textarea {
   .detail-facts-grid,
   .hero-stats,
   .journeys-summary-grid,
+  .journey-summary-podium-next,
   .analytics-summary-grid,
   .analytics-grid,
   .scope-grid,
@@ -2718,6 +3021,32 @@ textarea {
 
   .ticket-row {
     grid-template-columns: 1fr;
+  }
+
+  .journey-summary-header-row,
+  .journey-summary-calendar-controls,
+  .journey-summary-calendar-header,
+  .journey-summary-top-totals,
+  .journey-summary-list-row,
+  .journey-summary-podium-rest-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .journey-summary-month-row {
+    margin-left: 0;
+  }
+
+  .journey-summary-calendar-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .journey-summary-weekday-column {
+    display: none;
+  }
+
+  .journey-summary-year-filter {
+    margin-left: 0;
   }
 
   .ticket-row-side {
