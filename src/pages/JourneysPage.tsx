@@ -2196,7 +2196,7 @@ export function JourneysPage({
                         }
                         type="button"
                       >
-                        *
+                        ★
                       </button>
                     ))}
                     {journeyDraft.rating ? (
