@@ -1556,7 +1556,7 @@ export function JourneysPage({
     }
   };
 
-    const summaryView = (
+  const summaryView = (
     <section className="section-stack journey-summary-view">
       <div className="journey-summary-strip" aria-label="All-time summary totals">
         <span className="journey-summary-strip-label">ALL-TIME SUMMARY</span>
@@ -1612,11 +1612,12 @@ export function JourneysPage({
               </div>
             </div>
 
-            <div
-              className="journey-summary-calendar-shell"
-              style={{ "--journey-summary-week-count": String(summaryCalendar.weeks.length) } as CSSProperties}
-            >
-              <div className="journey-summary-month-row" aria-hidden="true">
+            <div className="journey-summary-calendar-shell">
+              <div
+                className="journey-summary-month-row"
+                aria-hidden="true"
+                style={{ "--journey-summary-week-count": String(summaryCalendar.weeks.length) } as CSSProperties}
+              >
                 {summaryCalendar.weeks.map((week) => (
                   <span key={`${week.key}-month`}>{week.monthLabel}</span>
                 ))}
@@ -1635,6 +1636,7 @@ export function JourneysPage({
                   className="journey-summary-week-columns"
                   role="img"
                   aria-label={`Travel calendar for ${summaryYear}`}
+                  style={{ "--journey-summary-week-count": String(summaryCalendar.weeks.length) } as CSSProperties}
                 >
                   {summaryCalendar.weeks.map((week) => (
                     <div key={week.key} className="journey-summary-week-column">
