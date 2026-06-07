@@ -551,7 +551,27 @@
 
 - `JOURNEY-DETAIL-001`
   - Implement Journey Detail with trip summary, linked tickets, route summary, companions, notes, and a mini calendar.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Journey List cards now open a read-only Journey Detail view.
+    - Detail loads the selected Journey through the existing Journey service boundary.
+    - Edit and Delete controls remain disabled placeholders for future scoped tasks.
+  - Priority: `High`
+
+- `JOURNEY-DETAIL-002`
+  - Linked ticket rows in Journey Detail open the existing Ticket Detail flow.
+  - Status: `Implemented / needs manual verification`
+  - Note: `JOURNEY-NAV-001` fixes the Back return context from Ticket Detail to Journey Detail.
+  - Priority: `High`
+
+- `JOURNEY-DETAIL-003`
+  - Hide the outer Journeys page title/header while viewing Journey Detail.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `JOURNEY-NAV-001`
+  - Preserve Journey Detail return context when opening Ticket Detail from a linked ticket.
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `JOURNEY-EDIT-001`

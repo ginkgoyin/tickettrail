@@ -12,12 +12,22 @@ type DashboardProps = ComponentProps<typeof Dashboard>;
 type TicketsSubview = "browse" | "detail";
 type TicketTypeTab = TicketListProps["filters"]["ticketType"];
 type TicketComposerTab = "form" | "import";
+type TicketDetailReturnContext =
+  | {
+      from: "journey-detail";
+      journeyId: string;
+    }
+  | null;
 
 interface TicketsPageProps {
   importProps: SmartImportProps;
   formProps: TicketFormProps;
   listProps: TicketListProps;
   dashboardProps: DashboardProps;
+  detailBackContext?: TicketDetailReturnContext;
+  detailOpenRequest?: string;
+  onBackFromDetail?: () => void;
+  onConsumeDetailOpenRequest?: () => void;
 }
 
 function cleanRouteTitleLabel(value: string | undefined) {
@@ -50,6 +60,10 @@ export function TicketsPage({
   formProps,
   listProps,
   dashboardProps,
+  detailBackContext,
+  detailOpenRequest,
+  onBackFromDetail,
+  onConsumeDetailOpenRequest,
 }: TicketsPageProps) {
   const { t } = useI18n();
   const [subview, setSubview] = useState<TicketsSubview>("browse");
@@ -78,6 +92,13 @@ export function TicketsPage({
       setSubview("browse");
     }
   }, [dashboardProps.ticket, subview]);
+
+  useEffect(() => {
+    if (detailOpenRequest && dashboardProps.ticket) {
+      setSubview("detail");
+      onConsumeDetailOpenRequest?.();
+    }
+  }, [dashboardProps.ticket, detailOpenRequest, onConsumeDetailOpenRequest]);
 
   const detailHeader = useMemo(() => {
     if (!dashboardProps.ticket) {
@@ -172,6 +193,15 @@ export function TicketsPage({
     }
   };
 
+  const handleBackFromDetail = () => {
+    if (detailBackContext?.from === "journey-detail") {
+      onBackFromDetail?.();
+      return;
+    }
+
+    setSubview("browse");
+  };
+
   const composerModal = showComposer ? (
     <div className="modal-backdrop" role="presentation">
       <div
@@ -232,7 +262,7 @@ export function TicketsPage({
     return (
       <section className="section-stack tickets-detail-view">
         <div className="tickets-subview-header">
-          <button className="ghost-button compact-button" onClick={() => setSubview("browse")} type="button">
+          <button className="ghost-button compact-button" onClick={handleBackFromDetail} type="button">
             {t("backToList")}
           </button>
           <div className="tickets-detail-title">

@@ -544,6 +544,20 @@ html {
   align-content: start;
 }
 
+.journey-list-card-button {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.journey-list-card-button:hover,
+.journey-list-card-button:focus-visible {
+  border-color: rgba(112, 212, 255, 0.38);
+  background: rgba(112, 212, 255, 0.06);
+  transform: translateY(-1px);
+}
+
 .journey-list-card-top {
   justify-content: space-between;
   align-items: baseline;
@@ -599,6 +613,133 @@ html {
   border: 1px solid rgba(112, 212, 255, 0.18);
   background: rgba(112, 212, 255, 0.08);
   color: #cfefff;
+}
+
+.journey-detail-view {
+  display: grid;
+  gap: 18px;
+}
+
+.journey-detail-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.journey-detail-summary-card,
+.journey-detail-calendar-card,
+.journey-detail-notes-card {
+  align-content: start;
+}
+
+.journey-detail-summary-card {
+  display: grid;
+  gap: 18px;
+}
+
+.journey-detail-summary-card h3 {
+  margin-bottom: 4px;
+  font-size: 1.75rem;
+}
+
+.journey-detail-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.journey-detail-stat {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(112, 212, 255, 0.12);
+  background: rgba(112, 212, 255, 0.05);
+}
+
+.journey-detail-stat span,
+.journey-calendar-weekdays,
+.journey-detail-note-text,
+.journey-detail-route-line {
+  color: var(--text-soft);
+}
+
+.journey-detail-stat strong {
+  font-size: 1rem;
+}
+
+.journey-calendar-months {
+  display: grid;
+  gap: 14px;
+}
+
+.journey-calendar-month {
+  display: grid;
+  gap: 10px;
+}
+
+.journey-calendar-weekdays,
+.journey-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.journey-calendar-weekdays span {
+  text-align: center;
+  font-size: 0.72rem;
+}
+
+.journey-calendar-day {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
+.journey-calendar-day.in-range {
+  border-color: rgba(112, 212, 255, 0.38);
+  background: linear-gradient(135deg, rgba(28, 164, 218, 0.28), rgba(255, 152, 84, 0.22));
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.journey-calendar-day.is-today {
+  outline: 1px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+}
+
+.journey-calendar-day.is-spacer {
+  border-color: transparent;
+  background: transparent;
+}
+
+.journey-detail-content-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+}
+
+.journey-detail-route-line {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(112, 212, 255, 0.12);
+  background: rgba(112, 212, 255, 0.05);
+  line-height: 1.6;
+}
+
+.journey-detail-notes-card {
+  display: grid;
+  gap: 12px;
+}
+
+.journey-detail-note-text {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.65;
 }
 
 .journeys-placeholder-item,
@@ -2449,6 +2590,10 @@ textarea {
   display: none;
 }
 
+.workspace:has(.journey-detail-view) .section-page-header {
+  display: none;
+}
+
 @media (max-width: 1100px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -2467,6 +2612,9 @@ textarea {
   .content-grid,
   .journeys-hero-grid,
   .journeys-phase-grid,
+  .journey-detail-hero-grid,
+  .journey-detail-content-grid,
+  .journey-detail-stat-grid,
   .journey-create-grid,
   .journey-create-inline-grid,
   .hero,

@@ -43,6 +43,13 @@ import type {
   TicketStatus,
 } from "./types/ticket";
 
+type TicketDetailReturnContext =
+  | {
+      from: "journey-detail";
+      journeyId: string;
+    }
+  | null;
+
 const defaultFilters: TicketFilters = {
   query: "",
   ticketType: "all",
@@ -212,6 +219,10 @@ export default function App() {
   const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
   const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>("overview");
+  const [activeJourneyId, setActiveJourneyId] = useState("");
+  const [ticketDetailOpenRequest, setTicketDetailOpenRequest] = useState("");
+  const [ticketDetailReturnContext, setTicketDetailReturnContext] =
+    useState<TicketDetailReturnContext>(null);
   const [language, setLanguage] = useState<Language>(() => {
     try {
       const storedValue = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -498,6 +509,7 @@ export default function App() {
   };
 
   const handleApplyImport = (result: ImportParseResult) => {
+    setTicketDetailReturnContext(null);
     setActiveSection("tickets");
     setEditingId("");
     setImportedDraft(result.draft);
@@ -521,6 +533,37 @@ export default function App() {
         query,
       }));
     });
+  };
+
+  const handleOpenTicketDetail = (
+    ticketId: string,
+    returnContext: TicketDetailReturnContext = null,
+  ) => {
+    setFilters(defaultFilters);
+    setTicketDetailReturnContext(returnContext);
+    setActiveJourneyId(returnContext?.journeyId ?? activeJourneyId);
+    setSelectedId(ticketId);
+    setActiveSection("tickets");
+    setTicketDetailOpenRequest(`${ticketId}:${Date.now()}`);
+  };
+
+  const handleSelectTicketFromList = (ticketId: string) => {
+    setTicketDetailReturnContext(null);
+    setSelectedId(ticketId);
+  };
+
+  const handleJourneyDetailChange = (journeyId: string | null) => {
+    setActiveJourneyId(journeyId ?? "");
+  };
+
+  const handleBackFromTicketDetail = () => {
+    if (ticketDetailReturnContext?.from === "journey-detail") {
+      setActiveSection("journeys");
+      setActiveJourneyId(ticketDetailReturnContext.journeyId);
+      return;
+    }
+
+    setTicketDetailReturnContext(null);
   };
 
   const handleSaveCurrentView = (name: string) => {
@@ -871,6 +914,10 @@ export default function App() {
         ? (
             <TicketsPage
               dashboardProps={{ ...dashboardProps, mode: "tickets" }}
+              detailBackContext={ticketDetailReturnContext}
+              detailOpenRequest={ticketDetailOpenRequest}
+              onBackFromDetail={handleBackFromTicketDetail}
+              onConsumeDetailOpenRequest={() => setTicketDetailOpenRequest("")}
               formProps={{
                 importReview,
                 importedDraft,
@@ -892,7 +939,7 @@ export default function App() {
                 onRenameSavedView: handleRenameSavedView,
                 onResetFilters: () => setFilters(defaultFilters),
                 onSaveCurrentView: handleSaveCurrentView,
-                onSelect: setSelectedId,
+                onSelect: handleSelectTicketFromList,
                 onTogglePinSavedView: handleTogglePinSavedView,
                 onUpdateSavedView: handleUpdateSavedView,
                 onUpdateStatus: handleUpdateStatus,
@@ -904,7 +951,18 @@ export default function App() {
             />
           )
         : activeSection === "journeys"
-          ? <JourneysPage tickets={tickets} />
+          ? (
+              <JourneysPage
+                activeJourneyId={activeJourneyId}
+                onJourneyDetailChange={handleJourneyDetailChange}
+                onOpenTicket={(ticketId, journeyId) =>
+                  handleOpenTicketDetail(ticketId, {
+                    from: "journey-detail",
+                    journeyId,
+                  })}
+                tickets={tickets}
+              />
+            )
           : (
                 <SettingsPage
                   backupPanelProps={{

@@ -766,6 +766,8 @@ Optional visual:
 ### JOURNEY-DETAIL-001
 
 - Implement Journey detail with trip summary, mini calendar, linked tickets, route summary, companions, and notes.
+- Status: Implemented / needs manual verification.
+- Scope note: This checkpoint is read-only; Journey edit/delete, map, and summary statistics remain separate future tasks.
 
 ### JOURNEY-EDIT-001
 

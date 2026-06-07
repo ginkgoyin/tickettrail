@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createJourney, listJourneys } from "../lib/journeyService";
+import { createJourney, getJourney, listJourneys } from "../lib/journeyService";
 import type { CreateJourneyInput, Journey, JourneyDateMode } from "../types/journey";
 import type { TicketLocation, TicketRecord } from "../types/ticket";
 
@@ -8,7 +8,22 @@ type JourneyYearFilter = "all" | `${number}`;
 type JourneyMonthFilter = "all" | `${number}${number}`;
 
 interface JourneysPageProps {
+  activeJourneyId?: string;
+  onJourneyDetailChange?: (journeyId: string | null) => void;
   tickets: TicketRecord[];
+  onOpenTicket?: (ticketId: string, journeyId: string) => void;
+}
+
+interface JourneyCalendarMonth {
+  key: string;
+  label: string;
+  days: Array<{
+    key: string;
+    label: string;
+    inRange: boolean;
+    isToday: boolean;
+    isSpacer: boolean;
+  }>;
 }
 
 interface CreateJourneyDraft {
@@ -304,6 +319,136 @@ function buildTicketCodeSummary(ticket: TicketRecord) {
   return cleanedCodes.join(" / ") || ticket.code || "No code";
 }
 
+function getTicketRouteStops(ticket: TicketRecord) {
+  const segments = ticket.segments ?? [];
+  const stops = segments.length === 0 || !sameTicketLocation(ticket.departure, segments[0].departure)
+    ? [ticket.departure.name, ...segments.map((segment) => segment.departure.name), ticket.arrival.name]
+    : [segments[0].departure.name, ...segments.map((segment) => segment.arrival.name)];
+
+  return stops
+    .map((stop) => stop.trim())
+    .filter(Boolean)
+    .filter((stop, index, values) => stop !== values[index - 1]);
+}
+
+function sortTicketsByTripDate(tickets: TicketRecord[]) {
+  return [...tickets].sort((left, right) => {
+    const leftDate = left.departureTimeLocal || left.arrivalTimeLocal || left.createdAt || "";
+    const rightDate = right.departureTimeLocal || right.arrivalTimeLocal || right.createdAt || "";
+    return leftDate.localeCompare(rightDate) || left.createdAt.localeCompare(right.createdAt);
+  });
+}
+
+function getLinkedTickets(journey: Journey | null, tickets: TicketRecord[]) {
+  if (!journey) {
+    return [];
+  }
+
+  const ticketsById = new Map(tickets.map((ticket) => [ticket.id, ticket]));
+  return journey.ticketIds
+    .map((ticketId) => ticketsById.get(ticketId))
+    .filter((ticket): ticket is TicketRecord => Boolean(ticket));
+}
+
+function buildJourneyRouteSummary(linkedTickets: TicketRecord[]) {
+  const stops = sortTicketsByTripDate(linkedTickets)
+    .flatMap((ticket) => getTicketRouteStops(ticket))
+    .filter((stop, index, values) => stop !== values[index - 1]);
+
+  return stops.length > 0 ? stops.join(" -> ") : "No linked route yet";
+}
+
+function countJourneySegments(linkedTickets: TicketRecord[]) {
+  return linkedTickets.reduce((total, ticket) => {
+    return total + Math.max(ticket.segmentCount || 0, ticket.segments?.length || 0, 1);
+  }, 0);
+}
+
+function summarizeJourneyTransport(linkedTickets: TicketRecord[]) {
+  const flightCount = linkedTickets.filter((ticket) => ticket.ticketType === "flight").length;
+  const railCount = linkedTickets.length - flightCount;
+  const parts = [
+    flightCount ? `${flightCount} flight${flightCount === 1 ? "" : "s"}` : "",
+    railCount ? `${railCount} rail${railCount === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+
+  return parts.join(", ") || "No tickets linked";
+}
+
+function formatTicketDateTime(value: string) {
+  if (!value) {
+    return "--";
+  }
+
+  return value.replace("T", " ").slice(0, 16) || value;
+}
+
+function formatJourneyRating(rating?: number) {
+  if (typeof rating !== "number" || rating <= 0) {
+    return null;
+  }
+
+  return `${rating}/5`;
+}
+
+function buildCalendarMonths(journey: Journey): JourneyCalendarMonth[] {
+  const range = getJourneyRange(journey);
+  if (!range) {
+    return [];
+  }
+
+  const monthStarts = [
+    new Date(range.start.getFullYear(), range.start.getMonth(), 1),
+  ];
+  const endMonthStart = new Date(range.end.getFullYear(), range.end.getMonth(), 1);
+  if (endMonthStart.getTime() !== monthStarts[0].getTime()) {
+    monthStarts.push(endMonthStart);
+  }
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+
+  return monthStarts.slice(0, 2).map((monthStart) => {
+    const year = monthStart.getFullYear();
+    const month = monthStart.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOffset = monthStart.getDay();
+    const days: JourneyCalendarMonth["days"] = [];
+
+    for (let index = 0; index < firstDayOffset; index += 1) {
+      days.push({
+        key: `${year}-${month}-spacer-${index}`,
+        label: "",
+        inRange: false,
+        isToday: false,
+        isSpacer: true,
+      });
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const currentDate = new Date(year, month, day);
+      const dateKey = [
+        String(year),
+        String(month + 1).padStart(2, "0"),
+        String(day).padStart(2, "0"),
+      ].join("-");
+
+      days.push({
+        key: dateKey,
+        label: String(day),
+        inRange: currentDate >= range.start && currentDate <= range.end,
+        isToday: dateKey === todayKey,
+        isSpacer: false,
+      });
+    }
+
+    return {
+      key: `${year}-${month}`,
+      label: monthStart.toLocaleDateString("en-AU", { month: "long", year: "numeric" }),
+      days,
+    };
+  });
+}
+
 function transportIcon(ticketType: TicketRecord["ticketType"]) {
   return ticketType === "flight" ? "✈" : "🚆";
 }
@@ -471,12 +616,21 @@ function buildCreateJourneyInput(draft: CreateJourneyDraft): CreateJourneyInput 
   };
 }
 
-export function JourneysPage({ tickets }: JourneysPageProps) {
+export function JourneysPage({
+  activeJourneyId,
+  onJourneyDetailChange,
+  tickets,
+  onOpenTicket,
+}: JourneysPageProps) {
   const [subview, setSubview] = useState<JourneysSubview>("summary");
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [journeysLoading, setJourneysLoading] = useState(false);
   const [journeysLoaded, setJourneysLoaded] = useState(false);
   const [journeysError, setJourneysError] = useState("");
+  const [selectedJourneyId, setSelectedJourneyId] = useState("");
+  const [journeyDetail, setJourneyDetail] = useState<Journey | null>(null);
+  const [journeyDetailLoading, setJourneyDetailLoading] = useState(false);
+  const [journeyDetailError, setJourneyDetailError] = useState("");
   const [yearFilter, setYearFilter] = useState<JourneyYearFilter>("all");
   const [monthFilter, setMonthFilter] = useState<JourneyMonthFilter>("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -516,6 +670,16 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
     return availableTickets.filter((ticket) => selectedIds.has(ticket.id));
   }, [availableTickets, createDraft.selectedTicketIds]);
 
+  const detailLinkedTickets = useMemo(
+    () => sortTicketsByTripDate(getLinkedTickets(journeyDetail, tickets)),
+    [journeyDetail, tickets],
+  );
+
+  const detailCalendarMonths = useMemo(
+    () => (journeyDetail ? buildCalendarMonths(journeyDetail) : []),
+    [journeyDetail],
+  );
+
   const autoDatePreview = useMemo(() => deriveJourneyDatePreview(selectedTickets), [selectedTickets]);
 
   const loadStoredJourneys = async () => {
@@ -533,6 +697,39 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
     }
   };
 
+  const openJourneyDetail = async (journeyId: string, fallbackToListOnError = false) => {
+    setSelectedJourneyId(journeyId);
+    setJourneyDetail(null);
+    setJourneyDetailError("");
+    setJourneyDetailLoading(true);
+    onJourneyDetailChange?.(journeyId);
+
+    try {
+      const storedJourney = await getJourney(journeyId);
+      setJourneyDetail(storedJourney);
+    } catch (error) {
+      if (fallbackToListOnError) {
+        setSelectedJourneyId("");
+        setJourneyDetail(null);
+        setJourneyDetailError("");
+        setSubview("list");
+        onJourneyDetailChange?.(null);
+      } else {
+        setJourneyDetailError(error instanceof Error ? error.message : "Failed to load journey detail.");
+      }
+    } finally {
+      setJourneyDetailLoading(false);
+    }
+  };
+
+  const closeJourneyDetail = () => {
+    setSelectedJourneyId("");
+    setJourneyDetail(null);
+    setJourneyDetailError("");
+    setJourneyDetailLoading(false);
+    onJourneyDetailChange?.(null);
+  };
+
   useEffect(() => {
     if (subview !== "list" || journeysLoaded || journeysLoading) {
       return;
@@ -540,6 +737,13 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
 
     void loadStoredJourneys();
   }, [journeysLoaded, journeysLoading, subview]);
+
+  useEffect(() => {
+    if (activeJourneyId && activeJourneyId !== selectedJourneyId) {
+      setSubview("list");
+      void openJourneyDetail(activeJourneyId, true);
+    }
+  }, [activeJourneyId, selectedJourneyId]);
 
   useEffect(() => {
     if (costCurrencyTouched || createDraft.costCurrency.trim()) {
@@ -833,7 +1037,12 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
             const companionSummary = summarizeCompanions(journey);
 
             return (
-              <article className="journey-list-card" key={journey.id}>
+              <button
+                className="journey-list-card journey-list-card-button"
+                key={journey.id}
+                onClick={() => void openJourneyDetail(journey.id)}
+                type="button"
+              >
                 <div className="journey-list-card-top">
                   <strong>{journey.title}</strong>
                   <span className="journey-list-card-date">{formatJourneyDateRange(journey)}</span>
@@ -867,13 +1076,223 @@ export function JourneysPage({ tickets }: JourneysPageProps) {
                     <span className="journey-list-meta-chip">{journey.lodging}</span>
                   ) : null}
                 </div>
-              </article>
+              </button>
             );
           })}
         </div>
       ) : null}
     </section>
   );
+
+  if (selectedJourneyId) {
+    const fallbackJourney = journeys.find((journey) => journey.id === selectedJourneyId);
+    const displayedJourney = journeyDetail ?? fallbackJourney ?? null;
+    const routeSummary = buildJourneyRouteSummary(detailLinkedTickets);
+    const ticketCount = displayedJourney?.ticketIds.length ?? detailLinkedTickets.length;
+    const segmentCount = countJourneySegments(detailLinkedTickets);
+    const cost = displayedJourney ? formatJourneyCost(displayedJourney) : null;
+    const rating = displayedJourney ? formatJourneyRating(displayedJourney.rating) : null;
+
+    return (
+      <section className="section-stack journeys-page journey-detail-view">
+        <div className="tickets-subview-header">
+          <button className="ghost-button compact-button" onClick={closeJourneyDetail} type="button">
+            Back to journeys
+          </button>
+          <div className="tickets-detail-title">
+            <h3>{displayedJourney?.title ?? "Journey detail"}</h3>
+            <p>{displayedJourney ? formatJourneyDateRange(displayedJourney) : "Loading journey..."}</p>
+          </div>
+          <div className="tickets-subview-actions">
+            <button className="ghost-button compact-button" disabled title="Future task" type="button">
+              Edit
+            </button>
+            <button className="ghost-button compact-button danger-button" disabled title="Future task" type="button">
+              Delete
+            </button>
+          </div>
+        </div>
+
+        {journeyDetailLoading ? (
+          <div className="panel">
+            <div className="empty-state">Loading journey detail...</div>
+          </div>
+        ) : null}
+
+        {!journeyDetailLoading && journeyDetailError ? (
+          <div className="panel journeys-list-feedback-card">
+            <h3>Failed to load journey detail</h3>
+            <p className="hero-copy">{journeyDetailError}</p>
+            <div className="journeys-feedback-actions">
+              <button className="ghost-button" onClick={() => void openJourneyDetail(selectedJourneyId)} type="button">
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!journeyDetailLoading && displayedJourney && !journeyDetailError ? (
+          <>
+            <div className="journey-detail-hero-grid">
+              <section className="panel journey-detail-summary-card">
+                <div>
+                  <span className="ticket-kind">Journey summary</span>
+                  <h3>{displayedJourney.destination || displayedJourney.title}</h3>
+                  <p className="hero-copy">{formatJourneyDateRange(displayedJourney)}</p>
+                </div>
+
+                <div className="journey-detail-stat-grid">
+                  <div className="journey-detail-stat">
+                    <span>Duration</span>
+                    <strong>{formatJourneyDuration(displayedJourney) ?? "No date yet"}</strong>
+                  </div>
+                  <div className="journey-detail-stat">
+                    <span>Tickets</span>
+                    <strong>{ticketCount}</strong>
+                  </div>
+                  <div className="journey-detail-stat">
+                    <span>Segments</span>
+                    <strong>{segmentCount}</strong>
+                  </div>
+                  <div className="journey-detail-stat">
+                    <span>Transport</span>
+                    <strong>{summarizeJourneyTransport(detailLinkedTickets)}</strong>
+                  </div>
+                </div>
+
+                <div className="journey-list-metadata">
+                  {cost ? <span className="journey-list-meta-chip journey-list-meta-chip-cost">{cost}</span> : null}
+                  {rating ? <span className="journey-list-meta-chip journey-list-meta-chip-rating">{rating}</span> : null}
+                  {displayedJourney.mood ? (
+                    <span className="journey-list-meta-chip journey-list-meta-chip-mood">{displayedJourney.mood}</span>
+                  ) : null}
+                  {displayedJourney.lodging ? (
+                    <span className="journey-list-meta-chip">{displayedJourney.lodging}</span>
+                  ) : null}
+                </div>
+              </section>
+
+              <section className="panel journey-detail-calendar-card">
+                <div className="panel-heading">
+                  <div>
+                    <h3>Mini calendar</h3>
+                  </div>
+                  <span className="status-pill">{formatJourneyDateRange(displayedJourney)}</span>
+                </div>
+
+                {detailCalendarMonths.length === 0 ? (
+                  <div className="empty-state">No date range yet.</div>
+                ) : (
+                  <div className="journey-calendar-months">
+                    {detailCalendarMonths.map((month) => (
+                      <div className="journey-calendar-month" key={month.key}>
+                        <strong>{month.label}</strong>
+                        <div className="journey-calendar-weekdays" aria-hidden="true">
+                          {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+                            <span key={`${month.key}-${day}-${index}`}>{day}</span>
+                          ))}
+                        </div>
+                        <div className="journey-calendar-days">
+                          {month.days.map((day) => (
+                            <span
+                              className={[
+                                "journey-calendar-day",
+                                day.inRange ? "in-range" : "",
+                                day.isToday ? "is-today" : "",
+                                day.isSpacer ? "is-spacer" : "",
+                              ].filter(Boolean).join(" ")}
+                              key={day.key}
+                            >
+                              {day.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className="content-grid journey-detail-content-grid">
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <h3>Linked tickets</h3>
+                  </div>
+                  <span className="status-pill">{detailLinkedTickets.length} available</span>
+                </div>
+
+                <div className="compact-ticket-list">
+                  {detailLinkedTickets.length === 0 ? (
+                    <div className="empty-state">
+                      <strong>No linked tickets yet</strong>
+                      <p>This Journey can still be opened safely without linked tickets.</p>
+                    </div>
+                  ) : (
+                    detailLinkedTickets.map((ticket) => (
+                      <button
+                        className="ticket-row"
+                        key={ticket.id}
+                        onClick={() => onOpenTicket?.(ticket.id, displayedJourney.id)}
+                        type="button"
+                      >
+                        <div aria-hidden="true" className="ticket-row-icon">
+                          {transportIcon(ticket.ticketType)}
+                        </div>
+                        <div className="ticket-row-main">
+                          <div className="ticket-row-top">
+                            <strong>{buildTicketRouteSummary(ticket)}</strong>
+                            <span className="ticket-code">{buildTicketCodeSummary(ticket)}</span>
+                          </div>
+                          <div className="ticket-row-meta">
+                            <span>{formatTicketDateTime(ticket.departureTimeLocal)}</span>
+                            <span>{"->"}</span>
+                            <span>{formatTicketDateTime(ticket.arrivalTimeLocal)}</span>
+                          </div>
+                          <div className="ticket-row-submeta">
+                            <span>{ticket.carrierName || "No carrier"}</span>
+                            <span>
+                              {`${ticket.departure.code || ticket.departure.name} -> ${ticket.arrival.code || ticket.arrival.name}`}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="ticket-row-side">
+                          <span className={`ticket-status ticket-status-${ticket.status}`}>{ticket.status}</span>
+                          <small>{`${ticket.segmentCount} leg${ticket.segmentCount > 1 ? "s" : ""}`}</small>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="panel journey-detail-notes-card">
+                <h3>Route summary</h3>
+                <p className="journey-detail-route-line">{routeSummary}</p>
+
+                <h3>Companions</h3>
+                {displayedJourney.companions.length === 0 ? (
+                  <p className="hero-copy">No companions recorded.</p>
+                ) : (
+                  <div className="journey-list-metadata">
+                    {displayedJourney.companions.map((companion) => (
+                      <span className="journey-list-meta-chip" key={companion.id}>
+                        {companion.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <h3>Notes</h3>
+                <p className="journey-detail-note-text">{displayedJourney.notes || "No notes recorded."}</p>
+              </section>
+            </div>
+          </>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section className="section-stack journeys-page">
