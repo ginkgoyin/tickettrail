@@ -107,6 +107,11 @@ interface JourneySummaryCompanionStat {
   journeyCount: number;
 }
 
+interface JourneySummaryCompanionGroup {
+  journeyCount: number;
+  labels: string[];
+}
+
 interface JourneySummaryCurrencyStat {
   currency: string;
   totalAmount: number;
@@ -141,6 +146,7 @@ interface JourneySummaryBase {
   journeysByYear: Map<string, Set<string>>;
   topDestinations: JourneySummaryDestinationStat[];
   topCompanions: JourneySummaryCompanionStat[];
+  topCompanionGroups: JourneySummaryCompanionGroup[];
   costByCurrency: JourneySummaryCurrencyStat[];
   journeysWithoutCost: number;
   missingExchangeRateCount: number;
@@ -1148,6 +1154,20 @@ export function JourneysPage({
       })
       .slice(0, 5);
 
+    const topCompanionGroups = topCompanions.reduce<JourneySummaryCompanionGroup[]>((groups, companion) => {
+      const existingGroup = groups.find((group) => group.journeyCount === companion.journeyCount);
+      if (existingGroup) {
+        existingGroup.labels.push(companion.label);
+        return groups;
+      }
+
+      groups.push({
+        journeyCount: companion.journeyCount,
+        labels: [companion.label],
+      });
+      return groups;
+    }, []);
+
     const costByCurrency = [...costByCurrencyMap.entries()]
       .map<JourneySummaryCurrencyStat>(([currency, value]) => ({
         currency,
@@ -1180,6 +1200,7 @@ export function JourneysPage({
       journeysByYear,
       topDestinations,
       topCompanions,
+      topCompanionGroups,
       costByCurrency,
       journeysWithoutCost,
       missingExchangeRateCount,
@@ -1572,8 +1593,12 @@ export function JourneysPage({
               </div>
             </div>
 
-            <div className="journey-summary-calendar-shell">
-              <div className="journey-summary-month-row" aria-hidden="true">
+              <div className="journey-summary-calendar-shell">
+              <div
+                className="journey-summary-month-row"
+                aria-hidden="true"
+                style={{ "--journey-summary-week-count": String(summaryCalendar.weeks.length) } as CSSProperties}
+              >
                 {summaryCalendar.weeks.map((week) => (
                   <span key={`${week.key}-month`}>{week.monthLabel}</span>
                 ))}
@@ -1588,7 +1613,12 @@ export function JourneysPage({
                   <span />
                   <span>Sun</span>
                 </div>
-                <div className="journey-summary-week-columns" role="img" aria-label={`Travel calendar for ${summaryYear}`}>
+                <div
+                  className="journey-summary-week-columns"
+                  role="img"
+                  aria-label={`Travel calendar for ${summaryYear}`}
+                  style={{ "--journey-summary-week-count": String(summaryCalendar.weeks.length) } as CSSProperties}
+                >
                   {summaryCalendar.weeks.map((week) => (
                     <div key={week.key} className="journey-summary-week-column">
                       {week.days.map((day) => {
@@ -1707,35 +1737,35 @@ export function JourneysPage({
 
             <div className="panel journey-summary-panel">
               <h3>Top companions</h3>
-              {summaryBase.topCompanions.length > 0 ? (
+              {summaryBase.topCompanionGroups.length > 0 ? (
                 <div className="journey-summary-podium">
-                  {summaryBase.topCompanions[0] ? (
+                  {summaryBase.topCompanionGroups[0] ? (
                     <div className="journey-summary-podium-first">
                       <span className="ticket-kind">1st</span>
-                      <strong>{summaryBase.topCompanions[0].label}</strong>
+                      <strong>{summaryBase.topCompanionGroups[0].labels.join("、")}</strong>
                       <span className="journey-summary-item-note">
-                        {formatCountLabel(summaryBase.topCompanions[0].journeyCount, "journey")}
+                        {formatCountLabel(summaryBase.topCompanionGroups[0].journeyCount, "journey")}
                       </span>
                     </div>
                   ) : null}
                   <div className="journey-summary-podium-next">
-                    {summaryBase.topCompanions.slice(1, 3).map((companion, index) => (
-                      <div key={companion.label} className="journey-summary-podium-card">
+                    {summaryBase.topCompanionGroups.slice(1, 3).map((group, index) => (
+                      <div key={`group-${group.journeyCount}`} className="journey-summary-podium-card">
                         <span className="ticket-kind">{index === 0 ? "2nd" : "3rd"}</span>
-                        <strong>{companion.label}</strong>
+                        <strong>{group.labels.join("、")}</strong>
                         <span className="journey-summary-item-note">
-                          {formatCountLabel(companion.journeyCount, "journey")}
+                          {formatCountLabel(group.journeyCount, "journey")}
                         </span>
                       </div>
                     ))}
                   </div>
                   <div className="journey-summary-podium-rest">
-                    {summaryBase.topCompanions.slice(3, 5).map((companion, index) => (
-                      <div key={companion.label} className="journey-summary-podium-rest-row">
+                    {summaryBase.topCompanionGroups.slice(3, 5).map((group, index) => (
+                      <div key={`rest-group-${group.journeyCount}`} className="journey-summary-podium-rest-row">
                         <span className="journey-summary-podium-rank">{index === 0 ? "4th" : "5th"}</span>
-                        <strong>{companion.label}</strong>
+                        <strong>{group.labels.join("、")}</strong>
                         <span className="journey-summary-item-note">
-                          {formatCountLabel(companion.journeyCount, "journey")}
+                          {formatCountLabel(group.journeyCount, "journey")}
                         </span>
                       </div>
                     ))}
