@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createJourney, deleteJourney, getJourney, listJourneys } from "../lib/journeyService";
+import { createJourney, deleteJourney, getJourney, listJourneys, updateJourney } from "../lib/journeyService";
 import type { CreateJourneyInput, Journey, JourneyDateMode } from "../types/journey";
 import type { TicketLocation, TicketRecord } from "../types/ticket";
 
@@ -46,6 +46,8 @@ interface DerivedJourneyDatePreview {
   startDate?: string;
   endDate?: string;
 }
+
+type JourneyModalMode = "create" | "edit";
 
 const EMPTY_CREATE_JOURNEY_DRAFT: CreateJourneyDraft = {
   title: "",
@@ -616,6 +618,24 @@ function buildCreateJourneyInput(draft: CreateJourneyDraft): CreateJourneyInput 
   };
 }
 
+function buildJourneyDraftFromJourney(journey: Journey): CreateJourneyDraft {
+  return {
+    title: journey.title,
+    destination: journey.destination ?? "",
+    dateMode: journey.dateMode,
+    manualStartDate: journey.startDate ?? "",
+    manualEndDate: journey.endDate ?? "",
+    companionsText: journey.companions.map((companion) => companion.name).join(", "),
+    rating: typeof journey.rating === "number" ? journey.rating : null,
+    mood: journey.mood ?? "",
+    costAmount: typeof journey.costAmount === "number" ? String(journey.costAmount) : "",
+    costCurrency: journey.costCurrency ?? "",
+    lodging: journey.lodging ?? "",
+    notes: journey.notes ?? "",
+    selectedTicketIds: [...journey.ticketIds],
+  };
+}
+
 export function JourneysPage({
   activeJourneyId,
   onJourneyDetailChange,
@@ -633,13 +653,13 @@ export function JourneysPage({
   const [journeyDetailError, setJourneyDetailError] = useState("");
   const [yearFilter, setYearFilter] = useState<JourneyYearFilter>("all");
   const [monthFilter, setMonthFilter] = useState<JourneyMonthFilter>("all");
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createDraft, setCreateDraft] = useState<CreateJourneyDraft>(EMPTY_CREATE_JOURNEY_DRAFT);
-  const [ticketSearch, setTicketSearch] = useState("");
-  const [createSaving, setCreateSaving] = useState(false);
-  const [createError, setCreateError] = useState("");
-  const [titleError, setTitleError] = useState("");
-  const [costCurrencyTouched, setCostCurrencyTouched] = useState(false);
+  const [journeyModalMode, setJourneyModalMode] = useState<JourneyModalMode | null>(null);
+  const [journeyDraft, setJourneyDraft] = useState<CreateJourneyDraft>(EMPTY_CREATE_JOURNEY_DRAFT);
+  const [journeyTicketSearch, setJourneyTicketSearch] = useState("");
+  const [journeySaving, setJourneySaving] = useState(false);
+  const [journeyError, setJourneyError] = useState("");
+  const [journeyTitleError, setJourneyTitleError] = useState("");
+  const [journeyCostCurrencyTouched, setJourneyCostCurrencyTouched] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deletePending, setDeletePending] = useState(false);
@@ -660,18 +680,18 @@ export function JourneysPage({
   }, [tickets]);
 
   const filteredSelectableTickets = useMemo(() => {
-    const normalizedQuery = ticketSearch.trim().toLowerCase();
+    const normalizedQuery = journeyTicketSearch.trim().toLowerCase();
     if (!normalizedQuery) {
       return availableTickets;
     }
 
     return availableTickets.filter((ticket) => buildTicketSearchText(ticket).includes(normalizedQuery));
-  }, [availableTickets, ticketSearch]);
+  }, [availableTickets, journeyTicketSearch]);
 
   const selectedTickets = useMemo(() => {
-    const selectedIds = new Set(createDraft.selectedTicketIds);
+    const selectedIds = new Set(journeyDraft.selectedTicketIds);
     return availableTickets.filter((ticket) => selectedIds.has(ticket.id));
-  }, [availableTickets, createDraft.selectedTicketIds]);
+  }, [availableTickets, journeyDraft.selectedTicketIds]);
 
   const detailLinkedTickets = useMemo(
     () => sortTicketsByTripDate(getLinkedTickets(journeyDetail, tickets)),
@@ -693,8 +713,10 @@ export function JourneysPage({
       const storedJourneys = await listJourneys();
       setJourneys(sortJourneysByStartDate(storedJourneys));
       setJourneysLoaded(true);
+      return true;
     } catch (error) {
       setJourneysError(error instanceof Error ? error.message : "Failed to load journeys.");
+      return false;
     } finally {
       setJourneysLoading(false);
     }
@@ -730,6 +752,7 @@ export function JourneysPage({
     setJourneyDetail(null);
     setJourneyDetailError("");
     setJourneyDetailLoading(false);
+    resetJourneyModalState();
     setIsDeleteDialogOpen(false);
     setDeleteError("");
     setDeletePending(false);
@@ -752,7 +775,7 @@ export function JourneysPage({
   }, [activeJourneyId, selectedJourneyId]);
 
   useEffect(() => {
-    if (costCurrencyTouched || createDraft.costCurrency.trim()) {
+    if (journeyCostCurrencyTouched || journeyDraft.costCurrency.trim()) {
       return;
     }
 
@@ -761,7 +784,7 @@ export function JourneysPage({
       return;
     }
 
-    setCreateDraft((current) => {
+    setJourneyDraft((current) => {
       if (current.costCurrency.trim()) {
         return current;
       }
@@ -771,7 +794,7 @@ export function JourneysPage({
         costCurrency: suggestedCurrency,
       };
     });
-  }, [costCurrencyTouched, createDraft.costCurrency, selectedTickets]);
+  }, [journeyCostCurrencyTouched, journeyDraft.costCurrency, selectedTickets]);
 
   const handleRetryJourneys = async () => {
     setJourneysLoaded(false);
@@ -850,28 +873,42 @@ export function JourneysPage({
   }, [journeys, monthFilter, yearFilter]);
 
   const openCreateJourneyModal = () => {
-    setCreateDraft(EMPTY_CREATE_JOURNEY_DRAFT);
-    setTicketSearch("");
-    setCreateError("");
-    setTitleError("");
-    setCostCurrencyTouched(false);
-    setIsCreateModalOpen(true);
+    setJourneyModalMode("create");
+    setJourneyDraft(EMPTY_CREATE_JOURNEY_DRAFT);
+    setJourneyTicketSearch("");
+    setJourneyError("");
+    setJourneyTitleError("");
+    setJourneyCostCurrencyTouched(false);
   };
 
-  const closeCreateJourneyModal = () => {
-    if (createSaving) {
+  const openEditJourneyModal = (journey: Journey) => {
+    setJourneyModalMode("edit");
+    setJourneyDraft(buildJourneyDraftFromJourney(journey));
+    setJourneyTicketSearch("");
+    setJourneyError("");
+    setJourneyTitleError("");
+    setJourneyCostCurrencyTouched(false);
+  };
+
+  const resetJourneyModalState = () => {
+    setJourneyModalMode(null);
+    setJourneyDraft(EMPTY_CREATE_JOURNEY_DRAFT);
+    setJourneyError("");
+    setJourneyTitleError("");
+    setJourneyTicketSearch("");
+    setJourneyCostCurrencyTouched(false);
+  };
+
+  const closeJourneyModal = () => {
+    if (journeySaving) {
       return;
     }
 
-    setIsCreateModalOpen(false);
-    setCreateError("");
-    setTitleError("");
-    setTicketSearch("");
-    setCostCurrencyTouched(false);
+    resetJourneyModalState();
   };
 
   const toggleSelectedTicket = (ticketId: string) => {
-    setCreateDraft((current) => {
+    setJourneyDraft((current) => {
       const nextSelectedTicketIds = current.selectedTicketIds.includes(ticketId)
         ? current.selectedTicketIds.filter((value) => value !== ticketId)
         : [...current.selectedTicketIds, ticketId];
@@ -883,32 +920,55 @@ export function JourneysPage({
     });
   };
 
-  const handleCreateJourney = async () => {
-    const trimmedTitle = createDraft.title.trim();
+  const handleSaveJourney = async () => {
+    const trimmedTitle = journeyDraft.title.trim();
     if (!trimmedTitle) {
-      setTitleError("Title is required.");
-      setCreateError("");
+      setJourneyTitleError("Title is required.");
+      setJourneyError("");
       return;
     }
 
-    setCreateSaving(true);
-    setCreateError("");
-    setTitleError("");
+    setJourneySaving(true);
+    setJourneyError("");
+    setJourneyTitleError("");
 
     try {
-      await createJourney(buildCreateJourneyInput(createDraft));
-      setYearFilter("all");
-      setMonthFilter("all");
-      setSubview("list");
-      setIsCreateModalOpen(false);
-      setCreateDraft(EMPTY_CREATE_JOURNEY_DRAFT);
-      setTicketSearch("");
-      setCostCurrencyTouched(false);
-      await loadStoredJourneys();
+      if (journeyModalMode === "edit") {
+        if (!selectedJourneyId) {
+          throw new Error("Journey detail is not available to edit.");
+        }
+
+        const updatedJourney = await updateJourney(selectedJourneyId, buildCreateJourneyInput(journeyDraft));
+        setJourneyDetail(updatedJourney);
+        const listReloaded = await loadStoredJourneys();
+        if (!listReloaded) {
+          throw new Error("Journey was updated, but the Journey List could not be refreshed.");
+        }
+        const refreshedJourney = await getJourney(updatedJourney.id);
+        setJourneyDetail(refreshedJourney);
+        setJourneyDetailError("");
+        resetJourneyModalState();
+      } else {
+        await createJourney(buildCreateJourneyInput(journeyDraft));
+        setYearFilter("all");
+        setMonthFilter("all");
+        setSubview("list");
+        const listReloaded = await loadStoredJourneys();
+        if (!listReloaded) {
+          throw new Error("Journey was created, but the Journey List could not be refreshed.");
+        }
+        resetJourneyModalState();
+      }
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "Failed to create journey.");
+      setJourneyError(
+        error instanceof Error
+          ? error.message
+          : journeyModalMode === "edit"
+            ? "Failed to update journey."
+            : "Failed to create journey.",
+      );
     } finally {
-      setCreateSaving(false);
+      setJourneySaving(false);
     }
   };
 
@@ -1126,6 +1186,355 @@ export function JourneysPage({
     </section>
   );
 
+  const journeyModal = journeyModalMode ? (
+    <div className="modal-backdrop" role="presentation">
+      <div
+        aria-labelledby="create-journey-title"
+        aria-modal="true"
+        className="modal-shell tickets-modal journey-create-modal"
+        role="dialog"
+      >
+        <div className="tickets-modal-header">
+          <div>
+            <h3 id="create-journey-title">
+              {journeyModalMode === "edit" ? "Edit journey" : "Create journey"}
+            </h3>
+            <p className="hero-copy">
+              {journeyModalMode === "edit"
+                ? "Update journey details, linked tickets, companions, and notes."
+                : "Group existing tickets into one travel record."}
+            </p>
+          </div>
+          <button
+            aria-label={journeyModalMode === "edit" ? "Close edit journey modal" : "Close create journey modal"}
+            className="modal-close-button"
+            disabled={journeySaving}
+            onClick={closeJourneyModal}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="tickets-modal-body">
+          {journeyError ? (
+            <div className="journey-create-feedback journey-create-feedback-error" role="alert">
+              {journeyError}
+            </div>
+          ) : null}
+
+          <div className="journey-create-grid">
+            <section className="panel journey-create-section journey-create-section-basic">
+              <h3>Basic</h3>
+              <div className="journey-create-fields">
+                <label>
+                  <span>Title *</span>
+                  <input
+                    onBlur={() => {
+                      if (!journeyDraft.title.trim()) {
+                        setJourneyTitleError("Title is required.");
+                      }
+                    }}
+                    onChange={(event) => {
+                      setJourneyDraft((current) => ({ ...current, title: event.target.value }));
+                      if (journeyTitleError) {
+                        setJourneyTitleError("");
+                      }
+                    }}
+                    placeholder="Japan spring trip"
+                    value={journeyDraft.title}
+                  />
+                  {journeyTitleError ? (
+                    <span className="journey-create-field-error">{journeyTitleError}</span>
+                  ) : null}
+                </label>
+
+                <label>
+                  <span>Destination</span>
+                  <input
+                    onChange={(event) =>
+                      setJourneyDraft((current) => ({ ...current, destination: event.target.value }))
+                    }
+                    placeholder="Tokyo"
+                    value={journeyDraft.destination}
+                  />
+                </label>
+
+                <label>
+                  <span>Date mode</span>
+                  <select
+                    onChange={(event) =>
+                      setJourneyDraft((current) => ({
+                        ...current,
+                        dateMode: event.target.value as JourneyDateMode,
+                      }))
+                    }
+                    value={journeyDraft.dateMode}
+                  >
+                    <option value="auto">Auto from selected tickets</option>
+                    <option value="manual">Manual date range</option>
+                  </select>
+                </label>
+
+                {journeyDraft.dateMode === "auto" ? (
+                  <div className="journey-create-derived-card">
+                    <span>Derived trip dates</span>
+                    <strong>{formatPreviewDateRange(autoDatePreview)}</strong>
+                  </div>
+                ) : null}
+
+                <div className="journey-create-inline-grid">
+                  <label>
+                    <span>Manual start date</span>
+                    <input
+                      disabled={journeyDraft.dateMode !== "manual"}
+                      onChange={(event) =>
+                        setJourneyDraft((current) => ({
+                          ...current,
+                          manualStartDate: event.target.value,
+                        }))
+                      }
+                      type="date"
+                      value={journeyDraft.manualStartDate}
+                    />
+                  </label>
+
+                  <label>
+                    <span>Manual end date</span>
+                    <input
+                      disabled={journeyDraft.dateMode !== "manual"}
+                      onChange={(event) =>
+                        setJourneyDraft((current) => ({
+                          ...current,
+                          manualEndDate: event.target.value,
+                        }))
+                      }
+                      type="date"
+                      value={journeyDraft.manualEndDate}
+                    />
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section className="panel journey-create-section journey-create-section-tickets">
+              <div className="journey-create-section-top">
+                <div>
+                  <div className="section-page-title-row">
+                    <h3>Tickets</h3>
+                    <div className="section-help">
+                      <button
+                        aria-label="Journey ticket selector help"
+                        className="section-help-trigger"
+                        type="button"
+                      >
+                        i
+                      </button>
+                      <div className="section-help-tooltip" role="tooltip">
+                        Select zero or more existing tickets to link into this journey.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <span className="ticket-status ticket-status-saved">
+                  {journeyDraft.selectedTicketIds.length} selected
+                </span>
+              </div>
+
+              <div className="journey-create-fields">
+                <label>
+                  <input
+                    onChange={(event) => setJourneyTicketSearch(event.target.value)}
+                    placeholder="Search by date, month, year, code, route, departure, arrival..."
+                    value={journeyTicketSearch}
+                  />
+                </label>
+
+                <div className="journey-ticket-selector">
+                  {filteredSelectableTickets.length === 0 ? (
+                    <div className="empty-state">No tickets match the current search.</div>
+                  ) : (
+                    filteredSelectableTickets.map((ticket) => {
+                      const selected = journeyDraft.selectedTicketIds.includes(ticket.id);
+                      const routeSummary = buildTicketRouteSummary(ticket);
+                      const codeSummary = buildTicketCodeSummary(ticket);
+
+                      return (
+                        <label
+                          className={selected ? "journey-ticket-option selected" : "journey-ticket-option"}
+                          key={ticket.id}
+                        >
+                          <input
+                            checked={selected}
+                            onChange={() => toggleSelectedTicket(ticket.id)}
+                            type="checkbox"
+                          />
+                          <span className="journey-ticket-option-main">
+                            <span className="journey-ticket-option-top">
+                              <strong>
+                                <span aria-hidden="true" className="journey-ticket-inline-icon">
+                                  {transportIcon(ticket.ticketType)}
+                                </span>
+                                {routeSummary}
+                              </strong>
+                            </span>
+                            <span className="ticket-row-meta">
+                              <span>{formatTicketDateLabel(ticket)}</span>
+                              <span>
+                                {ticket.carrierName ? `${codeSummary} (${ticket.carrierName})` : codeSummary}
+                              </span>
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="panel journey-create-section journey-create-section-people">
+              <h3>People &amp; cost</h3>
+              <div className="journey-create-fields">
+                <label>
+                  <span>Companions</span>
+                  <textarea
+                    onChange={(event) =>
+                      setJourneyDraft((current) => ({
+                        ...current,
+                        companionsText: event.target.value,
+                      }))
+                    }
+                    placeholder="Separate names with comma, Chinese comma, dunhao, or new lines"
+                    value={journeyDraft.companionsText}
+                  />
+                </label>
+
+                <div className="journey-create-rating-block">
+                  <span>Rating</span>
+                  <div className="journey-rating-row">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <button
+                        className={
+                          (journeyDraft.rating ?? 0) >= value
+                            ? "journey-rating-button active"
+                            : "journey-rating-button"
+                        }
+                        key={value}
+                        onClick={() =>
+                          setJourneyDraft((current) => ({
+                            ...current,
+                            rating: value,
+                          }))
+                        }
+                        type="button"
+                      >
+                        ★
+                      </button>
+                    ))}
+                    {journeyDraft.rating ? (
+                      <button
+                        className="ghost-button compact-button"
+                        onClick={() =>
+                          setJourneyDraft((current) => ({
+                            ...current,
+                            rating: null,
+                          }))
+                        }
+                        type="button"
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <label>
+                  <span>Mood</span>
+                  <input
+                    onChange={(event) =>
+                      setJourneyDraft((current) => ({ ...current, mood: event.target.value }))
+                    }
+                    placeholder="Relaxed, excited, hectic..."
+                    value={journeyDraft.mood}
+                  />
+                </label>
+
+                <div className="journey-create-inline-grid">
+                  <label>
+                    <span>Cost amount</span>
+                    <input
+                      inputMode="decimal"
+                      onChange={(event) =>
+                        setJourneyDraft((current) => ({ ...current, costAmount: event.target.value }))
+                      }
+                      placeholder="2400"
+                      type="number"
+                      value={journeyDraft.costAmount}
+                    />
+                  </label>
+
+                  <label>
+                    <span>Cost currency</span>
+                    <input
+                      onChange={(event) =>
+                        setJourneyDraft((current) => ({ ...current, costCurrency: event.target.value }))
+                      }
+                      onInput={() => setJourneyCostCurrencyTouched(true)}
+                      placeholder="AUD"
+                      value={journeyDraft.costCurrency}
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  <span>Lodging</span>
+                  <input
+                    onChange={(event) =>
+                      setJourneyDraft((current) => ({ ...current, lodging: event.target.value }))
+                    }
+                    placeholder="Airport hotel, Airbnb, campervan..."
+                    value={journeyDraft.lodging}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="panel journey-create-section journey-create-section-notes">
+              <h3>Notes</h3>
+              <div className="journey-create-fields">
+                <label>
+                  <span>Notes / memories</span>
+                  <textarea
+                    onChange={(event) =>
+                      setJourneyDraft((current) => ({ ...current, notes: event.target.value }))
+                    }
+                    placeholder="Memories, highlights, why this trip mattered..."
+                    value={journeyDraft.notes}
+                  />
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <div className="form-actions">
+            <button className="ghost-button" disabled={journeySaving} onClick={closeJourneyModal} type="button">
+              Cancel
+            </button>
+            <button
+              className="primary-button"
+              disabled={journeySaving}
+              onClick={() => void handleSaveJourney()}
+              type="button"
+            >
+              {journeySaving ? "Saving..." : journeyModalMode === "edit" ? "Save changes" : "Save journey"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (selectedJourneyId) {
     const fallbackJourney = journeys.find((journey) => journey.id === selectedJourneyId);
     const displayedJourney = journeyDetail ?? fallbackJourney ?? null;
@@ -1146,7 +1555,12 @@ export function JourneysPage({
             <p>{displayedJourney ? formatJourneyDateRange(displayedJourney) : "Loading journey..."}</p>
           </div>
           <div className="tickets-subview-actions">
-            <button className="ghost-button compact-button" disabled title="Future task" type="button">
+            <button
+              className="ghost-button compact-button"
+              disabled={journeyDetailLoading || deletePending}
+              onClick={() => displayedJourney && openEditJourneyModal(displayedJourney)}
+              type="button"
+            >
               Edit
             </button>
             <button
@@ -1393,6 +1807,7 @@ export function JourneysPage({
             </div>
           </div>
         ) : null}
+        {journeyModal}
       </section>
     );
   }
@@ -1432,345 +1847,7 @@ export function JourneysPage({
 
       {subview === "summary" ? summaryView : listView}
 
-      {isCreateModalOpen ? (
-        <div className="modal-backdrop" role="presentation">
-          <div
-            aria-labelledby="create-journey-title"
-            aria-modal="true"
-            className="modal-shell tickets-modal journey-create-modal"
-            role="dialog"
-          >
-            <div className="tickets-modal-header">
-              <div>
-                <h3 id="create-journey-title">Create journey</h3>
-                <p className="hero-copy">Group existing tickets into one travel record.</p>
-              </div>
-              <button
-                aria-label="Close create journey modal"
-                className="modal-close-button"
-                onClick={closeCreateJourneyModal}
-                type="button"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="tickets-modal-body">
-              {createError ? (
-                <div className="journey-create-feedback journey-create-feedback-error" role="alert">
-                  {createError}
-                </div>
-              ) : null}
-
-              <div className="journey-create-grid">
-                <section className="panel journey-create-section journey-create-section-basic">
-                  <h3>Basic</h3>
-                  <div className="journey-create-fields">
-                    <label>
-                      <span>Title *</span>
-                      <input
-                        onBlur={() => {
-                          if (!createDraft.title.trim()) {
-                            setTitleError("Title is required.");
-                          }
-                        }}
-                        onChange={(event) => {
-                          setCreateDraft((current) => ({ ...current, title: event.target.value }));
-                          if (titleError) {
-                            setTitleError("");
-                          }
-                        }}
-                        placeholder="Japan spring trip"
-                        value={createDraft.title}
-                      />
-                      {titleError ? <span className="journey-create-field-error">{titleError}</span> : null}
-                    </label>
-
-                    <label>
-                      <span>Destination</span>
-                      <input
-                        onChange={(event) =>
-                          setCreateDraft((current) => ({ ...current, destination: event.target.value }))
-                        }
-                        placeholder="Tokyo"
-                        value={createDraft.destination}
-                      />
-                    </label>
-
-                    <label>
-                      <span>Date mode</span>
-                      <select
-                        onChange={(event) =>
-                          setCreateDraft((current) => ({
-                            ...current,
-                            dateMode: event.target.value as JourneyDateMode,
-                          }))
-                        }
-                        value={createDraft.dateMode}
-                      >
-                        <option value="auto">Auto from selected tickets</option>
-                        <option value="manual">Manual date range</option>
-                      </select>
-                    </label>
-
-                    {createDraft.dateMode === "auto" ? (
-                      <div className="journey-create-derived-card">
-                        <span>Derived trip dates</span>
-                        <strong>{formatPreviewDateRange(autoDatePreview)}</strong>
-                      </div>
-                    ) : null}
-
-                    <div className="journey-create-inline-grid">
-                      <label>
-                        <span>Manual start date</span>
-                        <input
-                          disabled={createDraft.dateMode !== "manual"}
-                          onChange={(event) =>
-                            setCreateDraft((current) => ({
-                              ...current,
-                              manualStartDate: event.target.value,
-                            }))
-                          }
-                          type="date"
-                          value={createDraft.manualStartDate}
-                        />
-                      </label>
-
-                      <label>
-                        <span>Manual end date</span>
-                        <input
-                          disabled={createDraft.dateMode !== "manual"}
-                          onChange={(event) =>
-                            setCreateDraft((current) => ({
-                              ...current,
-                              manualEndDate: event.target.value,
-                            }))
-                          }
-                          type="date"
-                          value={createDraft.manualEndDate}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="panel journey-create-section journey-create-section-tickets">
-                  <div className="journey-create-section-top">
-                    <div>
-                      <div className="section-page-title-row">
-                        <h3>Tickets</h3>
-                        <div className="section-help">
-                          <button
-                            aria-label="Journey ticket selector help"
-                            className="section-help-trigger"
-                            type="button"
-                          >
-                            i
-                          </button>
-                          <div className="section-help-tooltip" role="tooltip">
-                            Select zero or more existing tickets to link into this journey.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <span className="ticket-status ticket-status-saved">
-                      {createDraft.selectedTicketIds.length} selected
-                    </span>
-                  </div>
-
-                  <div className="journey-create-fields">
-                    <label>
-                      <input
-                        onChange={(event) => setTicketSearch(event.target.value)}
-                        placeholder="Search by date, month, year, code, route, departure, arrival..."
-                        value={ticketSearch}
-                      />
-                    </label>
-
-                    <div className="journey-ticket-selector">
-                      {filteredSelectableTickets.length === 0 ? (
-                        <div className="empty-state">No tickets match the current search.</div>
-                      ) : (
-                        filteredSelectableTickets.map((ticket) => {
-                          const selected = createDraft.selectedTicketIds.includes(ticket.id);
-                          const routeSummary = buildTicketRouteSummary(ticket);
-                          const codeSummary = buildTicketCodeSummary(ticket);
-
-                          return (
-                            <label
-                              className={selected ? "journey-ticket-option selected" : "journey-ticket-option"}
-                              key={ticket.id}
-                            >
-                              <input
-                                checked={selected}
-                                onChange={() => toggleSelectedTicket(ticket.id)}
-                                type="checkbox"
-                              />
-                              <span className="journey-ticket-option-main">
-                                <span className="journey-ticket-option-top">
-                                  <strong>
-                                    <span aria-hidden="true" className="journey-ticket-inline-icon">
-                                      {transportIcon(ticket.ticketType)}
-                                    </span>
-                                    {routeSummary}
-                                  </strong>
-                                </span>
-                                <span className="ticket-row-meta">
-                                  <span>{formatTicketDateLabel(ticket)}</span>
-                                  <span>
-                                    {ticket.carrierName ? `${codeSummary} (${ticket.carrierName})` : codeSummary}
-                                  </span>
-                                </span>
-                              </span>
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="panel journey-create-section journey-create-section-people">
-                  <h3>People &amp; cost</h3>
-                  <div className="journey-create-fields">
-                    <label>
-                      <span>Companions</span>
-                      <textarea
-                        onChange={(event) =>
-                          setCreateDraft((current) => ({
-                            ...current,
-                            companionsText: event.target.value,
-                          }))
-                        }
-                        placeholder="Separate names with comma, Chinese comma, dunhao, or new lines"
-                        value={createDraft.companionsText}
-                      />
-                    </label>
-
-                    <div className="journey-create-rating-block">
-                      <span>Rating</span>
-                      <div className="journey-rating-row">
-                        {[1, 2, 3, 4, 5].map((value) => (
-                          <button
-                            className={
-                              (createDraft.rating ?? 0) >= value
-                                ? "journey-rating-button active"
-                                : "journey-rating-button"
-                            }
-                            key={value}
-                            onClick={() =>
-                              setCreateDraft((current) => ({
-                                ...current,
-                                rating: value,
-                              }))
-                            }
-                            type="button"
-                          >
-                            ★
-                          </button>
-                        ))}
-                        {createDraft.rating ? (
-                          <button
-                            className="ghost-button compact-button"
-                            onClick={() =>
-                              setCreateDraft((current) => ({
-                                ...current,
-                                rating: null,
-                              }))
-                            }
-                            type="button"
-                          >
-                            Clear
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <label>
-                      <span>Mood</span>
-                      <input
-                        onChange={(event) =>
-                          setCreateDraft((current) => ({ ...current, mood: event.target.value }))
-                        }
-                        placeholder="Relaxed, excited, hectic..."
-                        value={createDraft.mood}
-                      />
-                    </label>
-
-                    <div className="journey-create-inline-grid">
-                      <label>
-                        <span>Cost amount</span>
-                        <input
-                          inputMode="decimal"
-                          onChange={(event) =>
-                            setCreateDraft((current) => ({ ...current, costAmount: event.target.value }))
-                          }
-                          placeholder="2400"
-                          type="number"
-                          value={createDraft.costAmount}
-                        />
-                      </label>
-
-                      <label>
-                        <span>Cost currency</span>
-                        <input
-                          onChange={(event) =>
-                            setCreateDraft((current) => ({ ...current, costCurrency: event.target.value }))
-                          }
-                          onInput={() => setCostCurrencyTouched(true)}
-                          placeholder="AUD"
-                          value={createDraft.costCurrency}
-                        />
-                      </label>
-                    </div>
-
-                    <label>
-                      <span>Lodging</span>
-                      <input
-                        onChange={(event) =>
-                          setCreateDraft((current) => ({ ...current, lodging: event.target.value }))
-                        }
-                        placeholder="Airport hotel, Airbnb, campervan..."
-                        value={createDraft.lodging}
-                      />
-                    </label>
-                  </div>
-                </section>
-
-                <section className="panel journey-create-section journey-create-section-notes">
-                  <h3>Notes</h3>
-                  <div className="journey-create-fields">
-                    <label>
-                      <span>Notes / memories</span>
-                      <textarea
-                        onChange={(event) =>
-                          setCreateDraft((current) => ({ ...current, notes: event.target.value }))
-                        }
-                        placeholder="Memories, highlights, why this trip mattered..."
-                        value={createDraft.notes}
-                      />
-                    </label>
-                  </div>
-                </section>
-              </div>
-
-              <div className="form-actions">
-                <button className="ghost-button" onClick={closeCreateJourneyModal} type="button">
-                  Cancel
-                </button>
-                <button
-                  className="primary-button"
-                  disabled={createSaving}
-                  onClick={() => void handleCreateJourney()}
-                  type="button"
-                >
-                  {createSaving ? "Saving..." : "Save journey"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {journeyModal}
     </section>
   );
 }

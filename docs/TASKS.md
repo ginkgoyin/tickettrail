@@ -461,15 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-DELETE-001`.
+Current task: `JOURNEY-EDIT-001`.
 
-Journey delete is now the current Journey MVP checkpoint after the read-only detail and return-navigation passes.
+Journey edit is now the current Journey MVP checkpoint after the read-only detail, return-navigation, and delete passes.
 
-After this delete checkpoint, the recommended implementation order is:
+After this edit checkpoint, the recommended implementation order is:
 
-1. Manually verify `JOURNEY-DELETE-001`.
-2. `JOURNEY-EDIT-001`
-3. `JOURNEY-SUMMARY-001` after Journey CRUD is stable
+1. Manually verify `JOURNEY-EDIT-001`.
+2. `JOURNEY-SUMMARY-001`
+3. `STATUS-009` as a separate future status-semantics task after Journey Edit is manually verified
 
 Implementation notes:
 
@@ -482,6 +482,7 @@ Implementation notes:
 - `JOURNEY-DETAIL-003` should hide the outer Journeys page header during detail mode only; Summary/List keep the normal page title.
 - `JOURNEY-NAV-001` should preserve the return path from Journey Detail -> Ticket Detail -> Back without changing normal Ticket List -> Ticket Detail behavior.
 - `JOURNEY-DELETE-001` should remove only the Journey and related links/companions, keep original tickets untouched, and use an app-themed centered confirm dialog instead of `window.confirm`.
+- `JOURNEY-EDIT-001` should reuse the current modal-based Journey form where safe: prefill metadata, manual dates, companions, notes, and linked tickets; save through `updateJourney`; refresh both Journey Detail and Journey List; and keep the user on the same Journey Detail after save.
 - Record `STATUS-009` as a separate future task; do not mix ticket-status semantics work into Journey polish.
 - Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.
 - `OVERVIEW-REDESIGN-001` remains a separate docs/design task.

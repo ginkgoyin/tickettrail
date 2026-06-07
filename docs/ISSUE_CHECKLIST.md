@@ -576,7 +576,7 @@
 
 - `JOURNEY-EDIT-001`
   - Implement Journey edit flow for metadata, linked tickets, companions, and notes.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
 - `JOURNEY-DELETE-001`
