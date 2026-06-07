@@ -165,17 +165,40 @@ function getStatusDisplayMeta(
   },
 ) {
   const autoLabel = getAutoDerivedStatus(ticket, currentTimeMs, labels.upcoming, labels.completed);
-  if (ticket.status === "saved") {
+  if (ticket.status === "saved" || ticket.status === "used") {
     return {
-      label: autoLabel,
-      dropdownAutoLabel: autoLabel,
+      label: ticket.status === "used" ? labels.completed : autoLabel,
+      controlValue: "active" as const,
+      activeDisplayLabel: ticket.status === "used" ? labels.completed : autoLabel,
     };
   }
 
   return {
-    label: getStatusLabel(ticket.status, labels.upcoming, labels.completed, labels.archived),
-    dropdownAutoLabel: autoLabel,
+    label: labels.archived,
+    controlValue: "archived" as const,
+    activeDisplayLabel: autoLabel,
   };
+}
+
+function getStatusControlOptions(
+  displayMeta: ReturnType<typeof getStatusDisplayMeta>,
+  labels: {
+    archived: string;
+    archiveAction: string;
+    restoreToTimeBasedStatus: string;
+  },
+) {
+  if (displayMeta.controlValue === "archived") {
+    return [
+      { value: "active", label: labels.restoreToTimeBasedStatus },
+      { value: "archived", label: labels.archived },
+    ] as const;
+  }
+
+  return [
+    { value: "active", label: displayMeta.activeDisplayLabel },
+    { value: "archived", label: labels.archiveAction },
+  ] as const;
 }
 
 function formatTimeWithTimezone(value: unknown, timezone: unknown) {
@@ -775,6 +798,13 @@ export function Dashboard({
         archived: t("archived"),
       })
     : null;
+  const statusControlOptions = statusDisplayMeta
+    ? getStatusControlOptions(statusDisplayMeta, {
+        archived: t("archived"),
+        archiveAction: t("archive"),
+        restoreToTimeBasedStatus: t("restoreToTimeBasedStatus"),
+      })
+    : [];
   const departureTimeDisplay = ticket
     ? formatTimeWithTimezone(ticket.departureTimeLocal, ticket.departure?.timezone)
     : { primary: "--", secondary: "" };
@@ -842,13 +872,18 @@ export function Dashboard({
                   className="detail-status-select"
                   disabled={statusBusy}
                   onChange={(event) =>
-                    void onUpdateStatus?.(ticket.id, event.target.value as Exclude<TicketStatus, "draft">)
+                    void onUpdateStatus?.(
+                      ticket.id,
+                      event.target.value === "archived" ? "archived" : "saved",
+                    )
                   }
-                  value={ticket.status}
+                  value={statusDisplayMeta?.controlValue ?? "active"}
                 >
-                  <option value="saved">{statusDisplayMeta?.dropdownAutoLabel ?? t("autoUpcoming")}</option>
-                  <option value="used">{t("completed")}</option>
-                  <option value="archived">{t("archived")}</option>
+                  {statusControlOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               ) : (
                 <strong>{statusDisplayMeta?.label ?? getStatusLabel(ticket.status, t("upcoming"), t("completed"), t("archived"))}</strong>
@@ -1254,7 +1289,7 @@ export function Dashboard({
             <span className="ticket-kind">Selected ticket</span>
             <h3>{ticket.routeLabel}</h3>
           </div>
-          <span className="status-pill">{`${getStatusLabel(ticket.status, t("upcoming"), t("completed"), t("archived"))} | ${ticket.segmentCount} segment(s)`}</span>
+          <span className="status-pill">{`${statusDisplayMeta?.label ?? getStatusLabel(ticket.status, t("upcoming"), t("completed"), t("archived"))} | ${ticket.segmentCount} segment(s)`}</span>
         </div>
       ) : null}
       {isLoading ? <p className="detail-loading">Loading route, stub, and attachment data...</p> : null}

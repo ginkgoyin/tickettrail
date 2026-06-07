@@ -63,6 +63,30 @@ function transportIcon(ticketType: TicketType) {
   return ticketType === "flight" ? "\u2708" : "\uD83D\uDE86";
 }
 
+function getAutoDerivedStatusLabel(ticket: TicketRecord, language: "en" | "zh") {
+  const candidate = safeText(ticket.arrivalTimeLocal).trim() || safeText(ticket.departureTimeLocal).trim();
+  const timestamp = Date.parse(candidate);
+  const isCompleted = Number.isFinite(timestamp) && timestamp < Date.now();
+
+  if (language === "zh") {
+    return isCompleted ? "已完成" : "未出行";
+  }
+
+  return isCompleted ? "Completed" : "Upcoming";
+}
+
+function getStatusDisplayLabel(ticket: TicketRecord, language: "en" | "zh") {
+  if (ticket.status === "archived") {
+    return language === "zh" ? "\u5df2\u5f52\u6863" : "Archived";
+  }
+
+  if (ticket.status === "used") {
+    return language === "zh" ? "\u5df2\u5b8c\u6210" : "Completed";
+  }
+
+  return getAutoDerivedStatusLabel(ticket, language);
+}
+
 function getStatusChipLabel(ticket: TicketRecord, language: "en" | "zh") {
   if (ticket.status === "saved") {
     return language === "zh" ? "已保存" : "Saved";
@@ -105,7 +129,7 @@ function renderTicketRow(
         </div>
       </div>
       <div className="ticket-row-side">
-        <span className={`ticket-status ticket-status-${ticket.status}`}>{getStatusChipLabel(ticket, language)}</span>
+        <span className={`ticket-status ticket-status-${ticket.status}`}>{getStatusDisplayLabel(ticket, language)}</span>
         <small>{`${ticket.segmentCount} leg${ticket.segmentCount > 1 ? "s" : ""}`}</small>
       </div>
     </button>

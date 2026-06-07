@@ -395,7 +395,11 @@
 
 - `STATUS-009`
   - Ticket status should not show duplicate Completed entries from separate auto-derived and manual status concepts.
-  - Status: `Open / future status semantics fix`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Upcoming / Completed are now treated as time-derived display statuses for active tickets.
+    - Archived remains the main manual status action.
+    - Legacy used/completed records remain loadable but are not offered as a duplicate manual Completed option.
   - Priority: `Medium`
 
 - `ROUTE-MAP-001`
