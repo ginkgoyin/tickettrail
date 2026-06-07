@@ -509,15 +509,17 @@ html {
 
 .journey-summary-month-row span,
 .journey-summary-weekday-column span {
-  min-height: 16px;
+  min-height: var(--journey-summary-day-size);
   color: var(--text-soft);
   font-size: 0.72rem;
 }
 
 .journey-summary-month-row span {
   display: flex;
+  justify-content: center;
   align-items: flex-end;
   line-height: 1;
+  text-align: center;
 }
 
 .journey-summary-calendar-grid {
@@ -529,7 +531,7 @@ html {
 
 .journey-summary-weekday-column {
   display: grid;
-  grid-template-rows: repeat(7, 14px);
+  grid-template-rows: repeat(7, var(--journey-summary-day-size));
   gap: var(--journey-summary-gap);
   align-items: center;
 }
@@ -537,8 +539,8 @@ html {
 .journey-summary-weekday-column span {
   display: flex;
   align-items: center;
-  height: 14px;
-  line-height: 1;
+  height: var(--journey-summary-day-size);
+  line-height: var(--journey-summary-day-size);
 }
 
 .journey-summary-week-columns {
@@ -553,7 +555,7 @@ html {
 
 .journey-summary-week-column {
   display: grid;
-  grid-template-rows: repeat(7, 14px);
+  grid-template-rows: repeat(7, var(--journey-summary-day-size));
   gap: var(--journey-summary-gap);
   min-width: 0;
 }
