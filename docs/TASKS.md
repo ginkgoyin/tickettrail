@@ -461,22 +461,25 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-SUMMARY-002`.
+Current task: `JOURNEY-STOPS-DESIGN-001`.
 
-Journeys Summary information hierarchy is now being polished without rebuilding the Summary runtime.
+Journey Stops / Stays are now being documented before runtime implementation so future destination, route, lodging, and stay-day logic can move from raw ticket endpoints toward place-level travel meaning.
 
 The recommended implementation order is now:
 
-1. Manually verify `JOURNEY-SUMMARY-002`
-2. Another explicitly chosen functional issue
-3. Keep follow-up Summary polish scoped to any concrete issue found during manual verification
+1. `JOURNEY-PLACE-001` if place normalization is the next priority
+2. `TRAIN-STATION-GEO-001` if rail place metadata must be solved first for normalization accuracy
+3. Otherwise, another explicitly chosen functional issue
 
 Implementation notes:
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
 - `JOURNEY-SUMMARY-001` now owns the real Summary dashboard, including all-time totals, the Monday-first yearly travel calendar, and the 2x2 stats modules.
-- `JOURNEY-SUMMARY-002` should stay limited to information hierarchy and wording polish inside the existing Summary runtime.
+- `JOURNEY-STOPS-DESIGN-001` is docs-only and should define the Stop/Stay model, distinction from route summary, incomplete-stay rules, and future task order before runtime code starts.
+- `JOURNEY-PLACE-001` should normalize station/airport endpoints into place-level Journey labels before persisted Stops are relied on broadly.
+- `TRAIN-STATION-GEO-001` becomes the next dependency only if rail station metadata is still too weak for safe place normalization.
+- `JOURNEY-STOPS-DATA-001`, `JOURNEY-STOPS-AUTO-001`, `JOURNEY-STOPS-UI-001`, and `JOURNEY-SUMMARY-STOPS-001` should remain separate follow-up phases rather than one large Stops implementation.
 - `JOURNEY-LIST-001` should now be manually verified together with `JOURNEY-CREATE-001`.
 - Ticket selector search now belongs to the implemented `JOURNEY-CREATE-001` baseline rather than a later polish pass.
 - `JOURNEY-CREATE-002 + JOURNEY-LIST-002` should stay limited to layout polish plus live derived date/currency preview and compact Journey cards.

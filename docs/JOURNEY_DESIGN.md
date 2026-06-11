@@ -28,14 +28,19 @@ It does not:
 - change current segment behavior
 - implement Journey maps
 
+- 
+
+
+
 ## 2. Current status
 
 Current repo inspection shows:
 
-- Real Journey schema, CRUD service, List, Create, Detail, Edit, and Delete are now implemented.
-- `JourneysPage` still keeps `Summary` as a placeholder scaffold.
-- The current Summary view remains intentionally lightweight and does not yet implement real Summary statistics/runtime modules.
-- Real Journey Summary statistics are not implemented yet.
+- Real Journey schema, CRUD service, List, Create, Detail, Edit, Delete, and Summary runtime are now implemented.
+- The current Summary runtime includes all-time totals, a selected-year Travel calendar, Travel highlights, Top destinations, Top companions, and Cost by currency modules.
+- Summary helper extraction and focused regression tests are now in place for date, destination, route, companion, and cost calculations.
+- Current destination and route inference is still limited because it derives meaning from linked ticket endpoints rather than persisted Journey Stops / Stays.
+- The future Stops / Stays model will replace raw endpoint-based destination logic for better place-level travel meaning, lodging, stay dates, and destination-day summaries.
 - Journey map coloring and yearly filtering remain future work.
 
 ## 3. Product definition and granularity
@@ -678,17 +683,33 @@ Its first runtime goal is to answer:
 
 ### JOURNEY-DECISION-058
 
-The page header direction is:
+The Summary page header and all-time totals direction is:
 
-- `Journeys [info]                                      4 journeys    27 travel days`
-- `[Summary] [List]`
+```text
+Journeys [info]
+
+[Summary] [List]
+
+ALL-TIME SUMMARY
+4 journeys        27 travel days        Total cost ≈ CNY 10,000
+
+```
 
 Rules:
 
-- Top page totals are plain text.
-- Do not use cards, badges, borders, pills, or colored backgrounds for these top metrics.
-- Top page totals are all-time totals.
-- They do not change when the Travel calendar year dropdown changes.
+- All-time totals live in an `ALL-TIME SUMMARY` strip below the `Summary / List` tabs.
+- Do not place all-time totals as small right-aligned text in the page header.
+- The strip should stay compact and text-first.
+- Do not use large cards, badges, pills, or heavy bordered boxes for these top metrics.
+- Do not add a third explanatory row such as `Total trips / Unique travel days`.
+- All-time totals include:
+  - total journeys
+  - deduped travel days
+  - total / comparable CNY cost when enough exchange-rate data exists
+- These all-time totals do not change when the Travel calendar year dropdown changes.
+- If some non-CNY journeys are missing exchange rates, the cost label can use wording such as `Comparable cost` and show a small missing-rate note.
+
+
 
 ### JOURNEY-DECISION-059
 
@@ -941,17 +962,15 @@ Rules:
 
 ### JOURNEY-DECISION-069
 
-Summary needs a future cost data task before runtime cross-currency comparison can be completed safely.
+Summary cross-currency comparison depends on `costExchangeRateToCny`.
 
-Future task:
+Current status:
 
-- `JOURNEY-COST-001`
-  - Add optional `costExchangeRateToCny` to Journey schema/model/service/Create/Edit form.
-  - Use it for Summary cross-currency cost comparison.
-  - Status: `Open / future implementation`
-  - Priority: `High`
-
-This task should happen before or together with `JOURNEY-SUMMARY-001`, but should stay separate if possible.
+- `JOURNEY-COST-001` has added optional `costExchangeRateToCny` support to the Journey schema/model/service/Create/Edit form.
+- Summary can compare costs in CNY when:
+  - `costCurrency = CNY`, or
+  - `costCurrency` is non-CNY and `costExchangeRateToCny` is provided.
+- Non-CNY journeys without `costExchangeRateToCny` remain valid and still appear in Cost by currency, but they are excluded from comparable CNY cost calculations.
 
 ### JOURNEY-DECISION-070
 
@@ -1038,10 +1057,27 @@ Future enhancements, not for this checkpoint:
 ### JOURNEY-COST-001
 
 - Add optional `costExchangeRateToCny` to Journey schema/model/service/Create/Edit form before cross-currency Summary comparison is implemented.
+- Status: Implemented.
 
 ### JOURNEY-SUMMARY-001
 
-- Implement real Journeys Summary runtime after Summary design is accepted and `JOURNEY-COST-001` is available or explicitly deferred.
+- Implement real Journeys Summary runtime after Summary design is accepted and `JOURNEY-COST-001` is available.
+- Status: Implemented.
+
+### JOURNEY-SUMMARY-002
+
+- Polish Summary information hierarchy by moving all-time totals into the `ALL-TIME SUMMARY` strip and clarifying Travel calendar selected-year wording.
+- Status: Implemented.
+
+### JOURNEY-SUMMARY-004
+
+- Extract Summary helper logic, add focused tests, and harden date/destination/route/cost calculations.
+- Status: Implemented.
+
+### JOURNEY-STOPS-DESIGN-001
+
+- Document the future Journey Stops / Stays model, place-normalization dependency, route-vs-stops distinction, incomplete-stay rules, and implementation order.
+- Status: Documented / docs-only.
 
 ### JOURNEY-MAP-001
 
@@ -1051,7 +1087,230 @@ Future enhancements, not for this checkpoint:
 
 - Future journey-colored map and yearly filtering.
 
-## 18. Acceptance criteria
+## 18. Journey Stops / Stays design
+
+### JOURNEY-DECISION-073
+
+Current Journey route/destination inference is not enough for long-term Journey meaning.
+
+Reasons:
+
+- raw ticket endpoints are often airports or stations, not the real visited place
+- internal transfer cities inside one ticket should not count as destinations
+- some trips have missing internal movement tickets, such as `Osaka -> Tokyo` not being recorded
+- future Journeys may have fuller `A -> B -> C -> A` chains where stay timing can be inferred partially
+- lodging and manual stay edits require their own persistent model
+
+### JOURNEY-DECISION-074
+
+Concept distinction:
+
+- Journey = the whole trip record
+- Journey Stop / Stay = one real visited place within that Journey
+
+Rules:
+
+- Stops are place-level travel meaning
+- Stops are not raw airport/station transfer endpoints
+- A future Journey can contain multiple Stops
+
+### JOURNEY-DECISION-075
+
+Future persistent model direction should include a `journey_stops` table or equivalent model.
+
+Suggested future fields:
+
+```text
+id
+journeyId
+placeName
+placeKey
+countryCode optional
+arrivalDateTime optional
+departureDateTime optional
+lodging optional
+notes optional
+source: auto | manual
+arrivalTicketId optional
+departureTicketId optional
+sortOrder
+userEdited flag or equivalent
+```
+
+Rules:
+
+- This is documentation only for now.
+- Do not implement schema/migration/runtime code in this checkpoint.
+
+### JOURNEY-DECISION-076
+
+Auto-derived Stops should come from linked tickets sorted by time.
+
+Ticket contribution rules:
+
+- single-segment ticket contributes `origin -> destination`
+- multi-segment ticket contributes `first segment origin -> last segment destination`
+- internal transfer endpoints inside one ticket are transfer-only and are not Stops
+- adjacent duplicate anchors are collapsed
+- route anchors are used to infer future Stops
+
+Example:
+
+Ticket:
+
+- `Changsha -> Xiamen -> Sydney`
+
+Ticket-level route contribution:
+
+- `Changsha -> Sydney`
+
+Stop meaning:
+
+- `Xiamen` is transfer only
+
+### JOURNEY-DECISION-077
+
+Journey route summary and Journey Stops are related but not identical.
+
+Example Journey:
+
+- `Changsha -> Sydney`
+- `Sydney -> Melbourne`
+- `Melbourne -> Tasmania`
+- `Tasmania -> Perth`
+- `Perth -> Shanghai -> Tianjin`
+
+Route summary:
+
+- `Changsha -> Sydney -> Melbourne -> Tasmania -> Perth -> Tianjin`
+
+Stops:
+
+- `Sydney`
+- `Melbourne`
+- `Tasmania`
+- `Perth`
+
+Do not count as Stops:
+
+- `Xiamen`, internal transfer
+- `Shanghai`, internal transfer
+- `Tianjin`, final end/return endpoint in this multi-ticket Journey
+
+Single one-way Journey:
+
+- `Changsha -> Sydney`
+
+Stops:
+
+- `Sydney`
+
+### JOURNEY-DECISION-078
+
+Missing internal movement tickets must remain explicit instead of being guessed away.
+
+Example:
+
+- `Changsha -> Osaka`
+- `Tokyo -> Shanghai -> Changsha`
+
+Route anchors:
+
+- `Changsha -> Osaka -> Tokyo -> Changsha`
+
+Stops:
+
+- `Osaka`
+- `Tokyo`
+
+But stay timing is incomplete:
+
+- Osaka arrival is known from the first ticket
+- Osaka departure is unknown unless the user adds `Osaka -> Tokyo` or fills it manually
+- Tokyo arrival is unknown
+- Tokyo departure is known from the return-side ticket
+
+Rule:
+
+- The system must not pretend `Osaka` and `Tokyo` each lasted the full Journey.
+- Incomplete stay timing should remain incomplete until better source data or manual edits exist.
+
+### JOURNEY-DECISION-079
+
+Future Stop editing must preserve user intent when linked tickets change.
+
+Rules:
+
+- auto-generated Stops can be regenerated when linked tickets change
+- user-edited Stops should not be overwritten automatically
+- if linked tickets change and Stops may be stale, future UI should show a `Review stops` prompt
+- manual Stops can be added, edited, and deleted in a future UI task
+- lodging and notes belong at Stop level as well as Journey level when needed
+
+### JOURNEY-DECISION-080
+
+Stops depend on place normalization rather than raw endpoint labels.
+
+Rules:
+
+- airport/station endpoint should normalize to a city/place label
+- system language controls preferred display language
+- Chinese UI should prefer Chinese place names
+- English UI should prefer English place names
+- future enhancement can support bilingual labels such as:
+  - `Qingdao (青岛)`
+  - `悉尼 (Sydney)`
+
+Future dependency tasks:
+
+- `JOURNEY-PLACE-001`
+  - Normalize station/airport endpoints into Journey-level place labels.
+
+- `TRAIN-STATION-GEO-001`
+  - Add city/place metadata and coordinates for train/rail stations.
+
+### JOURNEY-DECISION-081
+
+Top destinations should eventually aggregate Journey Stops, not raw route endpoints.
+
+Ranking rules:
+
+- primary ranking = number of Journeys containing that Stop
+- the same Journey counts a place at most once
+- tiebreak can later use known stay days if available
+
+Future days-based summary rules:
+
+- support destination stay-days summary later
+- use Stop arrival/departure dates when available
+- one Journey date should not be double-counted across multiple destinations
+- if stay dates are incomplete, mark days as unknown or exclude them from days-based ranking
+- do not guess stay days from incomplete route data
+
+### JOURNEY-DECISION-082
+
+Route summary and Stops must stay distinct concepts.
+
+Rules:
+
+- Route summary shows the main movement path and keeps the final endpoint
+- Stops show visited/stayed places and may exclude the final return/end endpoint
+- Ticket Detail should still show real raw segments and transfer points
+- Journey Detail / Journey Summary should move toward place-level Stop display later
+
+### JOURNEY-DECISION-083
+
+Recommended future implementation order:
+
+1. `JOURNEY-STOPS-DESIGN-001`
+2. `JOURNEY-PLACE-001`
+3. `TRAIN-STATION-GEO-001` if rail place metadata is needed for normalization/map support
+4. `JOURNEY-STOPS-DATA-001`
+5. `JOURNEY-STOPS-AUTO-001`
+6. `JOURNEY-STOPS-UI-001`
+7. `JOURNEY-SUMMARY-STOPS-001`
+
+## 19. Acceptance criteria
 
 This docs-only task is complete when:
 

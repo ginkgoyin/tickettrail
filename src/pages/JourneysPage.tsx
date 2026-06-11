@@ -1,7 +1,22 @@
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import {
+  buildJourneyRouteSummaryFromTickets,
+  buildJourneySummaryBase,
+  buildJourneySummaryCalendar,
+  buildJourneySummaryTooltip,
+  formatLocalDateKey,
+  getJourneyMonthsForYear,
+  getJourneyRange,
+  getJourneyYears,
+  sameTicketLocation,
+  sortJourneysByStartDate,
+  sortTicketsByTripDate,
+  type JourneySummaryBase,
+  type JourneySummaryCalendar,
+} from "../lib/journeySummary";
 import { createJourney, deleteJourney, getJourney, listJourneys, updateJourney } from "../lib/journeyService";
 import type { CreateJourneyInput, Journey, JourneyDateMode } from "../types/journey";
-import type { TicketLocation, TicketRecord } from "../types/ticket";
+import type { TicketRecord } from "../types/ticket";
 
 type JourneysSubview = "summary" | "list";
 type JourneyYearFilter = "all" | `${number}`;
@@ -74,125 +89,12 @@ const EMPTY_CREATE_JOURNEY_DRAFT: CreateJourneyDraft = {
   selectedTicketIds: [],
 };
 
-interface JourneySummaryCalendarDay {
-  key: string;
-  dateKey: string | null;
-  dayNumber: string;
-  monthIndex: number | null;
-  isCurrentYear: boolean;
-  isToday: boolean;
-  overlapCount: number;
-  entries: Array<{
-    journeyId: string;
-    title: string;
-    rangeLabel: string;
-    dayLabel: string;
-  }>;
-}
-
-interface JourneySummaryCalendarWeek {
-  key: string;
-  monthLabel: string;
-  days: JourneySummaryCalendarDay[];
-}
-
-interface JourneySummaryDestinationStat {
-  label: string;
-  journeyCount: number;
-  dedupedTravelDays: number;
-}
-
-interface JourneySummaryCompanionStat {
-  label: string;
-  journeyCount: number;
-}
-
-interface JourneySummaryCompanionGroup {
-  journeyCount: number;
-  labels: string[];
-}
-
-interface JourneySummaryCurrencyStat {
-  currency: string;
-  totalAmount: number;
-  journeyCount: number;
-}
-
-interface JourneySummaryLongestJourney {
-  title: string;
-  durationDays: number;
-  rangeLabel: string;
-}
-
-interface JourneySummaryHighestCostJourney {
-  title: string;
-  amountLabel: string;
-  convertedCny: number;
-  convertedLabel: string;
-}
-
-interface JourneySummaryBusiestMonth {
-  monthKey: string;
-  dedupedTravelDays: number;
-}
-
-interface JourneySummaryBase {
-  travelDayEntries: Map<
-    string,
-    Array<{ journeyId: string; title: string; rangeLabel: string; dayLabel: string }>
-  >;
-  allTravelDays: number;
-  availableYears: string[];
-  journeysByYear: Map<string, Set<string>>;
-  topDestinations: JourneySummaryDestinationStat[];
-  topCompanions: JourneySummaryCompanionStat[];
-  topCompanionGroups: JourneySummaryCompanionGroup[];
-  costByCurrency: JourneySummaryCurrencyStat[];
-  comparableCostCnyTotal: number | null;
-  journeysWithoutCost: number;
-  missingExchangeRateCount: number;
-  longestJourney: JourneySummaryLongestJourney | null;
-  busiestMonth: JourneySummaryBusiestMonth | null;
-  highestCostJourney: JourneySummaryHighestCostJourney | null;
-}
-
-interface JourneySummaryCalendar {
-  selectedYearJourneys: number;
-  selectedYearTravelDays: number;
-  weeks: JourneySummaryCalendarWeek[];
-}
-
-function parseJourneyDate(value?: string) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+function formatDisplayDate(value?: string) {
+  const parsed = value ? new Date(`${value}T00:00:00`) : null;
+  if (!parsed) {
     return null;
   }
-
-  const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function getJourneyRange(journey: Journey) {
-  const start = parseJourneyDate(journey.startDate);
-  const end = parseJourneyDate(journey.endDate);
-
-  if (start && end) {
-    return start <= end ? { start, end } : { start: end, end: start };
-  }
-
-  if (start) {
-    return { start, end: start };
-  }
-
-  if (end) {
-    return { start: end, end };
-  }
-
-  return null;
-}
-
-function formatDisplayDate(value?: string) {
-  const parsed = parseJourneyDate(value);
-  if (!parsed) {
+  if (Number.isNaN(parsed.getTime())) {
     return null;
   }
 
@@ -280,16 +182,6 @@ function formatCountLabel(count: number, singular: string, plural = `${singular}
   return `${formatSummaryNumber(count)} ${count === 1 ? singular : plural}`;
 }
 
-function formatJourneyDateRangeCompact(journey: Journey) {
-  if (journey.startDate && journey.endDate) {
-    return journey.startDate === journey.endDate
-      ? journey.startDate
-      : `${journey.startDate} ~ ${journey.endDate}`;
-  }
-
-  return journey.startDate ?? journey.endDate ?? "No date yet";
-}
-
 function formatMonthYearLabel(value: string) {
   if (!/^\d{4}-\d{2}$/.test(value)) {
     return value;
@@ -306,59 +198,6 @@ function formatMonthYearLabel(value: string) {
   });
 }
 
-function formatLocalDateKey(date: Date) {
-  return [
-    String(date.getFullYear()),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
-function incrementDateKey(dateKey: string) {
-  const parsed = new Date(`${dateKey}T00:00:00`);
-  parsed.setDate(parsed.getDate() + 1);
-  return formatLocalDateKey(parsed);
-}
-
-function enumerateJourneyDateKeys(journey: Journey) {
-  const range = getJourneyRange(journey);
-  if (!range) {
-    return [];
-  }
-
-  const dates: string[] = [];
-  let cursor = [
-    String(range.start.getFullYear()),
-    String(range.start.getMonth() + 1).padStart(2, "0"),
-    String(range.start.getDate()).padStart(2, "0"),
-  ].join("-");
-  const endKey = [
-    String(range.end.getFullYear()),
-    String(range.end.getMonth() + 1).padStart(2, "0"),
-    String(range.end.getDate()).padStart(2, "0"),
-  ].join("-");
-
-  while (cursor <= endKey) {
-    dates.push(cursor);
-    cursor = incrementDateKey(cursor);
-  }
-
-  return dates;
-}
-
-function describeJourneyDay(journey: Journey, dateKey: string) {
-  if (journey.startDate && journey.endDate && journey.startDate === journey.endDate && journey.startDate === dateKey) {
-    return "single-day trip";
-  }
-  if (journey.startDate === dateKey) {
-    return "first day";
-  }
-  if (journey.endDate === dateKey) {
-    return "last day";
-  }
-  return "travel day";
-}
-
 function formatCurrencyAmount(value: number) {
   return value.toLocaleString("en-AU", {
     minimumFractionDigits: 0,
@@ -366,84 +205,11 @@ function formatCurrencyAmount(value: number) {
   });
 }
 
-function buildJourneySummaryTooltip(dateKey: string, entries: JourneySummaryCalendarDay["entries"]) {
-  if (entries.length === 0) {
-    return undefined;
-  }
-
-  const lines = [dateKey, entries.length > 1 ? `${entries.length} journeys` : "1 journey"];
-  entries.forEach((entry) => {
-    lines.push(`${entry.title} (${entry.rangeLabel})`);
-    lines.push(entry.dayLabel);
-  });
-  return lines.join("\n");
-}
-
 function getJourneySummaryMonthColor(monthIndex: number): CSSProperties {
   const variableIndex = monthIndex + 1;
   return {
     "--journey-summary-month-rgb": `var(--journey-month-${variableIndex}-rgb)`,
   } as CSSProperties;
-}
-
-function buildJourneySummaryCalendarWeeks(
-  year: number,
-  dayEntries: Map<string, Array<{ journeyId: string; title: string; rangeLabel: string; dayLabel: string }>>,
-) {
-  const firstDay = new Date(year, 0, 1);
-  const lastDay = new Date(year, 11, 31);
-  const firstMonday = new Date(firstDay);
-  const firstDayOffset = (firstMonday.getDay() + 6) % 7;
-  firstMonday.setDate(firstMonday.getDate() - firstDayOffset);
-  const lastSunday = new Date(lastDay);
-  const lastDayOffset = 6 - ((lastSunday.getDay() + 6) % 7);
-  lastSunday.setDate(lastSunday.getDate() + lastDayOffset);
-
-  const todayKey = formatLocalDateKey(new Date());
-  const weeks: JourneySummaryCalendarWeek[] = [];
-  const cursor = new Date(firstMonday);
-  let weekIndex = 0;
-
-  while (cursor <= lastSunday) {
-    const weekStart = new Date(cursor);
-    const days: JourneySummaryCalendarDay[] = [];
-    let monthLabel = "";
-
-    for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
-      const current = new Date(weekStart);
-      current.setDate(weekStart.getDate() + dayOffset);
-      const currentYear = current.getFullYear();
-      const currentMonth = current.getMonth();
-      const currentDateKey = formatLocalDateKey(current);
-      const isCurrentYear = currentYear === year;
-      const entries = isCurrentYear ? dayEntries.get(currentDateKey) ?? [] : [];
-
-      if (!monthLabel && isCurrentYear && current.getDate() === 1) {
-        monthLabel = current.toLocaleDateString("en-AU", { month: "short" });
-      }
-
-      days.push({
-        key: `${currentDateKey}-${dayOffset}`,
-        dateKey: isCurrentYear ? currentDateKey : null,
-        dayNumber: isCurrentYear ? String(current.getDate()) : "",
-        monthIndex: isCurrentYear ? currentMonth : null,
-        isCurrentYear,
-        isToday: currentDateKey === todayKey,
-        overlapCount: entries.length,
-        entries,
-      });
-    }
-
-    weeks.push({
-      key: `${year}-week-${weekIndex}`,
-      monthLabel,
-      days,
-    });
-    cursor.setDate(cursor.getDate() + 7);
-    weekIndex += 1;
-  }
-
-  return weeks;
 }
 
 function summarizeCompanions(journey: Journey) {
@@ -454,46 +220,6 @@ function summarizeCompanions(journey: Journey) {
   return journey.companions.map((companion) => companion.name).join(", ");
 }
 
-function getJourneyYears(journey: Journey) {
-  const range = getJourneyRange(journey);
-  if (!range) {
-    return [];
-  }
-
-  const years: string[] = [];
-  for (let year = range.start.getFullYear(); year <= range.end.getFullYear(); year += 1) {
-    years.push(String(year));
-  }
-
-  return years;
-}
-
-function getJourneyMonthsForYear(journey: Journey, year: string) {
-  const range = getJourneyRange(journey);
-  if (!range) {
-    return [];
-  }
-
-  const numericYear = Number.parseInt(year, 10);
-  if (Number.isNaN(numericYear)) {
-    return [];
-  }
-
-  const startMonth = range.start.getFullYear() === numericYear ? range.start.getMonth() + 1 : 1;
-  const endMonth = range.end.getFullYear() === numericYear ? range.end.getMonth() + 1 : 12;
-
-  if (numericYear < range.start.getFullYear() || numericYear > range.end.getFullYear()) {
-    return [];
-  }
-
-  const months: string[] = [];
-  for (let month = startMonth; month <= endMonth; month += 1) {
-    months.push(String(month).padStart(2, "0"));
-  }
-
-  return months;
-}
-
 function formatMonthLabel(value: JourneyMonthFilter) {
   if (value === "all") {
     return "All months";
@@ -501,25 +227,6 @@ function formatMonthLabel(value: JourneyMonthFilter) {
 
   const date = new Date(`2026-${value}-01T00:00:00`);
   return date.toLocaleDateString("en-AU", { month: "long" });
-}
-
-function sortJourneysByStartDate(journeys: Journey[]) {
-  return [...journeys].sort((left, right) => {
-    const leftStart = left.startDate ?? left.endDate ?? "";
-    const rightStart = right.startDate ?? right.endDate ?? "";
-
-    if (!leftStart && !rightStart) {
-      return right.updatedAt.localeCompare(left.updatedAt) || left.title.localeCompare(right.title);
-    }
-    if (!leftStart) {
-      return 1;
-    }
-    if (!rightStart) {
-      return -1;
-    }
-
-    return rightStart.localeCompare(leftStart) || right.updatedAt.localeCompare(left.updatedAt);
-  });
 }
 
 function matchesJourneyFilters(
@@ -546,17 +253,6 @@ function matchesJourneyFilters(
 
   const targetYears = yearFilter === "all" ? years : [yearFilter];
   return targetYears.some((year) => getJourneyMonthsForYear(journey, year).includes(monthFilter));
-}
-
-function sameTicketLocation(left: TicketLocation, right: TicketLocation) {
-  const leftCode = (left.code ?? "").trim().toLowerCase();
-  const rightCode = (right.code ?? "").trim().toLowerCase();
-
-  if (leftCode && rightCode) {
-    return leftCode === rightCode;
-  }
-
-  return left.name.trim().toLowerCase() === right.name.trim().toLowerCase();
 }
 
 function formatTicketDateLabel(ticket: TicketRecord) {
@@ -604,26 +300,6 @@ function buildTicketCodeSummary(ticket: TicketRecord) {
   return cleanedCodes.join(" / ") || ticket.code || "No code";
 }
 
-function getTicketRouteStops(ticket: TicketRecord) {
-  const segments = ticket.segments ?? [];
-  const stops = segments.length === 0 || !sameTicketLocation(ticket.departure, segments[0].departure)
-    ? [ticket.departure.name, ...segments.map((segment) => segment.departure.name), ticket.arrival.name]
-    : [segments[0].departure.name, ...segments.map((segment) => segment.arrival.name)];
-
-  return stops
-    .map((stop) => stop.trim())
-    .filter(Boolean)
-    .filter((stop, index, values) => stop !== values[index - 1]);
-}
-
-function sortTicketsByTripDate(tickets: TicketRecord[]) {
-  return [...tickets].sort((left, right) => {
-    const leftDate = left.departureTimeLocal || left.arrivalTimeLocal || left.createdAt || "";
-    const rightDate = right.departureTimeLocal || right.arrivalTimeLocal || right.createdAt || "";
-    return leftDate.localeCompare(rightDate) || left.createdAt.localeCompare(right.createdAt);
-  });
-}
-
 function getLinkedTickets(journey: Journey | null, tickets: TicketRecord[]) {
   if (!journey) {
     return [];
@@ -633,14 +309,6 @@ function getLinkedTickets(journey: Journey | null, tickets: TicketRecord[]) {
   return journey.ticketIds
     .map((ticketId) => ticketsById.get(ticketId))
     .filter((ticket): ticket is TicketRecord => Boolean(ticket));
-}
-
-function buildJourneyRouteSummary(linkedTickets: TicketRecord[]) {
-  const stops = sortTicketsByTripDate(linkedTickets)
-    .flatMap((ticket) => getTicketRouteStops(ticket))
-    .filter((stop, index, values) => stop !== values[index - 1]);
-
-  return stops.length > 0 ? stops.join(" -> ") : "No linked route yet";
 }
 
 function countJourneySegments(linkedTickets: TicketRecord[]) {
@@ -999,245 +667,15 @@ export function JourneysPage({
   const showJourneyExchangeRateField =
     normalizedJourneyCostCurrency.length > 0 && normalizedJourneyCostCurrency !== "CNY";
 
-  const summaryBase = useMemo<JourneySummaryBase>(() => {
-    const travelDayEntries = new Map<
-      string,
-      Array<{ journeyId: string; title: string; rangeLabel: string; dayLabel: string }>
-    >();
-    const allYears = new Set<string>([currentSummaryYear]);
-    const journeysByYear = new Map<string, Set<string>>();
-    const travelDaysByMonth = new Map<string, Set<string>>();
-    const destinationMap = new Map<string, { label: string; journeyIds: Set<string>; travelDays: Set<string> }>();
-    const companionMap = new Map<string, { label: string; journeyIds: Set<string> }>();
-    const costByCurrencyMap = new Map<string, { totalAmount: number; journeyCount: number }>();
-    let comparableCostCnyTotal = 0;
-    let hasComparableCost = false;
-    let journeysWithoutCost = 0;
-    let missingExchangeRateCount = 0;
-    let longestJourney: JourneySummaryLongestJourney | null = null;
-    let highestCostJourney: JourneySummaryHighestCostJourney | null = null;
+  const summaryBase = useMemo<JourneySummaryBase>(
+    () => buildJourneySummaryBase(journeys, tickets, currentSummaryYear),
+    [currentSummaryYear, journeys, tickets],
+  );
 
-    journeys.forEach((journey) => {
-      const journeyDateKeys = enumerateJourneyDateKeys(journey);
-      const rangeLabel = formatJourneyDateRangeCompact(journey);
-
-      if (journeyDateKeys.length > 0) {
-        if (
-          !longestJourney ||
-          journeyDateKeys.length > longestJourney.durationDays ||
-          (journeyDateKeys.length === longestJourney.durationDays && rangeLabel > longestJourney.rangeLabel)
-        ) {
-          longestJourney = {
-            title: journey.title,
-            durationDays: journeyDateKeys.length,
-            rangeLabel,
-          };
-        }
-      }
-
-      if (journeyDateKeys.length > 0) {
-        journeyDateKeys.forEach((dateKey) => {
-          const entries = travelDayEntries.get(dateKey) ?? [];
-          entries.push({
-            journeyId: journey.id,
-            title: journey.title,
-            rangeLabel,
-            dayLabel: describeJourneyDay(journey, dateKey),
-          });
-          travelDayEntries.set(dateKey, entries);
-
-          const year = dateKey.slice(0, 4);
-          allYears.add(year);
-          const yearJourneys = journeysByYear.get(year) ?? new Set<string>();
-          yearJourneys.add(journey.id);
-          journeysByYear.set(year, yearJourneys);
-
-          const monthKey = dateKey.slice(0, 7);
-          const monthDays = travelDaysByMonth.get(monthKey) ?? new Set<string>();
-          monthDays.add(dateKey);
-          travelDaysByMonth.set(monthKey, monthDays);
-        });
-      }
-
-      const destinationLabel = journey.destination?.trim() || "No destination";
-      const destinationKey = destinationLabel.toLowerCase();
-      const destinationStat =
-        destinationMap.get(destinationKey) ??
-        {
-          label: destinationLabel,
-          journeyIds: new Set<string>(),
-          travelDays: new Set<string>(),
-        };
-      destinationStat.journeyIds.add(journey.id);
-      journeyDateKeys.forEach((dateKey) => destinationStat.travelDays.add(dateKey));
-      destinationMap.set(destinationKey, destinationStat);
-
-      const uniqueCompanions = new Map<string, string>();
-      journey.companions.forEach((companion) => {
-        const label = companion.name.trim();
-        if (!label) {
-          return;
-        }
-        uniqueCompanions.set(label.toLowerCase(), label);
-      });
-      uniqueCompanions.forEach((label, companionKey) => {
-        const companionStat =
-          companionMap.get(companionKey) ??
-          {
-            label,
-            journeyIds: new Set<string>(),
-          };
-        companionStat.journeyIds.add(journey.id);
-        companionMap.set(companionKey, companionStat);
-      });
-
-      if (typeof journey.costAmount === "number" && Number.isFinite(journey.costAmount)) {
-        const costCurrency = journey.costCurrency?.trim().toUpperCase();
-        if (costCurrency) {
-          const currencyStat = costByCurrencyMap.get(costCurrency) ?? { totalAmount: 0, journeyCount: 0 };
-          currencyStat.totalAmount += journey.costAmount;
-          currencyStat.journeyCount += 1;
-          costByCurrencyMap.set(costCurrency, currencyStat);
-        }
-
-        const exchangeRate = journey.costExchangeRateToCny;
-        if (costCurrency === "CNY") {
-          const convertedCny = journey.costAmount;
-          comparableCostCnyTotal += convertedCny;
-          hasComparableCost = true;
-          if (!highestCostJourney || convertedCny > highestCostJourney.convertedCny) {
-            highestCostJourney = {
-              title: journey.title,
-              amountLabel: formatJourneyCost(journey) ?? formatCurrencyAmount(journey.costAmount),
-              convertedCny,
-              convertedLabel: formatCurrencyAmount(convertedCny),
-            };
-          }
-        } else if (costCurrency && typeof exchangeRate === "number" && Number.isFinite(exchangeRate) && exchangeRate > 0) {
-          const convertedCny = journey.costAmount * exchangeRate;
-          comparableCostCnyTotal += convertedCny;
-          hasComparableCost = true;
-          if (!highestCostJourney || convertedCny > highestCostJourney.convertedCny) {
-            highestCostJourney = {
-              title: journey.title,
-              amountLabel: formatJourneyCost(journey) ?? `${costCurrency} ${formatCurrencyAmount(journey.costAmount)}`,
-              convertedCny,
-              convertedLabel: formatCurrencyAmount(convertedCny),
-            };
-          }
-        } else if (costCurrency && costCurrency !== "CNY") {
-          missingExchangeRateCount += 1;
-        }
-      } else {
-        journeysWithoutCost += 1;
-      }
-    });
-
-    const topDestinations = [...destinationMap.values()]
-      .map<JourneySummaryDestinationStat>((value) => ({
-        label: value.label,
-        journeyCount: value.journeyIds.size,
-        dedupedTravelDays: value.travelDays.size,
-      }))
-      .sort((left, right) => {
-        if (right.journeyCount !== left.journeyCount) {
-          return right.journeyCount - left.journeyCount;
-        }
-        if (right.dedupedTravelDays !== left.dedupedTravelDays) {
-          return right.dedupedTravelDays - left.dedupedTravelDays;
-        }
-        return left.label.localeCompare(right.label);
-      });
-
-    const topCompanions = [...companionMap.values()]
-      .map<JourneySummaryCompanionStat>((value) => ({
-        label: value.label,
-        journeyCount: value.journeyIds.size,
-      }))
-      .sort((left, right) => {
-        if (right.journeyCount !== left.journeyCount) {
-          return right.journeyCount - left.journeyCount;
-        }
-        return left.label.localeCompare(right.label);
-      })
-      .slice(0, 5);
-
-    const topCompanionGroups = topCompanions.reduce<JourneySummaryCompanionGroup[]>((groups, companion) => {
-      const existingGroup = groups.find((group) => group.journeyCount === companion.journeyCount);
-      if (existingGroup) {
-        existingGroup.labels.push(companion.label);
-        return groups;
-      }
-
-      groups.push({
-        journeyCount: companion.journeyCount,
-        labels: [companion.label],
-      });
-      return groups;
-    }, []);
-
-    const costByCurrency = [...costByCurrencyMap.entries()]
-      .map<JourneySummaryCurrencyStat>(([currency, value]) => ({
-        currency,
-        totalAmount: value.totalAmount,
-        journeyCount: value.journeyCount,
-      }))
-      .sort((left, right) => {
-        if (right.totalAmount !== left.totalAmount) {
-          return right.totalAmount - left.totalAmount;
-        }
-        return left.currency.localeCompare(right.currency);
-      });
-
-    const busiestMonth: JourneySummaryBusiestMonth | null =
-      [...travelDaysByMonth.entries()]
-      .map(([monthKey, dates]) => ({ monthKey, dedupedTravelDays: dates.size }))
-      .sort((left, right) => {
-        if (right.dedupedTravelDays !== left.dedupedTravelDays) {
-          return right.dedupedTravelDays - left.dedupedTravelDays;
-        }
-        return right.monthKey.localeCompare(left.monthKey);
-      })[0] ?? null;
-
-    const availableYears = [...allYears].sort((left, right) => right.localeCompare(left));
-
-    return {
-      travelDayEntries,
-      allTravelDays: travelDayEntries.size,
-      availableYears,
-      journeysByYear,
-      topDestinations,
-      topCompanions,
-      topCompanionGroups,
-      costByCurrency,
-      comparableCostCnyTotal: hasComparableCost ? comparableCostCnyTotal : null,
-      journeysWithoutCost,
-      missingExchangeRateCount,
-      longestJourney,
-      busiestMonth,
-      highestCostJourney,
-    };
-  }, [currentSummaryYear, journeys]);
-
-  const summaryCalendar = useMemo<JourneySummaryCalendar>(() => {
-    const selectedYearJourneys = summaryBase.journeysByYear.get(summaryYear)?.size ?? 0;
-    const selectedYearEntries = new Map<
-      string,
-      Array<{ journeyId: string; title: string; rangeLabel: string; dayLabel: string }>
-    >();
-
-    summaryBase.travelDayEntries.forEach((entries, dateKey) => {
-      if (dateKey.startsWith(`${summaryYear}-`)) {
-        selectedYearEntries.set(dateKey, entries);
-      }
-    });
-
-    return {
-      selectedYearJourneys,
-      selectedYearTravelDays: selectedYearEntries.size,
-      weeks: buildJourneySummaryCalendarWeeks(Number.parseInt(summaryYear, 10), selectedYearEntries),
-    };
-  }, [summaryBase, summaryYear]);
+  const summaryCalendar = useMemo<JourneySummaryCalendar>(
+    () => buildJourneySummaryCalendar(summaryBase, summaryYear),
+    [summaryBase, summaryYear],
+  );
 
   const loadStoredJourneys = async () => {
     setJourneysLoading(true);
@@ -2330,7 +1768,7 @@ export function JourneysPage({
   if (selectedJourneyId) {
     const fallbackJourney = journeys.find((journey) => journey.id === selectedJourneyId);
     const displayedJourney = journeyDetail ?? fallbackJourney ?? null;
-    const routeSummary = buildJourneyRouteSummary(detailLinkedTickets);
+    const routeSummary = buildJourneyRouteSummaryFromTickets(detailLinkedTickets);
     const ticketCount = displayedJourney?.ticketIds.length ?? detailLinkedTickets.length;
     const segmentCount = countJourneySegments(detailLinkedTickets);
     const cost = displayedJourney ? formatJourneyCost(displayedJourney) : null;

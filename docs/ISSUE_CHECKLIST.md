@@ -618,6 +618,56 @@
   - Status: `Implemented / needs manual verification`
   - Priority: `Medium`
 
+- `JOURNEY-SUMMARY-004`
+  - Extract Journeys Summary helper logic, add focused tests, and harden date/destination/cost edge-case calculations without redesigning the Summary UI.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `Medium`
+
+- `JOURNEY-STOPS-DESIGN-001`
+  - Document the Journey Stops / Stays model, auto-derivation rules, place-normalization dependency, and future implementation order before runtime code begins.
+  - Status: `Documented / docs-only`
+  - Priority: `High`
+
+- `JOURNEY-DESTINATION-001`
+  - Derive visited Summary destinations from linked ticket endpoints while excluding internal transfer cities inside multi-segment tickets.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `JOURNEY-ROUTE-001`
+  - Build Journey route summaries from ticket-level endpoints while excluding internal transfer cities inside multi-segment tickets.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `JOURNEY-PLACE-001`
+  - Normalize airport/station endpoints into Journey-level place labels so Stops and destination summaries reflect real visited places instead of raw transport endpoints.
+  - Status: `Open / future normalization task`
+  - Priority: `High`
+
+- `TRAIN-STATION-GEO-001`
+  - Add city/place metadata and coordinates for train/rail stations so rail endpoints can normalize into Journey-level Stops and future Journey mapping safely.
+  - Status: `Open / future rail metadata task`
+  - Priority: `High`
+
+- `JOURNEY-STOPS-DATA-001`
+  - Add the future `journey_stops` persistence model and migration path after Stop semantics and place normalization are accepted.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `JOURNEY-STOPS-AUTO-001`
+  - Auto-derive Journey Stops from linked ticket-level endpoints while excluding internal transfer cities and preserving user-edited Stops.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `JOURNEY-STOPS-UI-001`
+  - Add future Journey Stop editing/review UI, including manual add/edit/delete and stale-stop review after linked-ticket changes.
+  - Status: `Open / future implementation`
+  - Priority: `Medium`
+
+- `JOURNEY-SUMMARY-STOPS-001`
+  - Move Journey Summary destination aggregation from raw Journey destination/route inference toward persisted Journey Stops when Stop data is available.
+  - Status: `Open / future summary follow-up`
+  - Priority: `High`
+
 - `JOURNEY-MAP-004`
   - Add later Journey-colored map and yearly filtering only after the non-map Journey CRUD flow is stable.
   - Status: `Open / future enhancement`
