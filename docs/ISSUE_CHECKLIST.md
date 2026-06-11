@@ -658,6 +658,21 @@
   - Status: `Documented / investigation`
   - Priority: `High`
 
+- `LOCATION-DIRECTORY-DESIGN-001`
+  - Define the unified location-directory and coordinate-resolver architecture before Journey place normalization, rail geo work, or broader map changes continue.
+  - Status: `Documented / docs-only`
+  - Priority: `High`
+
+- `LOCATION-DIRECTORY-001`
+  - Unify frontend suggestion data and backend coordinate resolution around the same shared location-directory path, starting with richer airport municipality/city/place metadata and reducing dependence on the tiny backend-only seed.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `RAIL-STATION-PLACE-001`
+  - Add a station-to-place metadata layer for rail endpoints so Journey place normalization can use real city/place identities before exact rail coordinates are attempted.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
 - `TRAIN-STATION-GEO-DESIGN-001`
   - Define the future rail station geo/place metadata layer shape, source boundary, and how it should connect to Journey normalization and map resolution.
   - Status: `Open / future design task`
