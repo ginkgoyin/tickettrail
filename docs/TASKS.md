@@ -461,24 +461,27 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-STOPS-DESIGN-001`.
+Current task: `TRAIN-STATION-GEO-SPIKE-001 + JOURNEY-PLACE-SPIKE-001`.
 
-Journey Stops / Stays are now being documented before runtime implementation so future destination, route, lodging, and stay-day logic can move from raw ticket endpoints toward place-level travel meaning.
+Airport data, rail station data, and current map/suggestion resolution are now being inspected so future Journey place normalization and rail geo work can be designed on top of the repository's actual data boundaries.
 
 The recommended implementation order is now:
 
-1. `JOURNEY-PLACE-001` if place normalization is the next priority
-2. `TRAIN-STATION-GEO-001` if rail place metadata must be solved first for normalization accuracy
-3. Otherwise, another explicitly chosen functional issue
+1. `TRAIN-STATION-GEO-DESIGN-001`
+2. `JOURNEY-PLACE-001`
+3. `TRAIN-STATION-GEO-001` after the metadata/design boundary is accepted
 
 Implementation notes:
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
 - `JOURNEY-SUMMARY-001` now owns the real Summary dashboard, including all-time totals, the Monday-first yearly travel calendar, and the 2x2 stats modules.
-- `JOURNEY-STOPS-DESIGN-001` is docs-only and should define the Stop/Stay model, distinction from route summary, incomplete-stay rules, and future task order before runtime code starts.
-- `JOURNEY-PLACE-001` should normalize station/airport endpoints into place-level Journey labels before persisted Stops are relied on broadly.
-- `TRAIN-STATION-GEO-001` becomes the next dependency only if rail station metadata is still too weak for safe place normalization.
+- `TRAIN-STATION-GEO-SPIKE-001 + JOURNEY-PLACE-SPIKE-001` are docs-only investigation tasks and should record the current airport pipeline, rail pipeline, suggestion path, and map-resolution gaps before implementation starts.
+- Current evidence shows that nationwide rail suggestions exist, but the generated rail dataset still lacks place metadata and coordinates.
+- Current evidence also shows that desktop map resolution still relies on the small `locations.seed.json` database seed plus hardcoded coordinate fallbacks rather than the full generated airport/rail datasets.
+- `TRAIN-STATION-GEO-DESIGN-001` should be the smallest next task because the repo first needs an explicit rail metadata layer design before adding a new dataset/overlay.
+- `JOURNEY-PLACE-001` should then build conservative place normalization with safe fallback to raw endpoint labels when metadata confidence is low.
+- `TRAIN-STATION-GEO-001` should add the first real rail metadata source/overlay only after the design boundary is accepted.
 - `JOURNEY-STOPS-DATA-001`, `JOURNEY-STOPS-AUTO-001`, `JOURNEY-STOPS-UI-001`, and `JOURNEY-SUMMARY-STOPS-001` should remain separate follow-up phases rather than one large Stops implementation.
 - `JOURNEY-LIST-001` should now be manually verified together with `JOURNEY-CREATE-001`.
 - Ticket selector search now belongs to the implemented `JOURNEY-CREATE-001` baseline rather than a later polish pass.

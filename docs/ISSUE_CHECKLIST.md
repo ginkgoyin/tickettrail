@@ -648,6 +648,21 @@
   - Status: `Open / future rail metadata task`
   - Priority: `High`
 
+- `TRAIN-STATION-GEO-SPIKE-001`
+  - Investigate the current rail station data pipeline, coordinate resolution gaps, and safe MVP options before implementing rail geo metadata.
+  - Status: `Documented / investigation`
+  - Priority: `High`
+
+- `JOURNEY-PLACE-SPIKE-001`
+  - Investigate current airport/station data and map-resolution behavior so `JOURNEY-PLACE-001` can be designed on real repository constraints instead of assumptions.
+  - Status: `Documented / investigation`
+  - Priority: `High`
+
+- `TRAIN-STATION-GEO-DESIGN-001`
+  - Define the future rail station geo/place metadata layer shape, source boundary, and how it should connect to Journey normalization and map resolution.
+  - Status: `Open / future design task`
+  - Priority: `High`
+
 - `JOURNEY-STOPS-DATA-001`
   - Add the future `journey_stops` persistence model and migration path after Stop semantics and place normalization are accepted.
   - Status: `Open / future implementation`
