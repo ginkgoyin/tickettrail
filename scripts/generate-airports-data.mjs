@@ -62,6 +62,34 @@ function normalizeText(value) {
   return value.trim();
 }
 
+function normalizePlaceSegment(value) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function buildPlaceKey(countryCode, municipality, fallbackName) {
+  const normalizedCountry = normalizePlaceSegment(countryCode);
+  const normalizedPlace = normalizePlaceSegment(municipality || fallbackName);
+
+  if (!normalizedCountry && !normalizedPlace) {
+    return undefined;
+  }
+
+  if (!normalizedCountry) {
+    return normalizedPlace || undefined;
+  }
+
+  if (!normalizedPlace) {
+    return normalizedCountry || undefined;
+  }
+
+  return `${normalizedCountry}-${normalizedPlace}`;
+}
+
 function buildAliases(record) {
   const aliases = [
     record.iata_code,
@@ -88,16 +116,24 @@ function toNumber(value) {
 
 function buildAirportRecord(record) {
   const iataCode = normalizeText(record.iata_code).toUpperCase();
+  const nameEn = normalizeText(record.name);
+  const municipality = normalizeText(record.municipality) || undefined;
+  const countryCode = normalizeText(record.iso_country).toUpperCase() || undefined;
+  const placeNameEn = municipality || nameEn;
 
   return {
     id: `loc-airport-${iataCode.toLowerCase()}`,
     locationType: "airport",
     code: iataCode,
-    nameEn: normalizeText(record.name),
+    nameEn,
+    municipality,
+    placeNameEn,
+    placeKey: buildPlaceKey(countryCode, municipality, nameEn),
+    coordinatePrecision: "exact",
     aliases: buildAliases(record),
     latitude: toNumber(record.latitude_deg),
     longitude: toNumber(record.longitude_deg),
-    countryCode: normalizeText(record.iso_country).toUpperCase() || undefined,
+    countryCode,
   };
 }
 

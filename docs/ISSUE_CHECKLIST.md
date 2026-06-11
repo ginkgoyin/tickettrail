@@ -56,6 +56,11 @@
 - `DATA-004`: airport data generation from a maintained external source with documented filtering/regeneration was implemented and manually verified
 - `DATA-005`: Chinese airport aliases now supplement global airport data for better Chinese search, and this was manually verified
 - `DATA-006`: generated airport data now preserves latitude/longitude for route-map usage, and this was manually verified
+- `AIRPORT-DATA-007`
+  - Generated airport data now preserves municipality/place metadata for the unified location directory direction and future Journey place normalization.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
 - `MAP-DATA-001`: generated airport suggestion data is now connected to map coordinate resolution and was manually verified
 - `MAP-DATA-002`: flight route maps now resolve coordinates by airport code from generated airport data and this was manually verified
 - `MAP-001`: map endpoint dots now align with route line endpoints and this was manually verified
@@ -665,12 +670,12 @@
 
 - `LOCATION-DIRECTORY-001`
   - Unify frontend suggestion data and backend coordinate resolution around the same shared location-directory path, starting with richer airport municipality/city/place metadata and reducing dependence on the tiny backend-only seed.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-001`
   - Add a station-to-place metadata layer for rail endpoints so Journey place normalization can use real city/place identities before exact rail coordinates are attempted.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `TRAIN-STATION-GEO-DESIGN-001`

@@ -145,6 +145,20 @@ The generated records are normalized to the app's `LocationDirectoryEntry`-compa
 - `stationIndex`
 - `aliases`
 - `countryCode = "CN"`
+- conservative derived place metadata:
+  - `placeNameZh`
+  - `placeNameEn`
+  - `placeKey`
+  - `placeConfidence`
+  - `placeRule`
+
+The derived rail place metadata stage is intentionally conservative:
+
+- exact curated hub rules can map station names such as `上海虹桥` to the city/place label `上海`
+- directional suffix stripping can map names such as `青岛北` / `长沙南` / `北京南` to the city/place label
+- uncertain cases fall back to the original station name instead of over-normalizing
+- no coordinates are added in this stage
+- no external city dataset is used in this stage
 
 ## 8. Current Repository State For Rail Data
 
@@ -154,6 +168,7 @@ The generated records are normalized to the app's `LocationDirectoryEntry`-compa
   - a validation sample fixture
   - the full downloaded `station_name.js` source file
   - a generated nationwide rail-station dataset
+- The rail generator now also derives a conservative station-to-place metadata layer directly from the existing 12306 station name + pinyin fields.
 - The current generated file was produced from the downloaded 12306 source and currently contains `3339` rail station records.
 - The runtime currently merges:
   - generated rail station records

@@ -80,6 +80,13 @@ export interface LocationDirectoryEntry {
   code?: string;
   nameZh?: string;
   nameEn?: string;
+  municipality?: string;
+  placeNameZh?: string;
+  placeNameEn?: string;
+  placeKey?: string;
+  coordinatePrecision?: "exact" | "city" | "fallback" | "unknown";
+  placeConfidence?: "high" | "medium" | "low";
+  placeRule?: string;
   aliases: string[];
   pinyin?: string;
   shortPinyin?: string;

@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { deriveRailPlaceMetadata } from "./lib/derive-rail-place.mjs";
 
 const DEFAULT_SOURCE_URL = "https://kyfw.12306.cn/otn/resources/js/framework/station_name.js";
 const DEFAULT_INPUT = path.resolve("data-sources/12306/station_name.js");
@@ -159,6 +160,11 @@ function parseStationEntries(payload) {
 
       const code = normalizeCode(telecode);
       const normalizedName = normalizeName(nameZh);
+      const placeMetadata = deriveRailPlaceMetadata({
+        nameZh,
+        pinyin,
+        nameEn: pinyin,
+      });
 
       return {
         id: `loc-station-${code.toLowerCase()}`,
@@ -171,6 +177,11 @@ function parseStationEntries(payload) {
         stationIndex: stationIndex || undefined,
         aliases: buildAliases(nameZh, code, pinyin, shortPinyin),
         countryCode: "CN",
+        // Conservative rail place metadata is derived only from the existing 12306
+        // station name and pinyin fields. It does not add coordinates or external
+        // city datasets, and it intentionally falls back to the original station
+        // name when directional stripping would be unsafe or too ambiguous.
+        ...placeMetadata,
         _slug: slug,
         _normalizedName: normalizedName,
       };

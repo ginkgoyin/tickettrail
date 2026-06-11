@@ -10,11 +10,12 @@ use chrono_tz::Tz;
 use rusqlite::{params, Connection, Row};
 use std::{
     cmp::Ordering,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
     process::Command,
+    sync::OnceLock,
 };
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
@@ -22,6 +23,7 @@ use uuid::Uuid;
 const SCHEMA_SQL: &str = include_str!("../../database/schema.sql");
 const AIRLINES_SEED_JSON: &str = include_str!("../../src/data/airlines.seed.json");
 const LOCATIONS_SEED_JSON: &str = include_str!("../../src/data/locations.seed.json");
+const GENERATED_AIRPORTS_JSON: &str = include_str!("../../src/data/airports.generated.json");
 const LEGACY_JOURNEYS_TABLE: &str = "journeys";
 const LEGACY_SEGMENTS_TABLE: &str = "segments";
 const TICKET_ITINERARIES_TABLE: &str = "ticket_itineraries";
@@ -53,6 +55,28 @@ struct LocationSeedEntry {
     timezone: Option<String>,
     country_code: Option<String>,
 }
+
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GeneratedAirportEntry {
+    code: Option<String>,
+    name_zh: Option<String>,
+    name_en: Option<String>,
+    municipality: Option<String>,
+    place_name_en: Option<String>,
+    aliases: Vec<String>,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+    country_code: Option<String>,
+    coordinate_precision: Option<String>,
+}
+
+struct GeneratedAirportLookup {
+    by_code: HashMap<String, (f64, f64)>,
+    by_term: HashMap<String, (f64, f64)>,
+}
+
+static GENERATED_AIRPORT_LOOKUP: OnceLock<GeneratedAirportLookup> = OnceLock::new();
 
 struct TicketRowData {
     id: String,
@@ -2300,6 +2324,10 @@ fn resolve_coordinates(conn: &Connection, location: &TicketLocationPayload) -> (
         return (latitude, longitude);
     }
 
+    if let Some((latitude, longitude)) = lookup_generated_airport_coordinates(location) {
+        return (latitude, longitude);
+    }
+
     let code = location.code.as_deref().unwrap_or("").to_uppercase();
     let name = location.name.to_lowercase();
 
@@ -2336,11 +2364,111 @@ fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
     (latitude, longitude)
 }
 
+fn lookup_generated_airport_coordinates(location: &TicketLocationPayload) -> Option<(f64, f64)> {
+    let lookup = generated_airport_lookup();
+    let normalized_code = normalize_lookup_value(location.code.as_deref());
+    if !normalized_code.is_empty() {
+        if let Some(coordinates) = lookup.by_code.get(&normalized_code) {
+            return Some(*coordinates);
+        }
+    }
+
+    for term in [location.name.as_str(), location.code.as_deref().unwrap_or("")] {
+        let normalized_term = normalize_lookup_value(Some(term));
+        if normalized_term.is_empty() {
+            continue;
+        }
+
+        if let Some(coordinates) = lookup.by_term.get(&normalized_term) {
+            return Some(*coordinates);
+        }
+    }
+
+    None
+}
+
+fn generated_airport_lookup() -> &'static GeneratedAirportLookup {
+    GENERATED_AIRPORT_LOOKUP.get_or_init(build_generated_airport_lookup)
+}
+
+fn build_generated_airport_lookup() -> GeneratedAirportLookup {
+    let airports: Vec<GeneratedAirportEntry> =
+        serde_json::from_str(GENERATED_AIRPORTS_JSON).unwrap_or_default();
+    let mut by_code = HashMap::new();
+    let mut by_term = HashMap::new();
+
+    for airport in airports {
+        let Some((latitude, longitude)) = airport_coordinates(&airport) else {
+            continue;
+        };
+
+        if airport.coordinate_precision.as_deref().unwrap_or("exact") != "exact" {
+            continue;
+        }
+
+        if let Some(code) = airport.code.as_deref() {
+            let normalized_code = normalize_lookup_value(Some(code));
+            if !normalized_code.is_empty() {
+                by_code.entry(normalized_code).or_insert((latitude, longitude));
+            }
+        }
+
+        for term in airport_lookup_terms(&airport) {
+            let normalized_term = normalize_lookup_value(Some(term.as_str()));
+            if !normalized_term.is_empty() {
+                by_term.entry(normalized_term).or_insert((latitude, longitude));
+            }
+        }
+    }
+
+    GeneratedAirportLookup { by_code, by_term }
+}
+
+fn airport_coordinates(airport: &GeneratedAirportEntry) -> Option<(f64, f64)> {
+    match (airport.latitude, airport.longitude) {
+        (Some(latitude), Some(longitude)) if latitude.is_finite() && longitude.is_finite() => {
+            Some((latitude, longitude))
+        }
+        _ => None,
+    }
+}
+
+fn airport_lookup_terms(airport: &GeneratedAirportEntry) -> Vec<String> {
+    let mut terms = Vec::new();
+
+    if let Some(code) = airport.code.as_ref() {
+        terms.push(code.clone());
+    }
+    if let Some(name_en) = airport.name_en.as_ref() {
+        terms.push(name_en.clone());
+    }
+    if let Some(name_zh) = airport.name_zh.as_ref() {
+        terms.push(name_zh.clone());
+    }
+    if let Some(municipality) = airport.municipality.as_ref() {
+        terms.push(municipality.clone());
+    }
+    if let Some(place_name_en) = airport.place_name_en.as_ref() {
+        terms.push(place_name_en.clone());
+    }
+    if let Some(country_code) = airport.country_code.as_ref() {
+        terms.push(country_code.clone());
+    }
+
+    terms.extend(airport.aliases.iter().cloned());
+    terms
+}
+
+fn normalize_lookup_value(value: Option<&str>) -> String {
+    value.unwrap_or("").trim().to_lowercase()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         build_effective_segments, compare_optional_date, derive_journey_date_range_from_linked_tickets,
-        ensure_journey_schema_columns, migrate_legacy_ticket_journey_tables,
+        ensure_journey_schema_columns, lookup_generated_airport_coordinates,
+        migrate_legacy_ticket_journey_tables, normalize_lookup_value,
         normalize_companion_names, normalize_journey_cost_exchange_rate, normalize_to_utc,
         sanitize_file_name, sort_linked_journey_ticket_records, table_exists, table_has_column,
         validate_draft, LinkedJourneyTicketRecord, TicketDraftPayload, TicketLocationPayload,
@@ -2438,6 +2566,13 @@ mod tests {
     }
 
     #[test]
+    fn normalize_lookup_value_trims_and_lowercases() {
+        assert_eq!(normalize_lookup_value(Some("  PVG ")), "pvg");
+        assert_eq!(normalize_lookup_value(Some("Sydney Airport")), "sydney airport");
+        assert_eq!(normalize_lookup_value(None), "");
+    }
+
+    #[test]
     fn sanitize_file_name_replaces_invalid_characters() {
         let sanitized = sanitize_file_name("boa:rd*ing?/pass<>.png");
         assert_eq!(sanitized, "boa_rd_ing__pass__.png");
@@ -2493,6 +2628,26 @@ mod tests {
         assert_eq!(segments.len(), 2);
         assert_eq!(segments[0].departure.code.as_deref(), Some("PVG"));
         assert_eq!(segments[1].arrival.code.as_deref(), Some("MEL"));
+    }
+
+    #[test]
+    fn generated_airport_lookup_resolves_codes_outside_legacy_seed() {
+        let location = sample_location("Ayers Rock Airport", Some("AYQ"), "Australia/Darwin");
+        let coordinates =
+            lookup_generated_airport_coordinates(&location).expect("generated airport lookup should resolve");
+
+        assert!((coordinates.0 + 25.1861).abs() < 0.01);
+        assert!((coordinates.1 - 130.9756).abs() < 0.01);
+    }
+
+    #[test]
+    fn generated_airport_lookup_resolves_conservative_name_match() {
+        let location = sample_location("Narita International Airport", None, "Asia/Tokyo");
+        let coordinates =
+            lookup_generated_airport_coordinates(&location).expect("generated airport lookup should resolve");
+
+        assert!((coordinates.0 - 35.7719).abs() < 0.01);
+        assert!((coordinates.1 - 140.3929).abs() < 0.01);
     }
 
     #[test]

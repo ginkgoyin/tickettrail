@@ -337,13 +337,13 @@ export function TicketForm({
         return [];
       }
 
-      const cacheKey = trimmed.toLowerCase();
+      const cacheKey = `${draft.ticketType}:${trimmed.toLowerCase()}`;
       const cached = locationSuggestionCacheRef.current.get(cacheKey);
       if (cached) {
         return cached;
       }
 
-      const results = await searchLocations(trimmed);
+      const results = await searchLocations(trimmed, { ticketType: draft.ticketType });
       locationSuggestionCacheRef.current.set(cacheKey, results);
       return results;
     };

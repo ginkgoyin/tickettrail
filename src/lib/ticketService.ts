@@ -44,6 +44,10 @@ export interface ExportFolderInfo {
   isExact: boolean;
 }
 
+interface SearchLocationsOptions {
+  ticketType?: TicketType;
+}
+
 async function loadLocationSeed(): Promise<LocationDirectoryEntry[]> {
   if (!locationSeedPromise) {
     locationSeedPromise = Promise.all([
@@ -178,6 +182,8 @@ async function loadLocationLookup() {
           entry.code,
           entry.nameEn,
           entry.nameZh,
+          entry.municipality,
+          entry.placeNameEn,
           ...entry.aliases,
         ];
 
@@ -299,6 +305,8 @@ async function resolveAirportLocation(location: TicketLocation) {
           entry.code,
           entry.nameEn,
           entry.nameZh,
+          entry.municipality,
+          entry.placeNameEn,
           ...entry.aliases,
         ].some((candidate) => normalizeLookupValue(candidate) === normalizedTerm),
     );
@@ -920,6 +928,9 @@ function matchesLocationQuery(entry: LocationDirectoryEntry, query: string) {
     entry.code || "",
     entry.nameEn || "",
     entry.nameZh || "",
+    entry.placeNameZh || "",
+    entry.municipality || "",
+    entry.placeNameEn || "",
     ...entry.aliases,
   ]
     .join(" ")
@@ -927,9 +938,19 @@ function matchesLocationQuery(entry: LocationDirectoryEntry, query: string) {
     .includes(normalized);
 }
 
-export async function searchLocations(query: string): Promise<LocationDirectoryEntry[]> {
+export async function searchLocations(
+  query: string,
+  options?: SearchLocationsOptions,
+): Promise<LocationDirectoryEntry[]> {
   const locationSeed = await loadLocationSeed();
-  return locationSeed.filter((entry) => matchesLocationQuery(entry, query)).slice(0, 8);
+  const filteredByType = options?.ticketType
+    ? locationSeed.filter((entry) =>
+      options.ticketType === "train"
+        ? entry.locationType === "station"
+        : entry.locationType === "airport")
+    : locationSeed;
+
+  return filteredByType.filter((entry) => matchesLocationQuery(entry, query)).slice(0, 8);
 }
 
 export async function listBackups(): Promise<BackupRecord[]> {
