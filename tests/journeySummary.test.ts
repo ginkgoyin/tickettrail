@@ -134,21 +134,21 @@ describe("journeySummary helpers", () => {
   });
 
   it("derives visited destinations and route summary from ticket-level endpoints while excluding transfer cities", () => {
-    const changsha = makeLocation("Changsha", "CSX");
+    const osaka = makeLocation("Kansai International Airport", "KIX");
     const xiamen = makeLocation("Xiamen", "XMN");
     const sydney = makeLocation("Sydney", "SYD");
     const melbourne = makeLocation("Melbourne", "MEL");
     const shanghai = makeLocation("Shanghai", "PVG");
-    const tianjin = makeLocation("Tianjin", "TSN");
+    const tianjin = makeLocation("Tianjin Binhai International Airport", "TSN");
 
     const multiSegmentOut = makeTicket({
       id: "t1",
-      departure: changsha,
+      departure: osaka,
       arrival: sydney,
       departureTimeLocal: "2026-01-01T08:00",
       arrivalTimeLocal: "2026-01-01T18:00",
       segments: [
-        makeSegment("MU100", changsha, xiamen, "2026-01-01T08:00", "2026-01-01T10:00"),
+        makeSegment("MU100", osaka, xiamen, "2026-01-01T08:00", "2026-01-01T10:00"),
         makeSegment("MU200", xiamen, sydney, "2026-01-01T12:00", "2026-01-01T18:00"),
       ],
       segmentCount: 2,
@@ -181,7 +181,7 @@ describe("journeySummary helpers", () => {
     });
 
     expect(buildJourneyRouteSummaryFromTickets([multiSegmentOut, toMelbourne, multiSegmentReturn])).toBe(
-      "Changsha -> Sydney -> Melbourne -> Tianjin",
+      "Osaka -> Sydney -> Melbourne -> Tianjin",
     );
     expect(deriveVisitedDestinationsForJourney(journey, [multiSegmentOut, toMelbourne, multiSegmentReturn])).toEqual([
       "Sydney",
@@ -201,8 +201,8 @@ describe("journeySummary helpers", () => {
     });
     const oneWayTicket = makeTicket({
       id: "t-oneway",
-      departure: makeLocation("Changsha", "CSX"),
-      arrival: makeLocation("Tokyo", "HND"),
+      departure: makeLocation("Kansai International Airport", "KIX"),
+      arrival: makeLocation("Tokyo Haneda International Airport", "HND"),
     });
     const oneWayJourney = makeJourney({
       id: "j-oneway",
@@ -219,15 +219,15 @@ describe("journeySummary helpers", () => {
   });
 
   it("sorts top destinations by journey count then deduped travel days using derived destinations", () => {
-    const tokyo = makeLocation("Tokyo", "HND");
-    const osaka = makeLocation("Osaka", "ITM");
+    const tokyo = makeLocation("Tokyo Haneda International Airport", "HND");
+    const osaka = makeLocation("Kansai International Airport", "KIX");
     const seoul = makeLocation("Seoul", "ICN");
 
     const tickets = [
-      makeTicket({ id: "t1", departure: makeLocation("Changsha", "CSX"), arrival: tokyo }),
-      makeTicket({ id: "t2", departure: makeLocation("Tokyo", "HND"), arrival: osaka }),
-      makeTicket({ id: "t3", departure: makeLocation("Shanghai", "PVG"), arrival: tokyo }),
-      makeTicket({ id: "t4", departure: makeLocation("Beijing", "PEK"), arrival: seoul }),
+      makeTicket({ id: "t1", departure: makeLocation("Kansai International Airport", "KIX"), arrival: tokyo }),
+      makeTicket({ id: "t2", departure: makeLocation("Tokyo Haneda International Airport", "HND"), arrival: osaka }),
+      makeTicket({ id: "t3", departure: makeLocation("Seoul", "ICN"), arrival: tokyo }),
+      makeTicket({ id: "t4", departure: makeLocation("Tokyo Haneda International Airport", "HND"), arrival: seoul }),
     ];
 
     const journeys = [
@@ -260,6 +260,32 @@ describe("journeySummary helpers", () => {
       { label: "Tokyo", journeyCount: 2, dedupedTravelDays: 8 },
       { label: "Seoul", journeyCount: 1, dedupedTravelDays: 4 },
     ]);
+  });
+
+  it("dedupes journey destinations by final display label when airport and rail places share the same visible city", () => {
+    const flightIn = makeTicket({
+      id: "t-qingdao-flight",
+      departure: makeLocation("Changsha Huanghua International Airport", "CSX"),
+      arrival: makeLocation("Qingdao Jiaodong International Airport", "TAO"),
+      departureTimeLocal: "2026-07-03T08:00",
+      arrivalTimeLocal: "2026-07-03T11:00",
+    });
+    const railOut = makeTicket({
+      id: "t-qingdao-rail",
+      ticketType: "train",
+      departure: makeLocation("Qingdao North", "QHK"),
+      arrival: makeLocation("Changsha South", "CWQ"),
+      departureTimeLocal: "2026-07-07T08:00",
+      arrivalTimeLocal: "2026-07-07T14:00",
+    });
+
+    const journey = makeJourney({
+      id: "j-qingdao",
+      title: "Qingdao trip",
+      ticketIds: ["t-qingdao-flight", "t-qingdao-rail"],
+    });
+
+    expect(deriveVisitedDestinationsForJourney(journey, [flightIn, railOut])).toEqual(["Qingdao"]);
   });
 
   it("groups top companions, keeps only top five, and aggregates cost comparison safely", () => {

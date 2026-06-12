@@ -461,14 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `RAIL-STATION-PLACE-001`.
+Current task: `JOURNEY-PLACE-002`.
 
-Rail station records now have a conservative station-to-place metadata layer derived from the existing 12306 station name and pinyin fields, which means the next implementation step can move up to Journey-level endpoint normalization without waiting for exact rail coordinates.
+Journey place normalization now needs a small follow-up pass: keep metadata-based place labels, remove unwanted parenthetical municipality/suburb display, and make Create/Edit Journey destination autofill update safely when selected tickets change.
 
-The recommended implementation order is now:
+The recommended next implementation order is now:
 
-1. `JOURNEY-PLACE-001`
-2. `TRAIN-STATION-GEO-001`
+1. `JOURNEY-STOPS-DATA-001`
+2. `JOURNEY-STOPS-AUTO-001`
+3. `TRAIN-STATION-GEO-001`
 
 Implementation notes:
 
@@ -480,8 +481,10 @@ Implementation notes:
 - Current evidence also shows that desktop map resolution still relies on the small `locations.seed.json` database seed plus hardcoded coordinate fallbacks rather than the full generated airport/rail datasets.
 - `LOCATION-DIRECTORY-001` now covers the airport-first implementation step: generated airport records preserve municipality/place metadata, and desktop coordinate resolution can fall back to the full generated airport dataset before hardcoded or pseudo coordinates.
 - `RAIL-STATION-PLACE-001` now covers the rail metadata preparation step: generated rail station records preserve conservative `placeNameZh` / `placeNameEn` / `placeKey` / confidence metadata without adding coordinates.
-- `JOURNEY-PLACE-001` should build conservative place normalization with safe fallback to raw endpoint labels when metadata confidence is low.
+- `JOURNEY-PLACE-001` is now the conservative normalization bridge: Journey-level route and destination display prefers place metadata, but saved ticket endpoint data is still untouched.
+- `JOURNEY-PLACE-002` should stay narrow: remove unwanted parenthetical display such as `Qingdao (Jiaozhou)` in Journey-level labels and harden destination autofill without adding served-city overrides.
 - `TRAIN-STATION-GEO-001` remains the future exact-coordinate task for rail endpoints; do not mix it into the current place-label metadata work.
+- Train station exact coordinates remain future work; the current place layer does not add or infer rail coordinates.
 - `JOURNEY-STOPS-DATA-001`, `JOURNEY-STOPS-AUTO-001`, `JOURNEY-STOPS-UI-001`, and `JOURNEY-SUMMARY-STOPS-001` should remain separate follow-up phases rather than one large Stops implementation.
 - `JOURNEY-LIST-001` should now be manually verified together with `JOURNEY-CREATE-001`.
 - Ticket selector search now belongs to the implemented `JOURNEY-CREATE-001` baseline rather than a later polish pass.

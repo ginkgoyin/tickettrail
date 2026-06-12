@@ -1,5 +1,7 @@
 import type { Journey } from "../types/journey";
 import type { TicketLocation, TicketRecord } from "../types/ticket";
+import type { Language } from "./i18n";
+import { getTicketEndpointPlaces } from "./journeyPlace";
 
 export interface JourneySummaryTravelDayEntry {
   journeyId: string;
@@ -93,6 +95,10 @@ interface JourneyRouteAnchor {
   label: string;
 }
 
+interface JourneyPlaceDisplayOptions {
+  preferredLanguage?: Language;
+}
+
 function normalizeLocationCode(value?: string) {
   return (value ?? "").trim().toLowerCase();
 }
@@ -131,7 +137,13 @@ function buildJourneyRouteAnchor(location?: TicketLocation | null): JourneyRoute
   };
 }
 
-function buildTicketEndpointAnchors(ticket: TicketRecord) {
+function buildTicketEndpointAnchors(ticket: TicketRecord, options: JourneyPlaceDisplayOptions = {}) {
+  const normalizedEndpoints = getTicketEndpointPlaces(ticket, options);
+
+  if (normalizedEndpoints.origin || normalizedEndpoints.destination) {
+    return normalizedEndpoints;
+  }
+
   const segments = ticket.segments ?? [];
   const firstSegment = segments[0];
   const lastSegment = segments[segments.length - 1];
@@ -170,6 +182,23 @@ function dedupeAnchorsByKey(anchors: JourneyRouteAnchor[]) {
       return;
     }
     seen.add(anchor.key);
+    deduped.push(anchor);
+  });
+
+  return deduped;
+}
+
+function dedupeAnchorsByLabel(anchors: JourneyRouteAnchor[]) {
+  const seen = new Set<string>();
+  const deduped: JourneyRouteAnchor[] = [];
+
+  anchors.forEach((anchor) => {
+    const normalizedLabel = anchor.label.trim().toLowerCase();
+    if (!normalizedLabel || seen.has(normalizedLabel)) {
+      return;
+    }
+
+    seen.add(normalizedLabel);
     deduped.push(anchor);
   });
 
@@ -390,11 +419,14 @@ export function sortTicketsByTripDate(tickets: TicketRecord[]) {
   });
 }
 
-export function buildJourneyRouteAnchorsFromTickets(linkedTickets: TicketRecord[]) {
+export function buildJourneyRouteAnchorsFromTickets(
+  linkedTickets: TicketRecord[],
+  options: JourneyPlaceDisplayOptions = {},
+) {
   const anchors: JourneyRouteAnchor[] = [];
 
   sortTicketsByTripDate(linkedTickets).forEach((ticket) => {
-    const { origin, destination } = buildTicketEndpointAnchors(ticket);
+    const { origin, destination } = buildTicketEndpointAnchors(ticket, options);
     appendCollapsedAnchor(anchors, origin ?? destination);
     appendCollapsedAnchor(anchors, destination);
   });
@@ -402,8 +434,11 @@ export function buildJourneyRouteAnchorsFromTickets(linkedTickets: TicketRecord[
   return anchors;
 }
 
-export function buildJourneyRouteSummaryFromTickets(linkedTickets: TicketRecord[]) {
-  const anchors = buildJourneyRouteAnchorsFromTickets(linkedTickets);
+export function buildJourneyRouteSummaryFromTickets(
+  linkedTickets: TicketRecord[],
+  options: JourneyPlaceDisplayOptions = {},
+) {
+  const anchors = buildJourneyRouteAnchorsFromTickets(linkedTickets, options);
   return anchors.length > 0 ? anchors.map((anchor) => anchor.label).join(" -> ") : "No linked route yet";
 }
 
@@ -412,22 +447,21 @@ function getJourneyFallbackDestination(journey: Journey) {
   return fallback ? [fallback] : [];
 }
 
-export function deriveVisitedDestinationsForJourney(journey: Journey, linkedTickets: TicketRecord[]) {
-  if (linkedTickets.length === 0) {
-    return getJourneyFallbackDestination(journey);
-  }
-
-  const anchors = buildJourneyRouteAnchorsFromTickets(linkedTickets);
+function deriveVisitedDestinationLabelsFromAnchors(
+  anchors: JourneyRouteAnchor[],
+  linkedTicketCount: number,
+  fallback: string[],
+) {
   if (anchors.length < 2) {
-    return getJourneyFallbackDestination(journey);
+    return fallback;
   }
 
-  const intermediateAnchors = dedupeAnchorsByKey(anchors.slice(1, -1));
+  const intermediateAnchors = dedupeAnchorsByLabel(dedupeAnchorsByKey(anchors.slice(1, -1)));
   if (intermediateAnchors.length > 0) {
     return intermediateAnchors.map((anchor) => anchor.label);
   }
 
-  if (linkedTickets.length === 1) {
+  if (linkedTicketCount === 1) {
     const finalAnchor = anchors[anchors.length - 1];
     const startAnchor = anchors[0];
     if (finalAnchor && finalAnchor.key !== startAnchor?.key) {
@@ -435,7 +469,28 @@ export function deriveVisitedDestinationsForJourney(journey: Journey, linkedTick
     }
   }
 
-  return getJourneyFallbackDestination(journey);
+  return fallback;
+}
+
+export function deriveVisitedDestinationsFromTickets(
+  linkedTickets: TicketRecord[],
+  options: JourneyPlaceDisplayOptions = {},
+) {
+  const anchors = buildJourneyRouteAnchorsFromTickets(linkedTickets, options);
+  return deriveVisitedDestinationLabelsFromAnchors(anchors, linkedTickets.length, []);
+}
+
+export function deriveVisitedDestinationsForJourney(
+  journey: Journey,
+  linkedTickets: TicketRecord[],
+  options: JourneyPlaceDisplayOptions = {},
+) {
+  if (linkedTickets.length === 0) {
+    return getJourneyFallbackDestination(journey);
+  }
+
+  const anchors = buildJourneyRouteAnchorsFromTickets(linkedTickets, options);
+  return deriveVisitedDestinationLabelsFromAnchors(anchors, linkedTickets.length, getJourneyFallbackDestination(journey));
 }
 
 function formatJourneyDateRangeCompact(journey: Journey) {
@@ -474,7 +529,12 @@ function getLinkedTicketsForJourney(journey: Journey, ticketsById: Map<string, T
     .filter((ticket): ticket is TicketRecord => Boolean(ticket));
 }
 
-export function buildJourneySummaryBase(journeys: Journey[], tickets: TicketRecord[], currentSummaryYear: string) {
+export function buildJourneySummaryBase(
+  journeys: Journey[],
+  tickets: TicketRecord[],
+  currentSummaryYear: string,
+  options: JourneyPlaceDisplayOptions = {},
+) {
   const ticketsById = buildJourneyTicketMap(tickets);
   const travelDayEntries = new Map<string, JourneySummaryTravelDayEntry[]>();
   const allYears = new Set<string>([currentSummaryYear]);
@@ -531,7 +591,7 @@ export function buildJourneySummaryBase(journeys: Journey[], tickets: TicketReco
       travelDaysByMonth.set(monthKey, monthDays);
     });
 
-    const destinationLabels = deriveVisitedDestinationsForJourney(journey, linkedTickets);
+    const destinationLabels = deriveVisitedDestinationsForJourney(journey, linkedTickets, options);
     const destinationEntries = destinationLabels.length > 0 ? destinationLabels : ["No destination"];
 
     destinationEntries.forEach((destinationLabel) => {

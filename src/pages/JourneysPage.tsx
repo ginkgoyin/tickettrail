@@ -4,6 +4,7 @@ import {
   buildJourneySummaryBase,
   buildJourneySummaryCalendar,
   buildJourneySummaryTooltip,
+  deriveVisitedDestinationsFromTickets,
   formatLocalDateKey,
   getJourneyMonthsForYear,
   getJourneyRange,
@@ -15,6 +16,8 @@ import {
   type JourneySummaryCalendar,
 } from "../lib/journeySummary";
 import { createJourney, deleteJourney, getJourney, listJourneys, updateJourney } from "../lib/journeyService";
+import { resolveJourneyDestinationAutofill } from "../lib/journeyDestinationAutofill";
+import { useI18n } from "../lib/i18n";
 import type { CreateJourneyInput, Journey, JourneyDateMode } from "../types/journey";
 import type { TicketRecord } from "../types/ticket";
 
@@ -477,6 +480,14 @@ function formatPreviewDateRange(preview: DerivedJourneyDatePreview) {
   return preview.startDate === preview.endDate ? formattedStart : `${formattedStart} ~ ${formattedEnd}`;
 }
 
+function formatDerivedJourneyDestination(selectedTickets: TicketRecord[], language: "en" | "zh") {
+  const destinations = deriveVisitedDestinationsFromTickets(selectedTickets, {
+    preferredLanguage: language,
+  });
+
+  return destinations.join(" + ");
+}
+
 function lookupTimezoneCurrency(timezone?: string) {
   const normalizedTimezone = (timezone ?? "").trim();
   if (!normalizedTimezone) {
@@ -605,6 +616,7 @@ export function JourneysPage({
   tickets,
   onOpenTicket,
 }: JourneysPageProps) {
+  const { language } = useI18n();
   const currentSummaryYear = String(new Date().getFullYear());
   const [subview, setSubview] = useState<JourneysSubview>("summary");
   const [journeys, setJourneys] = useState<Journey[]>([]);
@@ -626,6 +638,8 @@ export function JourneysPage({
   const [journeyTitleError, setJourneyTitleError] = useState("");
   const [journeyExchangeRateError, setJourneyExchangeRateError] = useState("");
   const [journeyCostCurrencyTouched, setJourneyCostCurrencyTouched] = useState(false);
+  const [journeyDestinationManuallyEdited, setJourneyDestinationManuallyEdited] = useState(false);
+  const [lastAutoFilledJourneyDestination, setLastAutoFilledJourneyDestination] = useState("");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deletePending, setDeletePending] = useState(false);
@@ -668,8 +682,8 @@ export function JourneysPage({
     normalizedJourneyCostCurrency.length > 0 && normalizedJourneyCostCurrency !== "CNY";
 
   const summaryBase = useMemo<JourneySummaryBase>(
-    () => buildJourneySummaryBase(journeys, tickets, currentSummaryYear),
-    [currentSummaryYear, journeys, tickets],
+    () => buildJourneySummaryBase(journeys, tickets, currentSummaryYear, { preferredLanguage: language }),
+    [currentSummaryYear, journeys, language, tickets],
   );
 
   const summaryCalendar = useMemo<JourneySummaryCalendar>(
@@ -745,6 +759,37 @@ export function JourneysPage({
       void openJourneyDetail(activeJourneyId, true);
     }
   }, [activeJourneyId, selectedJourneyId]);
+
+  useEffect(() => {
+    const suggestedDestination = formatDerivedJourneyDestination(selectedTickets, language);
+    const autofillResult = resolveJourneyDestinationAutofill(
+      {
+        destination: journeyDraft.destination,
+        previousAutoFilledDestination: lastAutoFilledJourneyDestination,
+        manuallyEdited: journeyDestinationManuallyEdited,
+      },
+      suggestedDestination,
+    );
+
+    if (
+      autofillResult.destination === journeyDraft.destination &&
+      autofillResult.previousAutoFilledDestination === lastAutoFilledJourneyDestination
+    ) {
+      return;
+    }
+
+    setJourneyDraft((current) => ({
+      ...current,
+      destination: autofillResult.destination,
+    }));
+    setLastAutoFilledJourneyDestination(autofillResult.previousAutoFilledDestination);
+  }, [
+    journeyDestinationManuallyEdited,
+    journeyDraft.destination,
+    language,
+    lastAutoFilledJourneyDestination,
+    selectedTickets,
+  ]);
 
   useEffect(() => {
     if (journeyCostCurrencyTouched || journeyDraft.costCurrency.trim()) {
@@ -886,6 +931,8 @@ export function JourneysPage({
     setJourneyTitleError("");
     setJourneyExchangeRateError("");
     setJourneyCostCurrencyTouched(false);
+    setJourneyDestinationManuallyEdited(false);
+    setLastAutoFilledJourneyDestination("");
   };
 
   const openEditJourneyModal = (journey: Journey) => {
@@ -896,6 +943,8 @@ export function JourneysPage({
     setJourneyTitleError("");
     setJourneyExchangeRateError("");
     setJourneyCostCurrencyTouched(false);
+    setJourneyDestinationManuallyEdited(Boolean(journey.destination?.trim()));
+    setLastAutoFilledJourneyDestination("");
   };
 
   const resetJourneyModalState = () => {
@@ -906,6 +955,8 @@ export function JourneysPage({
     setJourneyExchangeRateError("");
     setJourneyTicketSearch("");
     setJourneyCostCurrencyTouched(false);
+    setJourneyDestinationManuallyEdited(false);
+    setLastAutoFilledJourneyDestination("");
   };
 
   const closeJourneyModal = () => {
@@ -1457,9 +1508,11 @@ export function JourneysPage({
                 <label>
                   <span>Destination</span>
                   <input
-                    onChange={(event) =>
-                      setJourneyDraft((current) => ({ ...current, destination: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setJourneyDraft((current) => ({ ...current, destination: nextValue }));
+                      setJourneyDestinationManuallyEdited(nextValue.trim() !== lastAutoFilledJourneyDestination.trim());
+                    }}
                     placeholder="Tokyo"
                     value={journeyDraft.destination}
                   />
@@ -1768,7 +1821,10 @@ export function JourneysPage({
   if (selectedJourneyId) {
     const fallbackJourney = journeys.find((journey) => journey.id === selectedJourneyId);
     const displayedJourney = journeyDetail ?? fallbackJourney ?? null;
-    const routeSummary = buildJourneyRouteSummaryFromTickets(detailLinkedTickets);
+    const routeSummary = buildJourneyRouteSummaryFromTickets(detailLinkedTickets, {
+      preferredLanguage: language,
+    });
+    const derivedDestination = formatDerivedJourneyDestination(detailLinkedTickets, language);
     const ticketCount = displayedJourney?.ticketIds.length ?? detailLinkedTickets.length;
     const segmentCount = countJourneySegments(detailLinkedTickets);
     const cost = displayedJourney ? formatJourneyCost(displayedJourney) : null;
@@ -1834,7 +1890,7 @@ export function JourneysPage({
               <section className="panel journey-detail-summary-card">
                 <div>
                   <span className="ticket-kind">Journey summary</span>
-                  <h3>{displayedJourney.destination || displayedJourney.title}</h3>
+                  <h3>{displayedJourney.destination || derivedDestination || displayedJourney.title}</h3>
                   <p className="hero-copy">{formatJourneyDateRange(displayedJourney)}</p>
                 </div>
 

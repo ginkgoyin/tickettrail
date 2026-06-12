@@ -645,7 +645,18 @@
 
 - `JOURNEY-PLACE-001`
   - Normalize airport/station endpoints into Journey-level place labels so Stops and destination summaries reflect real visited places instead of raw transport endpoints.
-  - Status: `Open / future normalization task`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Journey Summary and Journey Detail now normalize route/destination place labels from airport and rail metadata when available.
+    - Saved ticket endpoint data remains unchanged; persisted Journey Stops are still a separate future phase.
+  - Priority: `High`
+
+- `JOURNEY-PLACE-002`
+  - Remove unwanted parenthetical municipality/suburb place display and fix Journey destination autofill so auto-filled values update safely when selected tickets change.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Journey display keeps metadata-based normalization but does not add served-city overrides such as `NRT -> Tokyo`.
+    - Create/Edit Journey now distinguishes auto-filled destination values from manual user edits.
   - Priority: `High`
 
 - `TRAIN-STATION-GEO-001`
