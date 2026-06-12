@@ -6,6 +6,13 @@ import type {
   JourneyStopInput,
   UpdateJourneyInput,
 } from "../types/journey";
+import type { TicketRecord } from "../types/ticket";
+import type { Language } from "./i18n";
+import {
+  buildLinkedJourneyTickets,
+  deriveAutoJourneyStops,
+  mergeJourneyStopsWithDerivedAutoStops,
+} from "./journeyStopsAuto";
 
 export async function listJourneys(): Promise<Journey[]> {
   return invoke<Journey[]>("list_journeys");
@@ -39,4 +46,17 @@ export async function replaceJourneyStops(
   stops: JourneyStopInput[],
 ): Promise<JourneyStop[]> {
   return invoke<JourneyStop[]>("replace_journey_stops", { journeyId, stops });
+}
+
+export async function refreshAutoJourneyStops(
+  journey: Journey,
+  tickets: TicketRecord[],
+  options: { preferredLanguage?: Language } = {},
+): Promise<JourneyStop[]> {
+  const linkedTickets = buildLinkedJourneyTickets(journey, tickets);
+  const existingStops = await listJourneyStops(journey.id);
+  const derivedAutoStops = deriveAutoJourneyStops(journey, linkedTickets, options);
+  const mergedStops = mergeJourneyStopsWithDerivedAutoStops(existingStops, derivedAutoStops);
+
+  return replaceJourneyStops(journey.id, mergedStops);
 }

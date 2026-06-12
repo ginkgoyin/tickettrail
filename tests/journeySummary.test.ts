@@ -285,6 +285,12 @@ describe("journeySummary helpers", () => {
       ticketIds: ["t-qingdao-flight", "t-qingdao-rail"],
     });
 
+    expect(buildJourneyRouteSummaryFromTickets([flightIn, railOut])).toBe(
+      "Changsha -> Qingdao -> Changsha",
+    );
+    expect(buildJourneyRouteSummaryFromTickets([flightIn, railOut], { preferredLanguage: "zh" })).toBe(
+      "长沙 -> 青岛 -> 长沙",
+    );
     expect(deriveVisitedDestinationsForJourney(journey, [flightIn, railOut])).toEqual(["Qingdao"]);
   });
 

@@ -64,8 +64,35 @@ function sanitizeJourneyPlaceDisplayName(value?: string) {
 
   return trimmed
     .replace(/\s+\([^()]+\)$/u, "")
-    .replace(/\s+（[^（）]+）$/u, "")
     .trim();
+}
+
+function slugifyPlaceKeySegment(value?: string) {
+  const normalized = sanitizeJourneyPlaceDisplayName(value)
+    ?.toLowerCase()
+    .replace(/\([^()]*\)/gu, " ")
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || undefined;
+}
+
+function stripAirportSuffixZh(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return trimmed
+    .replace(/国际机场$/u, "")
+    .replace(/國際機場$/u, "")
+    .replace(/机场$/u, "")
+    .replace(/機場$/u, "")
+    .trim();
+}
+
+function looksMostlyChinese(value?: string) {
+  return Boolean(value && /[\u3400-\u9fff]/u.test(value));
 }
 
 function expandSearchTokens(values: Array<string | undefined>) {
@@ -138,8 +165,44 @@ function getAirportConfidence(entry: LocationDirectoryEntry): JourneyPlace["conf
   return "low";
 }
 
+function deriveAirportDisplayNameZh(entry: LocationDirectoryEntry) {
+  const candidates = dedupeStrings([
+    stripAirportSuffixZh(entry.placeNameZh),
+    ...((entry.aliases ?? [])
+      .filter((alias) => looksMostlyChinese(alias))
+      .map((alias) => stripAirportSuffixZh(alias))),
+    stripAirportSuffixZh(entry.nameZh),
+  ]);
+
+  const cityLikeCandidates = candidates.filter((candidate) => candidate && !/机场|機場/u.test(candidate));
+  const preferredCandidates = cityLikeCandidates.length > 0 ? cityLikeCandidates : candidates;
+
+  return preferredCandidates
+    .slice()
+    .sort((left, right) => left.length - right.length)[0];
+}
+
+function buildCanonicalAirportPlaceKey(
+  entry: LocationDirectoryEntry,
+  displayNameEn?: string,
+  displayNameZh?: string,
+  fallbackDisplayName?: string,
+) {
+  const countryCode = entry.countryCode?.trim().toLowerCase();
+  const canonicalSegment = slugifyPlaceKeySegment(displayNameEn || displayNameZh || fallbackDisplayName);
+
+  if (countryCode && canonicalSegment) {
+    return `${countryCode}-${canonicalSegment}`;
+  }
+
+  return entry.placeKey?.trim();
+}
+
 function getMatchedPlace(entry: LocationDirectoryEntry, source: "airport" | "rail_station", preferredLanguage: Language) {
-  const displayNameZh = sanitizeJourneyPlaceDisplayName(entry.placeNameZh?.trim()) || undefined;
+  const displayNameZh =
+    (source === "airport"
+      ? sanitizeJourneyPlaceDisplayName(deriveAirportDisplayNameZh(entry))
+      : sanitizeJourneyPlaceDisplayName(entry.placeNameZh?.trim())) || undefined;
   const displayNameEn =
     sanitizeJourneyPlaceDisplayName(entry.placeNameEn?.trim()) ||
     sanitizeJourneyPlaceDisplayName(entry.municipality?.trim()) ||
@@ -156,7 +219,9 @@ function getMatchedPlace(entry: LocationDirectoryEntry, source: "airport" | "rai
 
   return {
     placeKey:
-      entry.placeKey?.trim() ||
+      (source === "airport"
+        ? buildCanonicalAirportPlaceKey(entry, displayNameEn, displayNameZh, displayName)
+        : entry.placeKey?.trim()) ||
       (entry.code?.trim() ? `${source}:${entry.code.trim().toLowerCase()}` : `${source}:${normalizeToken(displayName)}`),
     displayName,
     displayNameZh,
@@ -259,5 +324,26 @@ export function getTicketEndpointPlaces(ticket: TicketRecord, options: JourneyPl
   return {
     origin: buildJourneyPlaceAnchorFromLocation(originLocation, ticketOptions),
     destination: buildJourneyPlaceAnchorFromLocation(destinationLocation, ticketOptions),
+  };
+}
+
+export function getTicketEndpointJourneyPlaces(
+  ticket: TicketRecord,
+  options: JourneyPlaceNormalizationOptions = {},
+) {
+  const ticketOptions = {
+    ...options,
+    ticketType: ticket.ticketType,
+  } satisfies JourneyPlaceNormalizationOptions;
+
+  const segments = ticket.segments ?? [];
+  const firstSegment = segments[0];
+  const lastSegment = segments[segments.length - 1];
+  const originLocation = firstSegment?.departure ?? ticket.departure;
+  const destinationLocation = lastSegment?.arrival ?? ticket.arrival;
+
+  return {
+    origin: normalizeJourneyPlaceFromLocation(originLocation, ticketOptions),
+    destination: normalizeJourneyPlaceFromLocation(destinationLocation, ticketOptions),
   };
 }

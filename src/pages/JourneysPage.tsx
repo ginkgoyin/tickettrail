@@ -15,7 +15,14 @@ import {
   type JourneySummaryBase,
   type JourneySummaryCalendar,
 } from "../lib/journeySummary";
-import { createJourney, deleteJourney, getJourney, listJourneys, updateJourney } from "../lib/journeyService";
+import {
+  createJourney,
+  deleteJourney,
+  getJourney,
+  listJourneys,
+  refreshAutoJourneyStops,
+  updateJourney,
+} from "../lib/journeyService";
 import { resolveJourneyDestinationAutofill } from "../lib/journeyDestinationAutofill";
 import { useI18n } from "../lib/i18n";
 import type { CreateJourneyInput, Journey, JourneyDateMode } from "../types/journey";
@@ -1012,6 +1019,7 @@ export function JourneysPage({
         }
 
         const updatedJourney = await updateJourney(selectedJourneyId, buildCreateJourneyInput(journeyDraft));
+        await refreshAutoJourneyStops(updatedJourney, tickets, { preferredLanguage: language });
         setJourneyDetail(updatedJourney);
         const listReloaded = await loadStoredJourneys();
         if (!listReloaded) {
@@ -1022,7 +1030,8 @@ export function JourneysPage({
         setJourneyDetailError("");
         resetJourneyModalState();
       } else {
-        await createJourney(buildCreateJourneyInput(journeyDraft));
+        const createdJourney = await createJourney(buildCreateJourneyInput(journeyDraft));
+        await refreshAutoJourneyStops(createdJourney, tickets, { preferredLanguage: language });
         setYearFilter("all");
         setMonthFilter("all");
         setSubview("list");

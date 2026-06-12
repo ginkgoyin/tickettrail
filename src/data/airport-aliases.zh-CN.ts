@@ -40,6 +40,11 @@ const airportAliasesZhCN: Record<string, AirportAliasOverlayEntry> = {
     timezone: "Asia/Shanghai",
     aliases: ["南京禄口", "禄口机场", "南京禄口国际机场"],
   },
+  TAO: {
+    nameZh: "青岛胶东国际机场",
+    timezone: "Asia/Shanghai",
+    aliases: ["青岛", "青岛胶东", "胶东机场", "青岛胶东国际机场"],
+  },
   PEK: {
     nameZh: "北京首都国际机场",
     timezone: "Asia/Shanghai",

@@ -701,7 +701,7 @@
 
 - `JOURNEY-STOPS-AUTO-001`
   - Auto-derive Journey Stops from linked ticket-level endpoints while excluding internal transfer cities and preserving user-edited Stops.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `JOURNEY-STOPS-UI-001`

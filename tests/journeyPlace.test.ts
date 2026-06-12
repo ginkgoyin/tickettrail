@@ -61,14 +61,34 @@ describe("journeyPlace", () => {
     );
 
     expect(qingdao).toMatchObject({
-      placeKey: "cn-qingdao-jiaozhou",
+      placeKey: "cn-qingdao",
       displayName: "Qingdao",
       displayNameEn: "Qingdao",
     });
     expect(hobart).toMatchObject({
-      placeKey: "au-hobart-cambridge",
+      placeKey: "au-hobart",
       displayName: "Hobart",
       displayNameEn: "Hobart",
+    });
+  });
+
+  it("normalizes airport endpoints to city-level chinese labels when chinese aliases are available", () => {
+    const changsha = normalizeJourneyPlaceFromLocation(
+      makeLocation("Changsha Huanghua International Airport", "CSX"),
+      { preferredLanguage: "zh", ticketType: "flight" },
+    );
+    const qingdao = normalizeJourneyPlaceFromLocation(
+      makeLocation("Qingdao Jiaodong International Airport", "TAO"),
+      { preferredLanguage: "zh", ticketType: "flight" },
+    );
+
+    expect(changsha).toMatchObject({
+      placeKey: "cn-changsha",
+      displayName: "长沙",
+    });
+    expect(qingdao).toMatchObject({
+      placeKey: "cn-qingdao",
+      displayName: "青岛",
     });
   });
 
@@ -153,7 +173,7 @@ describe("journeyPlace", () => {
     });
 
     const endpoints = getTicketEndpointPlaces(ticket, { preferredLanguage: "en" });
-    expect(endpoints.origin).toMatchObject({ key: "au-sydney-mascot", label: "Sydney" });
+    expect(endpoints.origin).toMatchObject({ key: "au-sydney", label: "Sydney" });
     expect(endpoints.destination).toMatchObject({ key: "jp-tokyo", label: "Tokyo" });
   });
 });

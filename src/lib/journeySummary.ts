@@ -166,7 +166,16 @@ function appendCollapsedAnchor(anchors: JourneyRouteAnchor[], anchor: JourneyRou
     return;
   }
 
-  if (anchors[anchors.length - 1]?.key === anchor.key) {
+  const lastAnchor = anchors[anchors.length - 1];
+  if (!lastAnchor) {
+    anchors.push(anchor);
+    return;
+  }
+
+  if (
+    lastAnchor.key === anchor.key ||
+    lastAnchor.label.trim().toLowerCase() === anchor.label.trim().toLowerCase()
+  ) {
     return;
   }
 
