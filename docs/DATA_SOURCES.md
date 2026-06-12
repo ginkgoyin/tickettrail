@@ -286,3 +286,86 @@ That future boundary is intended to ensure:
 - one normalized candidate shape regardless of provider
 
 The first real provider path is now implemented for AeroDataBox behind the desktop-side boundary, while the normalized payload shape and contract rules continue to apply to future providers.
+
+## 15. Place Catalog Source
+
+- The Place Catalog is now generated from GeoNames downloadable dump files.
+- Current generator script:
+  - [C:\yx\00app\ticket\scripts\generate-place-catalog-data.mjs](C:/yx/00app/ticket/scripts/generate-place-catalog-data.mjs)
+- Current generated output:
+  - [C:\yx\00app\ticket\src\data\place-catalog.generated.json](C:/yx/00app/ticket/src/data/place-catalog.generated.json)
+
+Current default source choice:
+
+- `cities5000.zip`
+
+Reason:
+
+- `cities1000.zip` was evaluated first, but the generated catalog was too large for the current repository/runtime foundation.
+- The current implementation therefore uses `cities5000.zip` as the practical default after measuring the real generated size.
+
+GeoNames files used:
+
+- `cities5000.zip`
+- `alternateNamesV2.zip`
+
+GeoNames files currently not required in the first runtime foundation:
+
+- `countryInfo.txt`
+
+Current local raw cache path:
+
+- `data-sources/geonames/`
+
+Raw GeoNames cache files are local generation inputs only and are ignored by Git.
+
+## 16. Place Catalog Generation Rules
+
+The generator builds standard city/place records with:
+
+- `placeKey`
+- `geonameId`
+- `nameEn`
+- `nameZh` when a useful GeoNames alternate name exists
+- `asciiName`
+- `countryCode`
+- optional admin codes
+- city-level `latitude` / `longitude`
+- `timezone`
+- `population`
+- small filtered `aliases`
+- `source = "geonames"`
+- `sourceId = geonameId`
+- `coordinatePrecision = "city"`
+
+Language rules:
+
+- `nameEn` prefers English alternate names when available, otherwise falls back to the main GeoNames name / ASCII name
+- `nameZh` prefers `zh-CN`, `zh-Hans`, then `zh` alternate names when available
+- aliases are search-only fields
+- aliases are not used as display names
+
+## 17. GeoNames Attribution And License
+
+- GeoNames data is licensed under CC BY.
+- Commercial use is allowed.
+- Attribution is required.
+
+Project attribution note:
+
+- TicketTrail Place Catalog data is derived from GeoNames geographic data.
+- Future release notes / about/legal surfaces should keep a visible GeoNames credit when this catalog is shipped in app builds.
+
+Official GeoNames references:
+
+- [GeoNames download server](https://download.geonames.org/export/dump/)
+- [GeoNames export documentation](https://www.geonames.org/export/)
+- [GeoNames about / licensing notes](https://www.geonames.org/about.html)
+
+## 18. Place Catalog Source Boundaries
+
+- GeoNames is now the primary Place Catalog source.
+- OurAirports remains the airport endpoint source.
+- 12306 `station_name.js` remains the rail endpoint source.
+- Wikidata remains a future multilingual enrichment candidate only.
+- OpenStreetMap is not used for this Place Catalog because ODbL / derived-database obligations would require a separate review.

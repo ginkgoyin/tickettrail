@@ -701,7 +701,10 @@
 
 - `PLACE-CATALOG-001`
   - Add the first generated/curated Place Catalog data model and initial seed/generation path for standard city/place labels and city-level coordinates.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - The first generated Place Catalog is now GeoNames-backed and emitted as `src/data/place-catalog.generated.json`.
+    - Due real size findings, the current default source is `cities5000.zip` instead of `cities1000.zip`.
   - Priority: `High`
 
 - `TRANSPORT-PLACE-MAPPING-001`

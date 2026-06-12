@@ -9,3 +9,4 @@ src-tauri/target/
 artifacts/
 .DS_Store
 Thumbs.db
+data-sources/geonames/
