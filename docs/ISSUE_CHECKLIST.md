@@ -694,6 +694,26 @@
   - Status: `Open / future design task`
   - Priority: `High`
 
+- `PLACE-CATALOG-AND-RAIL-GEO-DESIGN-001`
+  - Design the next Place Catalog + transport-endpoint mapping architecture so city/place identity, exact endpoint coordinates, and city-level map fallback are clearly separated before further implementation.
+  - Status: `Documented / docs-only`
+  - Priority: `High`
+
+- `PLACE-CATALOG-001`
+  - Add the first generated/curated Place Catalog data model and initial seed/generation path for standard city/place labels and city-level coordinates.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `TRANSPORT-PLACE-MAPPING-001`
+  - Map airport and rail endpoint catalogs to a stable `defaultJourneyPlaceKey` so Journey display and Stops can consume standard place identities instead of endpoint aliases.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `MAP-CITY-FALLBACK-001`
+  - Allow map coordinate resolution to use Place Catalog city-level coordinates when exact endpoint coordinates are unavailable, while keeping the lower precision explicit.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
 - `JOURNEY-STOPS-DATA-001`
   - Add the future `journey_stops` persistence model and migration path after Stop semantics and place normalization are accepted.
   - Status: `Implemented / needs manual verification`

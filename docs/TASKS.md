@@ -461,15 +461,19 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `JOURNEY-STOPS-AUTO-001`.
+Current task: `PLACE-CATALOG-AND-RAIL-GEO-DESIGN-001`.
 
-This checkpoint adds auto-derived Journey Stops from linked ticket-level endpoints and refreshes them through the existing Journey Stops persistence layer while preserving user-edited Stops. Summary aggregation from Stops remains future work.
+This checkpoint documents the next location architecture step: introduce a formal Place Catalog, keep airports and rail stations as endpoint catalogs that map to `placeKey`, and allow future city-level coordinate fallback without pretending missing rail station coordinates are exact.
 
 The recommended next implementation order is now:
 
-1. `JOURNEY-STOPS-UI-001`
-2. `JOURNEY-SUMMARY-STOPS-001`
-3. `TRAIN-STATION-GEO-001`
+1. `PLACE-CATALOG-001`
+2. `TRANSPORT-PLACE-MAPPING-001`
+3. `MAP-CITY-FALLBACK-001`
+4. `JOURNEY-STOPS-AUTO-002`
+5. `JOURNEY-STOPS-UI-001`
+6. `JOURNEY-SUMMARY-STOPS-001`
+7. `TRAIN-STATION-GEO-001`
 
 Implementation notes:
 
@@ -477,13 +481,17 @@ Implementation notes:
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
 - `JOURNEY-SUMMARY-001` now owns the real Summary dashboard, including all-time totals, the Monday-first yearly travel calendar, and the 2x2 stats modules.
 - `LOCATION-DIRECTORY-DESIGN-001` is now the docs-only architecture checkpoint that ties together the earlier airport/rail investigations and records the unified source-of-truth direction.
-- Current evidence shows that nationwide rail suggestions exist, but the generated rail dataset still lacks place metadata and coordinates.
+- Current evidence shows that nationwide rail suggestions exist, and the generated rail dataset now includes conservative place metadata but still lacks exact coordinates.
 - Current evidence also shows that desktop map resolution still relies on the small `locations.seed.json` database seed plus hardcoded coordinate fallbacks rather than the full generated airport/rail datasets.
 - `LOCATION-DIRECTORY-001` now covers the airport-first implementation step: generated airport records preserve municipality/place metadata, and desktop coordinate resolution can fall back to the full generated airport dataset before hardcoded or pseudo coordinates.
 - `RAIL-STATION-PLACE-001` now covers the rail metadata preparation step: generated rail station records preserve conservative `placeNameZh` / `placeNameEn` / `placeKey` / confidence metadata without adding coordinates.
 - `JOURNEY-PLACE-001` is now the conservative normalization bridge: Journey-level route and destination display prefers place metadata, but saved ticket endpoint data is still untouched.
+- `PLACE-CATALOG-AND-RAIL-GEO-DESIGN-001` now records the next architectural split: standard Place Catalog vs transport endpoint catalogs vs Journey-level Stops/summary meaning.
+- `PLACE-CATALOG-001` should define the first real city/place source of truth instead of continuing to let airport/station records act as partial place records.
+- `TRANSPORT-PLACE-MAPPING-001` should let endpoints map to stable `defaultJourneyPlaceKey` while preserving endpoint fidelity and exact airport coordinates.
+- `MAP-CITY-FALLBACK-001` should add explicit city-level map fallback only when exact endpoint coordinates are unavailable, with lower precision kept visible in the data model.
 - `JOURNEY-STOPS-AUTO-001` should stay limited to route-anchor derivation plus persisted auto-stop refresh; full Stop editing/review UI is still a separate task.
-- `TRAIN-STATION-GEO-001` remains the future exact-coordinate task for rail endpoints; do not mix it into the current place-label metadata work.
+- `TRAIN-STATION-GEO-001` remains the future exact-coordinate task for rail endpoints; do not mix it into the current place-label metadata or Place Catalog work.
 - Train station exact coordinates remain future work; the current place layer does not add or infer rail coordinates.
 - `JOURNEY-STOPS-DATA-001`, `JOURNEY-STOPS-AUTO-001`, `JOURNEY-STOPS-UI-001`, and `JOURNEY-SUMMARY-STOPS-001` should remain separate follow-up phases rather than one large Stops implementation.
 - `JOURNEY-LIST-001` should now be manually verified together with `JOURNEY-CREATE-001`.
