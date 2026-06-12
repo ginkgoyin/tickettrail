@@ -696,7 +696,7 @@
 
 - `JOURNEY-STOPS-DATA-001`
   - Add the future `journey_stops` persistence model and migration path after Stop semantics and place normalization are accepted.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
   - Priority: `High`
 
 - `JOURNEY-STOPS-AUTO-001`

@@ -7,9 +7,9 @@ use crate::{
     models::{
         AirlinePayload, BackupReadinessPayload, BackupRecordPayload, ExportFolderPayload,
         FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload, FlightLookupCandidatePayload,
-        FlightLookupRequestPayload, JourneyMutationPayload, JourneyPayload, LocationDirectoryPayload,
-        StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
-        TicketDraftPayload, TicketRecordPayload,
+        FlightLookupRequestPayload, JourneyMutationPayload, JourneyPayload, JourneyStopMutationPayload,
+        JourneyStopPayload, LocationDirectoryPayload, StubPreviewPayload, TicketAttachmentPayload,
+        TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
     },
 };
 use chrono::Utc;
@@ -86,6 +86,20 @@ pub fn update_journey(
 #[command]
 pub fn delete_journey(app: AppHandle, journey_id: String) -> Result<(), String> {
     db::delete_journey(&app, &journey_id)
+}
+
+#[command]
+pub fn list_journey_stops(app: AppHandle, journey_id: String) -> Result<Vec<JourneyStopPayload>, String> {
+    db::list_journey_stops(&app, &journey_id)
+}
+
+#[command]
+pub fn replace_journey_stops(
+    app: AppHandle,
+    journey_id: String,
+    stops: Vec<JourneyStopMutationPayload>,
+) -> Result<Vec<JourneyStopPayload>, String> {
+    db::replace_journey_stops(&app, &journey_id, stops)
 }
 
 #[command]

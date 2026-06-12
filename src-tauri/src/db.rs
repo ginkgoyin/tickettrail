@@ -1,9 +1,9 @@
 use crate::models::{
     AirlinePayload, BackupReadinessPayload, BackupRecordPayload, LocationDirectoryPayload,
-    JourneyCompanionPayload, JourneyMutationPayload, JourneyPayload, MapPointPayload,
-    MapRoutePayload, MapViewportPayload, MapSegmentPayload, StubPreviewPayload, TicketAttachmentPayload,
-    TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketLocationPayload,
-    TicketRecordPayload, TicketSegmentPayload,
+    JourneyCompanionPayload, JourneyMutationPayload, JourneyPayload, JourneyStopMutationPayload,
+    JourneyStopPayload, MapPointPayload, MapRoutePayload, MapViewportPayload, MapSegmentPayload,
+    StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
+    TicketDraftPayload, TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
 };
 use chrono::{DateTime, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -125,6 +125,25 @@ struct LinkedJourneyTicketRecord {
     created_at: String,
 }
 
+struct JourneyStopRowData {
+    id: String,
+    journey_id: String,
+    place_name: String,
+    place_key: Option<String>,
+    country_code: Option<String>,
+    arrival_date_time: Option<String>,
+    departure_date_time: Option<String>,
+    lodging: Option<String>,
+    notes: Option<String>,
+    source: String,
+    arrival_ticket_id: Option<String>,
+    departure_ticket_id: Option<String>,
+    sort_order: i64,
+    user_edited: bool,
+    created_at: String,
+    updated_at: String,
+}
+
 struct NormalizedJourneyMutation {
     title: String,
     destination: Option<String>,
@@ -140,6 +159,22 @@ struct NormalizedJourneyMutation {
     lodging: Option<String>,
     companion_names: Vec<String>,
     ticket_ids: Vec<String>,
+}
+
+struct NormalizedJourneyStopMutation {
+    id: Option<String>,
+    place_name: String,
+    place_key: Option<String>,
+    country_code: Option<String>,
+    arrival_date_time: Option<String>,
+    departure_date_time: Option<String>,
+    lodging: Option<String>,
+    notes: Option<String>,
+    source: String,
+    arrival_ticket_id: Option<String>,
+    departure_ticket_id: Option<String>,
+    sort_order: i64,
+    user_edited: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -556,13 +591,49 @@ pub fn delete_journey(app: &AppHandle, journey_id: &str) -> Result<(), String> {
         .map_err(|err| err.to_string())?;
 
     let result = (|| {
-        conn.execute("DELETE FROM journey_companions WHERE journey_id = ?1", [journey_id])
-            .map_err(|err| err.to_string())?;
-        conn.execute("DELETE FROM journey_tickets WHERE journey_id = ?1", [journey_id])
-            .map_err(|err| err.to_string())?;
+        delete_journey_related_rows(&conn, journey_id)?;
         conn.execute("DELETE FROM journeys WHERE id = ?1", [journey_id])
             .map_err(|err| err.to_string())?;
         conn.execute_batch("COMMIT;").map_err(|err| err.to_string())
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+
+    result
+}
+
+pub fn list_journey_stops(app: &AppHandle, journey_id: &str) -> Result<Vec<JourneyStopPayload>, String> {
+    let conn = open_connection(app)?;
+    let _ = get_journey_row(&conn, journey_id)?;
+    load_journey_stops(&conn, journey_id)
+}
+
+pub fn replace_journey_stops(
+    app: &AppHandle,
+    journey_id: &str,
+    stops: Vec<JourneyStopMutationPayload>,
+) -> Result<Vec<JourneyStopPayload>, String> {
+    let conn = open_connection(app)?;
+    let _ = get_journey_row(&conn, journey_id)?;
+    let normalized = normalize_journey_stop_mutations(&conn, &stops)?;
+    let updated_at = Utc::now().to_rfc3339();
+
+    conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
+        .map_err(|err| err.to_string())?;
+
+    let result = (|| {
+        replace_journey_stop_rows(&conn, journey_id, &normalized, &updated_at)?;
+        conn.execute(
+            "UPDATE journeys
+             SET updated_at = ?1
+             WHERE id = ?2",
+            params![&updated_at, journey_id],
+        )
+        .map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        load_journey_stops(&conn, journey_id)
     })();
 
     if result.is_err() {
@@ -850,6 +921,7 @@ pub fn delete_ticket(app: &AppHandle, ticket_id: &str) -> Result<(), String> {
             .map_err(|err| err.to_string())?;
         conn.execute("DELETE FROM journey_tickets WHERE ticket_id = ?1", [ticket_id])
             .map_err(|err| err.to_string())?;
+        clear_journey_stop_ticket_references(&conn, ticket_id)?;
         conn.execute("DELETE FROM ticket_records WHERE id = ?1", [ticket_id])
             .map_err(|err| err.to_string())?;
         conn.execute("DELETE FROM ticket_segments WHERE journey_id = ?1", [&itinerary_id])
@@ -1476,6 +1548,68 @@ fn normalize_companion_names(values: Vec<String>) -> Vec<String> {
     normalized
 }
 
+fn normalize_journey_stop_mutations(
+    conn: &Connection,
+    stops: &[JourneyStopMutationPayload],
+) -> Result<Vec<NormalizedJourneyStopMutation>, String> {
+    let mut normalized = Vec::with_capacity(stops.len());
+    let mut seen_ids = HashSet::new();
+
+    for (index, stop) in stops.iter().enumerate() {
+        let place_name = stop.place_name.trim().to_string();
+        if place_name.is_empty() {
+            return Err(format!("Journey stop {} requires a place name.", index + 1));
+        }
+
+        let id = normalize_optional_text(stop.id.clone());
+        if let Some(stop_id) = id.as_deref() {
+            if !seen_ids.insert(stop_id.to_string()) {
+                return Err(format!("Journey stop {} reuses duplicate stop id {}.", index + 1, stop_id));
+            }
+        }
+
+        let source = stop.source.trim().to_lowercase();
+        if source != "auto" && source != "manual" {
+            return Err(format!(
+                "Journey stop {} source must be either auto or manual.",
+                index + 1
+            ));
+        }
+
+        if stop.sort_order < 0 {
+            return Err(format!("Journey stop {} sort order must be 0 or greater.", index + 1));
+        }
+
+        let arrival_ticket_id = normalize_optional_text(stop.arrival_ticket_id.clone());
+        let departure_ticket_id = normalize_optional_text(stop.departure_ticket_id.clone());
+        if let Some(ticket_id) = arrival_ticket_id.as_deref() {
+            let _ = get_ticket_row(conn, ticket_id)?;
+        }
+        if let Some(ticket_id) = departure_ticket_id.as_deref() {
+            let _ = get_ticket_row(conn, ticket_id)?;
+        }
+
+        normalized.push(NormalizedJourneyStopMutation {
+            id,
+            place_name,
+            place_key: normalize_optional_text(stop.place_key.clone()),
+            country_code: normalize_optional_text(stop.country_code.clone())
+                .map(|value| value.to_uppercase()),
+            arrival_date_time: normalize_optional_text(stop.arrival_date_time.clone()),
+            departure_date_time: normalize_optional_text(stop.departure_date_time.clone()),
+            lodging: normalize_optional_text(stop.lodging.clone()),
+            notes: normalize_optional_text(stop.notes.clone()),
+            source,
+            arrival_ticket_id,
+            departure_ticket_id,
+            sort_order: stop.sort_order,
+            user_edited: stop.user_edited,
+        });
+    }
+
+    Ok(normalized)
+}
+
 fn load_linked_journey_ticket_records(
     conn: &Connection,
     ticket_ids: &[String],
@@ -1603,6 +1737,107 @@ fn replace_journey_companions(
     Ok(())
 }
 
+fn replace_journey_stop_rows(
+    conn: &Connection,
+    journey_id: &str,
+    stops: &[NormalizedJourneyStopMutation],
+    updated_at: &str,
+) -> Result<(), String> {
+    let existing_rows = load_journey_stop_rows(conn, journey_id)?;
+    let existing_by_id = existing_rows
+        .into_iter()
+        .map(|row| (row.id.clone(), row))
+        .collect::<HashMap<_, _>>();
+
+    for stop in stops {
+        if let Some(stop_id) = stop.id.as_deref() {
+            if let Some(existing) = load_journey_stop_row_by_id(conn, stop_id)? {
+                if existing.journey_id != journey_id {
+                    return Err(format!(
+                        "Journey stop {} does not belong to journey {}.",
+                        stop_id, journey_id
+                    ));
+                }
+            }
+        }
+    }
+
+    conn.execute("DELETE FROM journey_stops WHERE journey_id = ?1", [journey_id])
+        .map_err(|err| err.to_string())?;
+
+    for stop in stops {
+        let stop_id = stop
+            .id
+            .clone()
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let created_at = existing_by_id
+            .get(&stop_id)
+            .map(|row| row.created_at.clone())
+            .unwrap_or_else(|| updated_at.to_string());
+
+        conn.execute(
+            "INSERT INTO journey_stops (
+                id, journey_id, place_name, place_key, country_code, arrival_date_time,
+                departure_date_time, lodging, notes, source, arrival_ticket_id,
+                departure_ticket_id, sort_order, user_edited, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            params![
+                stop_id,
+                journey_id,
+                stop.place_name,
+                stop.place_key,
+                stop.country_code,
+                stop.arrival_date_time,
+                stop.departure_date_time,
+                stop.lodging,
+                stop.notes,
+                stop.source,
+                stop.arrival_ticket_id,
+                stop.departure_ticket_id,
+                stop.sort_order,
+                if stop.user_edited { 1 } else { 0 },
+                created_at,
+                updated_at,
+            ],
+        )
+        .map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
+}
+
+fn delete_journey_related_rows(conn: &Connection, journey_id: &str) -> Result<(), String> {
+    conn.execute("DELETE FROM journey_companions WHERE journey_id = ?1", [journey_id])
+        .map_err(|err| err.to_string())?;
+    conn.execute("DELETE FROM journey_tickets WHERE journey_id = ?1", [journey_id])
+        .map_err(|err| err.to_string())?;
+    conn.execute("DELETE FROM journey_stops WHERE journey_id = ?1", [journey_id])
+        .map_err(|err| err.to_string())?;
+
+    Ok(())
+}
+
+fn clear_journey_stop_ticket_references(conn: &Connection, ticket_id: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE journey_stops
+         SET arrival_ticket_id = NULL,
+             updated_at = ?1
+         WHERE arrival_ticket_id = ?2",
+        params![Utc::now().to_rfc3339(), ticket_id],
+    )
+    .map_err(|err| err.to_string())?;
+    conn.execute(
+        "UPDATE journey_stops
+         SET departure_ticket_id = NULL,
+             updated_at = ?1
+         WHERE departure_ticket_id = ?2",
+        params![Utc::now().to_rfc3339(), ticket_id],
+    )
+    .map_err(|err| err.to_string())?;
+
+    Ok(())
+}
+
 fn build_segment_metadata(segment: &TicketSegmentPayload) -> String {
     serde_json::json!({
         "notes": segment.notes,
@@ -1649,6 +1884,27 @@ fn parse_journey_row(row: &Row<'_>) -> rusqlite::Result<JourneyRowData> {
         lodging: row.get(12)?,
         created_at: row.get(13)?,
         updated_at: row.get(14)?,
+    })
+}
+
+fn parse_journey_stop_row(row: &Row<'_>) -> rusqlite::Result<JourneyStopRowData> {
+    Ok(JourneyStopRowData {
+        id: row.get(0)?,
+        journey_id: row.get(1)?,
+        place_name: row.get(2)?,
+        place_key: row.get(3)?,
+        country_code: row.get(4)?,
+        arrival_date_time: row.get(5)?,
+        departure_date_time: row.get(6)?,
+        lodging: row.get(7)?,
+        notes: row.get(8)?,
+        source: row.get(9)?,
+        arrival_ticket_id: row.get(10)?,
+        departure_ticket_id: row.get(11)?,
+        sort_order: row.get(12)?,
+        user_edited: row.get::<_, i64>(13)? != 0,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
     })
 }
 
@@ -1707,6 +1963,27 @@ fn journey_row_to_payload(conn: &Connection, row: JourneyRowData) -> Result<Jour
     })
 }
 
+fn journey_stop_row_to_payload(row: JourneyStopRowData) -> JourneyStopPayload {
+    JourneyStopPayload {
+        id: row.id,
+        journey_id: row.journey_id,
+        place_name: row.place_name,
+        place_key: row.place_key,
+        country_code: row.country_code,
+        arrival_date_time: row.arrival_date_time,
+        departure_date_time: row.departure_date_time,
+        lodging: row.lodging,
+        notes: row.notes,
+        source: row.source,
+        arrival_ticket_id: row.arrival_ticket_id,
+        departure_ticket_id: row.departure_ticket_id,
+        sort_order: row.sort_order,
+        user_edited: row.user_edited,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
 fn attachment_row_to_payload(row: AttachmentRowData) -> Result<TicketAttachmentPayload, String> {
     Ok(TicketAttachmentPayload {
         id: row.id,
@@ -1745,6 +2022,27 @@ fn get_journey_row(conn: &Connection, journey_id: &str) -> Result<JourneyRowData
 
     stmt.query_row([journey_id], parse_journey_row)
         .map_err(|err| err.to_string())
+}
+
+fn load_journey_stop_row_by_id(
+    conn: &Connection,
+    journey_stop_id: &str,
+) -> Result<Option<JourneyStopRowData>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, journey_id, place_name, place_key, country_code, arrival_date_time,
+                    departure_date_time, lodging, notes, source, arrival_ticket_id,
+                    departure_ticket_id, sort_order, user_edited, created_at, updated_at
+             FROM journey_stops
+             WHERE id = ?1",
+        )
+        .map_err(|err| err.to_string())?;
+
+    match stmt.query_row([journey_stop_id], parse_journey_stop_row) {
+        Ok(row) => Ok(Some(row)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(err) => Err(err.to_string()),
+    }
 }
 
 fn get_attachment_row(conn: &Connection, attachment_id: &str) -> Result<AttachmentRowData, String> {
@@ -1807,6 +2105,33 @@ fn load_journey_companions(
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|err| err.to_string())
+}
+
+fn load_journey_stop_rows(conn: &Connection, journey_id: &str) -> Result<Vec<JourneyStopRowData>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, journey_id, place_name, place_key, country_code, arrival_date_time,
+                    departure_date_time, lodging, notes, source, arrival_ticket_id,
+                    departure_ticket_id, sort_order, user_edited, created_at, updated_at
+             FROM journey_stops
+             WHERE journey_id = ?1
+             ORDER BY sort_order ASC, arrival_date_time ASC, id ASC",
+        )
+        .map_err(|err| err.to_string())?;
+
+    let rows = stmt
+        .query_map([journey_id], parse_journey_stop_row)
+        .map_err(|err| err.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
+}
+
+fn load_journey_stops(conn: &Connection, journey_id: &str) -> Result<Vec<JourneyStopPayload>, String> {
+    Ok(load_journey_stop_rows(conn, journey_id)?
+        .into_iter()
+        .map(journey_stop_row_to_payload)
+        .collect())
 }
 
 fn load_journey_ticket_ids(conn: &Connection, journey_id: &str) -> Result<Vec<String>, String> {
@@ -2467,14 +2792,15 @@ fn normalize_lookup_value(value: Option<&str>) -> String {
 mod tests {
     use super::{
         build_effective_segments, compare_optional_date, derive_journey_date_range_from_linked_tickets,
-        ensure_journey_schema_columns, lookup_generated_airport_coordinates,
-        migrate_legacy_ticket_journey_tables, normalize_lookup_value,
-        normalize_companion_names, normalize_journey_cost_exchange_rate, normalize_to_utc,
-        sanitize_file_name, sort_linked_journey_ticket_records, table_exists, table_has_column,
-        validate_draft, LinkedJourneyTicketRecord, TicketDraftPayload, TicketLocationPayload,
-        TicketSegmentPayload,
+        clear_journey_stop_ticket_references, delete_journey_related_rows, ensure_journey_schema_columns,
+        load_journey_stops, lookup_generated_airport_coordinates, migrate_legacy_ticket_journey_tables,
+        normalize_journey_stop_mutations, normalize_lookup_value, normalize_companion_names,
+        normalize_journey_cost_exchange_rate, normalize_to_utc, replace_journey_stop_rows, sanitize_file_name,
+        sort_linked_journey_ticket_records, table_exists, table_has_column, validate_draft,
+        JourneyStopMutationPayload, LinkedJourneyTicketRecord, SCHEMA_SQL, TicketDraftPayload,
+        TicketLocationPayload, TicketSegmentPayload,
     };
-    use rusqlite::Connection;
+    use rusqlite::{params, Connection};
 
     fn sample_location(name: &str, code: Option<&str>, timezone: &str) -> TicketLocationPayload {
         TicketLocationPayload {
@@ -2557,6 +2883,41 @@ mod tests {
         )
         .expect("should create legacy tables");
         conn
+    }
+
+    fn create_journey_stop_test_connection() -> Connection {
+        let conn = Connection::open_in_memory().expect("should create in-memory db");
+        conn.execute_batch(SCHEMA_SQL)
+            .expect("should create current schema");
+        conn
+    }
+
+    fn insert_test_journey(conn: &Connection, journey_id: &str) {
+        conn.execute(
+            "INSERT INTO journeys (
+                id, title, destination, date_mode, start_date, end_date, notes,
+                rating, mood, cost_amount, cost_currency, cost_exchange_rate_to_cny,
+                lodging, created_at, updated_at
+             ) VALUES (?1, ?2, NULL, 'manual', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?3, ?3)",
+            params![journey_id, "Test journey", "2026-06-12T00:00:00Z"],
+        )
+        .expect("should insert test journey");
+    }
+
+    fn insert_test_ticket(conn: &Connection, ticket_id: &str) {
+        conn.execute(
+            "INSERT INTO ticket_records (
+                id, ticket_type, source_type, carrier_name, code, raw_payload_json,
+                normalized_status, journey_id, created_at_utc, updated_at_utc, version
+             ) VALUES (?1, 'flight', 'manual', 'Carrier', 'TT100', ?2, 'saved', ?3, ?4, ?4, 1)",
+            params![
+                ticket_id,
+                r#"{"ticketType":"flight","carrierName":"Carrier","code":"TT100","departure":{"name":"A","code":"AAA","timezone":"UTC"},"arrival":{"name":"B","code":"BBB","timezone":"UTC"},"departureTerminal":null,"arrivalTerminal":null,"departureTimeLocal":"2026-06-12T08:00","arrivalTimeLocal":"2026-06-12T10:00","classInfo":"","seatInfo":"","notes":"","segments":null}"#,
+                "itinerary-1",
+                "2026-06-12T00:00:00Z"
+            ],
+        )
+        .expect("should insert test ticket");
     }
 
     #[test]
@@ -2790,6 +3151,207 @@ mod tests {
             Some(4.8)
         );
         assert!(normalize_journey_cost_exchange_rate(Some("AUD"), Some(0.0)).is_err());
+    }
+
+    #[test]
+    fn journey_stops_schema_is_present_in_current_schema() {
+        let conn = create_journey_stop_test_connection();
+
+        assert!(table_exists(&conn, "journey_stops").expect("should inspect tables"));
+        assert!(table_has_column(&conn, "journey_stops", "place_name").expect("should inspect columns"));
+        assert!(table_has_column(&conn, "journey_stops", "arrival_ticket_id").expect("should inspect columns"));
+        assert!(table_has_column(&conn, "journey_stops", "user_edited").expect("should inspect columns"));
+        assert!(table_has_column(&conn, "journey_stops", "updated_at").expect("should inspect columns"));
+    }
+
+    #[test]
+    fn normalize_journey_stop_mutations_trims_and_validates_values() {
+        let conn = create_journey_stop_test_connection();
+        insert_test_ticket(&conn, "ticket-1");
+
+        let normalized = normalize_journey_stop_mutations(
+            &conn,
+            &[JourneyStopMutationPayload {
+                id: Some(" stop-1 ".to_string()),
+                place_name: " Qingdao ".to_string(),
+                place_key: Some(" qingdao ".to_string()),
+                country_code: Some(" cn ".to_string()),
+                arrival_date_time: Some(" 2026-06-01T09:00 ".to_string()),
+                departure_date_time: Some(" 2026-06-03T19:00 ".to_string()),
+                lodging: Some(" Hotel ".to_string()),
+                notes: Some(" note ".to_string()),
+                source: " Manual ".to_string(),
+                arrival_ticket_id: Some(" ticket-1 ".to_string()),
+                departure_ticket_id: None,
+                sort_order: 2,
+                user_edited: true,
+            }],
+        )
+        .expect("should normalize");
+
+        assert_eq!(normalized.len(), 1);
+        assert_eq!(normalized[0].id.as_deref(), Some("stop-1"));
+        assert_eq!(normalized[0].place_name, "Qingdao");
+        assert_eq!(normalized[0].place_key.as_deref(), Some("qingdao"));
+        assert_eq!(normalized[0].country_code.as_deref(), Some("CN"));
+        assert_eq!(normalized[0].source, "manual");
+        assert_eq!(normalized[0].arrival_ticket_id.as_deref(), Some("ticket-1"));
+        assert!(normalize_journey_stop_mutations(
+            &conn,
+            &[JourneyStopMutationPayload {
+                id: None,
+                place_name: "".to_string(),
+                place_key: None,
+                country_code: None,
+                arrival_date_time: None,
+                departure_date_time: None,
+                lodging: None,
+                notes: None,
+                source: "manual".to_string(),
+                arrival_ticket_id: None,
+                departure_ticket_id: None,
+                sort_order: 0,
+                user_edited: false,
+            }],
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn replace_and_load_journey_stops_preserve_sort_order_and_optionals() {
+        let conn = create_journey_stop_test_connection();
+        insert_test_journey(&conn, "journey-1");
+        insert_test_ticket(&conn, "ticket-1");
+
+        replace_journey_stop_rows(
+            &conn,
+            "journey-1",
+            &normalize_journey_stop_mutations(
+                &conn,
+                &[
+                    JourneyStopMutationPayload {
+                        id: Some("stop-b".to_string()),
+                        place_name: "Later stop".to_string(),
+                        place_key: None,
+                        country_code: None,
+                        arrival_date_time: Some("2026-06-04T12:00".to_string()),
+                        departure_date_time: None,
+                        lodging: None,
+                        notes: None,
+                        source: "auto".to_string(),
+                        arrival_ticket_id: Some("ticket-1".to_string()),
+                        departure_ticket_id: None,
+                        sort_order: 2,
+                        user_edited: false,
+                    },
+                    JourneyStopMutationPayload {
+                        id: Some("stop-a".to_string()),
+                        place_name: "Earlier stop".to_string(),
+                        place_key: Some("earlier-stop".to_string()),
+                        country_code: Some("au".to_string()),
+                        arrival_date_time: Some("2026-06-02T08:00".to_string()),
+                        departure_date_time: Some("2026-06-03T08:00".to_string()),
+                        lodging: Some("Inn".to_string()),
+                        notes: Some("Window seat".to_string()),
+                        source: "manual".to_string(),
+                        arrival_ticket_id: None,
+                        departure_ticket_id: Some("ticket-1".to_string()),
+                        sort_order: 1,
+                        user_edited: true,
+                    },
+                ],
+            )
+            .expect("should normalize stops"),
+            "2026-06-12T00:00:00Z",
+        )
+        .expect("should replace stops");
+
+        let loaded = load_journey_stops(&conn, "journey-1").expect("should load stops");
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].id, "stop-a");
+        assert_eq!(loaded[0].place_name, "Earlier stop");
+        assert_eq!(loaded[0].country_code.as_deref(), Some("AU"));
+        assert_eq!(loaded[0].departure_ticket_id.as_deref(), Some("ticket-1"));
+        assert!(loaded[0].user_edited);
+        assert_eq!(loaded[1].id, "stop-b");
+        assert_eq!(loaded[1].source, "auto");
+        assert_eq!(loaded[1].arrival_ticket_id.as_deref(), Some("ticket-1"));
+    }
+
+    #[test]
+    fn deleting_journey_related_rows_removes_journey_stops() {
+        let conn = create_journey_stop_test_connection();
+        insert_test_journey(&conn, "journey-1");
+
+        replace_journey_stop_rows(
+            &conn,
+            "journey-1",
+            &normalize_journey_stop_mutations(
+                &conn,
+                &[JourneyStopMutationPayload {
+                    id: Some("stop-1".to_string()),
+                    place_name: "Qingdao".to_string(),
+                    place_key: None,
+                    country_code: None,
+                    arrival_date_time: None,
+                    departure_date_time: None,
+                    lodging: None,
+                    notes: None,
+                    source: "manual".to_string(),
+                    arrival_ticket_id: None,
+                    departure_ticket_id: None,
+                    sort_order: 0,
+                    user_edited: false,
+                }],
+            )
+            .expect("should normalize stops"),
+            "2026-06-12T00:00:00Z",
+        )
+        .expect("should replace stops");
+
+        delete_journey_related_rows(&conn, "journey-1").expect("should delete journey relations");
+        assert!(load_journey_stops(&conn, "journey-1")
+            .expect("should load stops")
+            .is_empty());
+    }
+
+    #[test]
+    fn clearing_deleted_ticket_references_keeps_stops_but_nulls_ticket_links() {
+        let conn = create_journey_stop_test_connection();
+        insert_test_journey(&conn, "journey-1");
+        insert_test_ticket(&conn, "ticket-1");
+
+        replace_journey_stop_rows(
+            &conn,
+            "journey-1",
+            &normalize_journey_stop_mutations(
+                &conn,
+                &[JourneyStopMutationPayload {
+                    id: Some("stop-1".to_string()),
+                    place_name: "Qingdao".to_string(),
+                    place_key: None,
+                    country_code: None,
+                    arrival_date_time: None,
+                    departure_date_time: None,
+                    lodging: None,
+                    notes: None,
+                    source: "manual".to_string(),
+                    arrival_ticket_id: Some("ticket-1".to_string()),
+                    departure_ticket_id: Some("ticket-1".to_string()),
+                    sort_order: 0,
+                    user_edited: false,
+                }],
+            )
+            .expect("should normalize stops"),
+            "2026-06-12T00:00:00Z",
+        )
+        .expect("should replace stops");
+
+        clear_journey_stop_ticket_references(&conn, "ticket-1").expect("should clear references");
+        let loaded = load_journey_stops(&conn, "journey-1").expect("should load stops");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].arrival_ticket_id, None);
+        assert_eq!(loaded[0].departure_ticket_id, None);
     }
 
     #[test]

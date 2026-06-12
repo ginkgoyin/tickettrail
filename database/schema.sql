@@ -57,6 +57,25 @@ CREATE TABLE IF NOT EXISTS journey_companions (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS journey_stops (
+    id TEXT PRIMARY KEY,
+    journey_id TEXT NOT NULL REFERENCES journeys(id) ON DELETE CASCADE,
+    place_name TEXT NOT NULL,
+    place_key TEXT,
+    country_code TEXT,
+    arrival_date_time TEXT,
+    departure_date_time TEXT,
+    lodging TEXT,
+    notes TEXT,
+    source TEXT NOT NULL CHECK (source IN ('auto', 'manual')),
+    arrival_ticket_id TEXT REFERENCES ticket_records(id) ON DELETE SET NULL,
+    departure_ticket_id TEXT REFERENCES ticket_records(id) ON DELETE SET NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    user_edited INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS locations (
     id TEXT PRIMARY KEY,
     location_type TEXT NOT NULL CHECK (location_type IN ('airport', 'station', 'city', 'country', 'unknown')),
@@ -164,6 +183,15 @@ CREATE INDEX IF NOT EXISTS idx_journey_tickets_ticket
 
 CREATE INDEX IF NOT EXISTS idx_journey_companions_journey
     ON journey_companions(journey_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_journey_stops_journey_sort
+    ON journey_stops(journey_id, sort_order, arrival_date_time, id);
+
+CREATE INDEX IF NOT EXISTS idx_journey_stops_arrival_ticket
+    ON journey_stops(arrival_ticket_id);
+
+CREATE INDEX IF NOT EXISTS idx_journey_stops_departure_ticket
+    ON journey_stops(departure_ticket_id);
 
 CREATE INDEX IF NOT EXISTS idx_ticket_segments_departure_utc
     ON ticket_segments(departure_time_utc);

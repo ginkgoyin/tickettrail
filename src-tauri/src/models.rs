@@ -31,6 +31,47 @@ pub struct JourneyTicketPayload {
 #[allow(dead_code)]
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct JourneyStopPayload {
+    pub id: String,
+    pub journey_id: String,
+    pub place_name: String,
+    pub place_key: Option<String>,
+    pub country_code: Option<String>,
+    pub arrival_date_time: Option<String>,
+    pub departure_date_time: Option<String>,
+    pub lodging: Option<String>,
+    pub notes: Option<String>,
+    pub source: String,
+    pub arrival_ticket_id: Option<String>,
+    pub departure_ticket_id: Option<String>,
+    pub sort_order: i64,
+    pub user_edited: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JourneyStopMutationPayload {
+    pub id: Option<String>,
+    pub place_name: String,
+    pub place_key: Option<String>,
+    pub country_code: Option<String>,
+    pub arrival_date_time: Option<String>,
+    pub departure_date_time: Option<String>,
+    pub lodging: Option<String>,
+    pub notes: Option<String>,
+    pub source: String,
+    pub arrival_ticket_id: Option<String>,
+    pub departure_ticket_id: Option<String>,
+    pub sort_order: i64,
+    pub user_edited: bool,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct JourneyPayload {
     pub id: String,
     pub title: String,
