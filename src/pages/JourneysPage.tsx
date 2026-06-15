@@ -303,7 +303,10 @@ function buildMiniCalendarWindow(
 
     days.push({
       key: dateKey,
-      label: String(currentDate.getDate()),
+      label:
+        currentDate.getDate() === 1
+          ? currentDate.toLocaleDateString("en-AU", { month: "short", day: "numeric" })
+          : String(currentDate.getDate()),
       inRange: currentDate >= journeyStart && currentDate <= journeyEnd,
       isToday: dateKey === todayKey,
       isSpacer: false,
@@ -2125,7 +2128,9 @@ export function JourneysPage({
                   <div className="journey-calendar-months">
                     <div className="journey-calendar-month" key={activeDetailCalendarMonth.key}>
                       <div className="journey-calendar-month-header">
-                        <strong>{activeDetailCalendarMonth.label}</strong>
+                        {activeDetailCalendarMonth.monthLegend.length <= 1 ? (
+                          <strong>{activeDetailCalendarMonth.label}</strong>
+                        ) : null}
                         {activeDetailCalendarMonth.monthLegend.length > 1 ? (
                           <div className="journey-calendar-legend">
                             {activeDetailCalendarMonth.monthLegend.map((month) => (

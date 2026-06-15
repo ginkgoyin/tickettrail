@@ -1067,21 +1067,22 @@ html {
 
 .journey-calendar-nav {
   justify-content: flex-end;
-  gap: 12px;
+  gap: 8px;
 }
 
 .journey-calendar-nav strong {
-  font-size: 0.96rem;
+  font-size: 0.88rem;
 }
 
 .journey-calendar-nav-button {
-  min-width: 32px;
-  min-height: 32px;
-  padding: 0 8px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 6px;
   border-radius: 999px;
   border: 1px solid rgba(112, 212, 255, 0.16);
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-strong);
+  font-size: 0.78rem;
 }
 
 .journey-calendar-nav-button:disabled {
@@ -1105,11 +1106,14 @@ html {
   display: grid;
   place-items: center;
   min-height: 34px;
+  padding: 0 4px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-soft);
   font-size: 0.82rem;
+  line-height: 1;
+  text-align: center;
 }
 
 .journey-calendar-day.tone-0 {
