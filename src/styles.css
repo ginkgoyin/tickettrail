@@ -1056,6 +1056,39 @@ html {
   gap: 10px;
 }
 
+.journey-calendar-month-header,
+.journey-calendar-nav,
+.journey-calendar-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.journey-calendar-nav {
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.journey-calendar-nav strong {
+  font-size: 0.96rem;
+}
+
+.journey-calendar-nav-button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(112, 212, 255, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-strong);
+}
+
+.journey-calendar-nav-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .journey-calendar-weekdays,
 .journey-calendar-days {
   display: grid;
@@ -1079,11 +1112,33 @@ html {
   font-size: 0.82rem;
 }
 
+.journey-calendar-day.tone-0 {
+  background: rgba(112, 212, 255, 0.04);
+}
+
+.journey-calendar-day.tone-1 {
+  background: rgba(255, 190, 120, 0.06);
+}
+
+.journey-calendar-day.tone-2 {
+  background: rgba(166, 230, 188, 0.06);
+}
+
 .journey-calendar-day.in-range {
   border-color: rgba(112, 212, 255, 0.38);
   background: linear-gradient(135deg, rgba(28, 164, 218, 0.28), rgba(255, 152, 84, 0.22));
   color: var(--text-strong);
   font-weight: 700;
+}
+
+.journey-calendar-day.tone-1.in-range {
+  border-color: rgba(255, 188, 115, 0.36);
+  background: linear-gradient(135deg, rgba(255, 160, 90, 0.28), rgba(255, 212, 122, 0.18));
+}
+
+.journey-calendar-day.tone-2.in-range {
+  border-color: rgba(166, 230, 188, 0.34);
+  background: linear-gradient(135deg, rgba(87, 201, 151, 0.24), rgba(109, 168, 255, 0.18));
 }
 
 .journey-calendar-day.is-today {
@@ -1094,6 +1149,29 @@ html {
 .journey-calendar-day.is-spacer {
   border-color: transparent;
   background: transparent;
+}
+
+.journey-calendar-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+.journey-calendar-legend-chip.tone-0 {
+  background: rgba(112, 212, 255, 0.08);
+}
+
+.journey-calendar-legend-chip.tone-1 {
+  background: rgba(255, 190, 120, 0.1);
+}
+
+.journey-calendar-legend-chip.tone-2 {
+  background: rgba(166, 230, 188, 0.1);
 }
 
 .journey-detail-content-grid {

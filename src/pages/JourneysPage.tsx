@@ -49,12 +49,19 @@ interface JourneysPageProps {
 interface JourneyCalendarMonth {
   key: string;
   label: string;
+  navigationLabel?: string;
+  monthLegend: Array<{
+    key: string;
+    label: string;
+    toneClass: string;
+  }>;
   days: Array<{
     key: string;
     label: string;
     inRange: boolean;
     isToday: boolean;
     isSpacer: boolean;
+    toneClass: string;
   }>;
 }
 
@@ -130,18 +137,27 @@ function formatJourneyDateRange(journey: Journey) {
 }
 
 function formatJourneyDuration(journey: Journey) {
+  const dayCount = getJourneyDurationDays(journey);
+  if (!dayCount) {
+    return null;
+  }
+
+  return `${dayCount} day${dayCount === 1 ? "" : "s"}`;
+}
+
+function getJourneyDurationDays(journey: Journey) {
   const range = getJourneyRange(journey);
   if (!range) {
-    return null;
+    return 0;
   }
 
   const milliseconds = range.end.getTime() - range.start.getTime();
   const dayCount = Math.floor(milliseconds / (1000 * 60 * 60 * 24)) + 1;
   if (!Number.isFinite(dayCount) || dayCount <= 0) {
-    return null;
+    return 0;
   }
 
-  return `${dayCount} day${dayCount === 1 ? "" : "s"}`;
+  return dayCount;
 }
 
 function formatJourneyCost(journey: Journey) {
@@ -216,6 +232,98 @@ function formatCurrencyAmount(value: number) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function addMonths(date: Date, value: number) {
+  return new Date(date.getFullYear(), date.getMonth() + value, 1);
+}
+
+function buildMonthRange(rangeStart: Date, rangeEnd: Date) {
+  const monthStarts: Date[] = [];
+  let cursor = startOfMonth(rangeStart);
+  const lastMonthKey = `${rangeEnd.getFullYear()}-${rangeEnd.getMonth()}`;
+
+  while (`${cursor.getFullYear()}-${cursor.getMonth()}` !== lastMonthKey) {
+    monthStarts.push(new Date(cursor));
+    cursor = addMonths(cursor, 1);
+  }
+
+  monthStarts.push(new Date(cursor));
+  return monthStarts;
+}
+
+function buildMiniCalendarWindow(
+  focusStart: Date,
+  focusEnd: Date,
+  journeyStart: Date,
+  journeyEnd: Date,
+  navigationLabel?: string,
+): JourneyCalendarMonth {
+  const todayKey = formatLocalDateKey(new Date());
+  const focusMidpoint = new Date(Math.round((focusStart.getTime() + focusEnd.getTime()) / 2));
+  const visibleStart = new Date(focusMidpoint);
+  visibleStart.setDate(focusMidpoint.getDate() - focusMidpoint.getDay() - 14);
+  const visibleEnd = new Date(visibleStart);
+  visibleEnd.setDate(visibleStart.getDate() + JOURNEY_MINI_CALENDAR_DAYS - 1);
+
+  while (visibleStart > focusStart) {
+    visibleStart.setDate(visibleStart.getDate() - 7);
+    visibleEnd.setDate(visibleEnd.getDate() - 7);
+  }
+
+  while (visibleEnd < focusEnd) {
+    visibleStart.setDate(visibleStart.getDate() + 7);
+    visibleEnd.setDate(visibleEnd.getDate() + 7);
+  }
+
+  const monthLegendMap = new Map<string, JourneyCalendarMonth["monthLegend"][number]>();
+  const days: JourneyCalendarMonth["days"] = [];
+
+  for (let index = 0; index < JOURNEY_MINI_CALENDAR_DAYS; index += 1) {
+    const currentDate = new Date(visibleStart);
+    currentDate.setDate(visibleStart.getDate() + index);
+    const dateKey = formatLocalDateKey(currentDate);
+    const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
+
+    if (!monthLegendMap.has(monthKey)) {
+      monthLegendMap.set(monthKey, {
+        key: monthKey,
+        label: currentDate.toLocaleDateString("en-AU", { month: "short", year: "numeric" }),
+        toneClass: `tone-${Math.min(monthLegendMap.size, 2)}`,
+      });
+    }
+
+    days.push({
+      key: dateKey,
+      label: String(currentDate.getDate()),
+      inRange: currentDate >= journeyStart && currentDate <= journeyEnd,
+      isToday: dateKey === todayKey,
+      isSpacer: false,
+      toneClass: monthLegendMap.get(monthKey)?.toneClass ?? "tone-0",
+    });
+  }
+
+  const monthLegend = [...monthLegendMap.values()];
+  const label =
+    monthLegend.length === 1
+      ? monthLegend[0].label
+      : monthLegend.map((month) => month.label).join(" + ");
+
+  return {
+    key: `${formatLocalDateKey(visibleStart)}-${formatLocalDateKey(visibleEnd)}`,
+    label,
+    navigationLabel,
+    monthLegend,
+    days,
+  };
 }
 
 function getJourneySummaryMonthColor(monthIndex: number): CSSProperties {
@@ -363,47 +471,86 @@ function buildCalendarMonths(journey: Journey): JourneyCalendarMonth[] {
     return [];
   }
 
-  const todayKey = formatLocalDateKey(new Date());
-  const journeyMidpoint = new Date(Math.round((range.start.getTime() + range.end.getTime()) / 2));
-  const visibleStart = new Date(journeyMidpoint);
-  visibleStart.setDate(journeyMidpoint.getDate() - journeyMidpoint.getDay() - 14);
-  const visibleEnd = new Date(visibleStart);
-  visibleEnd.setDate(visibleStart.getDate() + JOURNEY_MINI_CALENDAR_DAYS - 1);
+  if (
+    range.start.getFullYear() === range.end.getFullYear() &&
+    range.start.getMonth() === range.end.getMonth()
+  ) {
+    const monthStart = startOfMonth(range.start);
+    const monthEnd = endOfMonth(range.start);
+    const todayKey = formatLocalDateKey(new Date());
+    const leadingSpacerCount = monthStart.getDay();
+    const dayCount = monthEnd.getDate();
+    const totalCellCount = Math.ceil((leadingSpacerCount + dayCount) / 7) * 7;
+    const days: JourneyCalendarMonth["days"] = [];
 
-  while (visibleStart > range.start) {
-    visibleStart.setDate(visibleStart.getDate() - 7);
-    visibleEnd.setDate(visibleEnd.getDate() - 7);
+    for (let index = 0; index < leadingSpacerCount; index += 1) {
+      days.push({
+        key: `spacer-${index}`,
+        label: "",
+        inRange: false,
+        isToday: false,
+        isSpacer: true,
+        toneClass: "tone-0",
+      });
+    }
+
+    for (let day = 1; day <= dayCount; day += 1) {
+      const currentDate = new Date(monthStart.getFullYear(), monthStart.getMonth(), day);
+      const dateKey = formatLocalDateKey(currentDate);
+      days.push({
+        key: dateKey,
+        label: String(day),
+        inRange: currentDate >= range.start && currentDate <= range.end,
+        isToday: dateKey === todayKey,
+        isSpacer: false,
+        toneClass: "tone-0",
+      });
+    }
+
+    while (days.length < totalCellCount) {
+      days.push({
+        key: `trailing-spacer-${days.length}`,
+        label: "",
+        inRange: false,
+        isToday: false,
+        isSpacer: true,
+        toneClass: "tone-0",
+      });
+    }
+
+    return [
+      {
+        key: `${monthStart.getFullYear()}-${monthStart.getMonth() + 1}`,
+        label: monthStart.toLocaleDateString("en-AU", { month: "long", year: "numeric" }),
+        monthLegend: [
+          {
+            key: `${monthStart.getFullYear()}-${monthStart.getMonth() + 1}`,
+            label: monthStart.toLocaleDateString("en-AU", { month: "short", year: "numeric" }),
+            toneClass: "tone-0",
+          },
+        ],
+        days,
+      },
+    ];
   }
 
-  while (visibleEnd < range.end) {
-    visibleStart.setDate(visibleStart.getDate() + 7);
-    visibleEnd.setDate(visibleEnd.getDate() + 7);
-  }
+  if (getJourneyDurationDays(journey) > 30) {
+    return buildMonthRange(range.start, range.end).map((monthStart) => {
+      const monthEnd = endOfMonth(monthStart);
+      const focusStart = range.start > monthStart ? range.start : monthStart;
+      const focusEnd = range.end < monthEnd ? range.end : monthEnd;
 
-  const days: JourneyCalendarMonth["days"] = [];
-  for (let index = 0; index < JOURNEY_MINI_CALENDAR_DAYS; index += 1) {
-    const currentDate = new Date(visibleStart);
-    currentDate.setDate(visibleStart.getDate() + index);
-    const dateKey = formatLocalDateKey(currentDate);
-
-    days.push({
-      key: dateKey,
-      label: String(currentDate.getDate()),
-      inRange: currentDate >= range.start && currentDate <= range.end,
-      isToday: dateKey === todayKey,
-      isSpacer: false,
+      return buildMiniCalendarWindow(
+        focusStart,
+        focusEnd,
+        range.start,
+        range.end,
+        monthStart.toLocaleDateString("en-AU", { month: "long", year: "numeric" }),
+      );
     });
   }
 
-  const windowLabel = `${formatDisplayDate(formatLocalDateKey(visibleStart)) ?? ""} ~ ${formatDisplayDate(formatLocalDateKey(visibleEnd)) ?? ""}`;
-
-  return [
-    {
-      key: `${formatLocalDateKey(visibleStart)}-${formatLocalDateKey(visibleEnd)}`,
-      label: windowLabel,
-      days,
-    },
-  ];
+  return [buildMiniCalendarWindow(range.start, range.end, range.start, range.end)];
 }
 
 function transportIcon(ticketType: TicketRecord["ticketType"]) {
@@ -644,6 +791,7 @@ export function JourneysPage({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deletePending, setDeletePending] = useState(false);
+  const [detailCalendarIndex, setDetailCalendarIndex] = useState(0);
 
   const availableTickets = useMemo(() => {
     return [...tickets].sort((left, right) => {
@@ -676,6 +824,7 @@ export function JourneysPage({
     () => (journeyDetail ? buildCalendarMonths(journeyDetail) : []),
     [journeyDetail],
   );
+  const activeDetailCalendarMonth = detailCalendarMonths[Math.min(detailCalendarIndex, Math.max(detailCalendarMonths.length - 1, 0))] ?? null;
 
   const autoDatePreview = useMemo(() => deriveJourneyDatePreview(selectedTickets), [selectedTickets]);
   const normalizedJourneyCostCurrency = journeyDraft.costCurrency.trim().toUpperCase();
@@ -760,6 +909,16 @@ export function JourneysPage({
       void openJourneyDetail(activeJourneyId, true);
     }
   }, [activeJourneyId, selectedJourneyId]);
+
+  useEffect(() => {
+    setDetailCalendarIndex(0);
+  }, [journeyDetail?.id]);
+
+  useEffect(() => {
+    if (detailCalendarIndex > 0 && detailCalendarIndex >= detailCalendarMonths.length) {
+      setDetailCalendarIndex(Math.max(detailCalendarMonths.length - 1, 0));
+    }
+  }, [detailCalendarIndex, detailCalendarMonths.length]);
 
   useEffect(() => {
     const suggestedDestination = formatDerivedJourneyDestination(selectedTickets, language);
@@ -1933,38 +2092,75 @@ export function JourneysPage({
                   <div>
                     <h3>Mini calendar</h3>
                   </div>
-                  <span className="status-pill">{formatJourneyDateRange(displayedJourney)}</span>
+                  {detailCalendarMonths.length > 1 ? (
+                    <div className="journey-calendar-nav" role="group" aria-label="Mini calendar month switcher">
+                      <button
+                        className="journey-calendar-nav-button"
+                        disabled={detailCalendarIndex === 0}
+                        onClick={() => setDetailCalendarIndex((current) => Math.max(current - 1, 0))}
+                        type="button"
+                      >
+                        ◀
+                      </button>
+                      <strong>{activeDetailCalendarMonth?.navigationLabel ?? activeDetailCalendarMonth?.label}</strong>
+                      <button
+                        className="journey-calendar-nav-button"
+                        disabled={detailCalendarIndex >= detailCalendarMonths.length - 1}
+                        onClick={() =>
+                          setDetailCalendarIndex((current) =>
+                            Math.min(current + 1, detailCalendarMonths.length - 1),
+                          )
+                        }
+                        type="button"
+                      >
+                        ▶
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
 
-                {detailCalendarMonths.length === 0 ? (
+                {activeDetailCalendarMonth === null ? (
                   <div className="empty-state">No date range yet.</div>
                 ) : (
                   <div className="journey-calendar-months">
-                    {detailCalendarMonths.map((month) => (
-                      <div className="journey-calendar-month" key={month.key}>
-                        <strong>{month.label}</strong>
-                        <div className="journey-calendar-weekdays" aria-hidden="true">
-                          {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-                            <span key={`${month.key}-${day}-${index}`}>{day}</span>
-                          ))}
-                        </div>
-                        <div className="journey-calendar-days">
-                          {month.days.map((day) => (
-                            <span
-                              className={[
-                                "journey-calendar-day",
-                                day.inRange ? "in-range" : "",
-                                day.isToday ? "is-today" : "",
-                                day.isSpacer ? "is-spacer" : "",
-                              ].filter(Boolean).join(" ")}
-                              key={day.key}
-                            >
-                              {day.label}
-                            </span>
-                          ))}
-                        </div>
+                    <div className="journey-calendar-month" key={activeDetailCalendarMonth.key}>
+                      <div className="journey-calendar-month-header">
+                        <strong>{activeDetailCalendarMonth.label}</strong>
+                        {activeDetailCalendarMonth.monthLegend.length > 1 ? (
+                          <div className="journey-calendar-legend">
+                            {activeDetailCalendarMonth.monthLegend.map((month) => (
+                              <span
+                                className={`journey-calendar-legend-chip ${month.toneClass}`}
+                                key={month.key}
+                              >
+                                {month.label}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
-                    ))}
+                      <div className="journey-calendar-weekdays" aria-hidden="true">
+                        {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+                          <span key={`${activeDetailCalendarMonth.key}-${day}-${index}`}>{day}</span>
+                        ))}
+                      </div>
+                      <div className="journey-calendar-days">
+                        {activeDetailCalendarMonth.days.map((day) => (
+                          <span
+                            className={[
+                              "journey-calendar-day",
+                              day.toneClass,
+                              day.inRange ? "in-range" : "",
+                              day.isToday ? "is-today" : "",
+                              day.isSpacer ? "is-spacer" : "",
+                            ].filter(Boolean).join(" ")}
+                            key={day.key}
+                          >
+                            {day.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
               </section>
