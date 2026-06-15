@@ -2172,12 +2172,54 @@ export function JourneysPage({
             </div>
 
             <div className="content-grid journey-detail-content-grid">
+              <section className="panel journey-detail-notes-card">
+                <h3>Route summary</h3>
+                <p className="journey-detail-route-line">{routeSummary}</p>
+
+                <h3>Companions</h3>
+                {displayedJourney.companions.length === 0 ? (
+                  <p className="hero-copy">No companions recorded.</p>
+                ) : (
+                  <div className="journey-list-metadata">
+                    {displayedJourney.companions.map((companion) => (
+                      <span className="journey-list-meta-chip" key={companion.id}>
+                        {companion.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <h3>Cost</h3>
+                {cost ? (
+                  <div className="journey-detail-cost-stack">
+                    <p className="journey-detail-route-line">{cost}</p>
+                    {displayedJourney.costCurrency?.toUpperCase() !== "CNY" && exchangeRate ? (
+                      <>
+                        <p className="journey-detail-note-text">
+                          {`Exchange rate: 1 ${displayedJourney.costCurrency?.toUpperCase()} = ${exchangeRate} CNY`}
+                        </p>
+                        {approximateCny ? (
+                          <p className="journey-detail-note-text">{`Approx. CNY: ${approximateCny}`}</p>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {displayedJourney.costCurrency?.toUpperCase() !== "CNY" && !exchangeRate ? (
+                      <p className="journey-detail-note-text">Exchange rate to CNY not set.</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="hero-copy">No cost recorded.</p>
+                )}
+
+                <h3>Notes</h3>
+                <p className="journey-detail-note-text">{displayedJourney.notes || "No notes recorded."}</p>
+              </section>
+
               <section className="panel">
                 <div className="panel-heading">
                   <div>
                     <h3>Linked tickets</h3>
                   </div>
-                  <span className="status-pill">{detailLinkedTickets.length} available</span>
                 </div>
 
                 <div className="compact-ticket-list">
@@ -2222,49 +2264,6 @@ export function JourneysPage({
                     ))
                   )}
                 </div>
-              </section>
-
-              <section className="panel journey-detail-notes-card">
-                <h3>Route summary</h3>
-                <p className="journey-detail-route-line">{routeSummary}</p>
-
-                <h3>Companions</h3>
-                {displayedJourney.companions.length === 0 ? (
-                  <p className="hero-copy">No companions recorded.</p>
-                ) : (
-                  <div className="journey-list-metadata">
-                    {displayedJourney.companions.map((companion) => (
-                      <span className="journey-list-meta-chip" key={companion.id}>
-                        {companion.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <h3>Cost</h3>
-                {cost ? (
-                  <div className="journey-detail-cost-stack">
-                    <p className="journey-detail-route-line">{cost}</p>
-                    {displayedJourney.costCurrency?.toUpperCase() !== "CNY" && exchangeRate ? (
-                      <>
-                        <p className="journey-detail-note-text">
-                          {`Exchange rate: 1 ${displayedJourney.costCurrency?.toUpperCase()} = ${exchangeRate} CNY`}
-                        </p>
-                        {approximateCny ? (
-                          <p className="journey-detail-note-text">{`Approx. CNY: ${approximateCny}`}</p>
-                        ) : null}
-                      </>
-                    ) : null}
-                    {displayedJourney.costCurrency?.toUpperCase() !== "CNY" && !exchangeRate ? (
-                      <p className="journey-detail-note-text">Exchange rate to CNY not set.</p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="hero-copy">No cost recorded.</p>
-                )}
-
-                <h3>Notes</h3>
-                <p className="journey-detail-note-text">{displayedJourney.notes || "No notes recorded."}</p>
               </section>
             </div>
           </>
