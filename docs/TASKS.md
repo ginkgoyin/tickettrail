@@ -461,17 +461,18 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `TRANSPORT-PLACE-MAPPING-001`.
+Current task: `OCR-001`.
 
-This checkpoint adds a generated transport endpoint -> Place Catalog mapping layer and wires Journey place normalization to use Place Catalog standard labels when a safe endpoint mapping exists.
+This checkpoint should finish the first real add-ticket OCR/text-import UX pass by turning the mixed import area into a clearer modal flow with separate manual, image-OCR, and text-import entry points.
 
 The recommended next implementation order is now:
 
-1. `MAP-CITY-FALLBACK-001`
-2. `JOURNEY-STOPS-AUTO-002`
-3. `JOURNEY-STOPS-UI-001`
-4. `JOURNEY-SUMMARY-STOPS-001`
-5. `TRAIN-STATION-GEO-001`
+1. `manual verification / OCR follow-up polish`
+2. `MAP-CITY-FALLBACK-001`
+3. `JOURNEY-STOPS-AUTO-002`
+4. `JOURNEY-STOPS-UI-001`
+5. `JOURNEY-SUMMARY-STOPS-001`
+6. `TRAIN-STATION-GEO-001`
 
 Implementation notes:
 
@@ -491,6 +492,9 @@ Implementation notes:
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.
+- `OCR-001` should stay inside the current add-ticket modal rather than becoming a standalone workspace block again.
+- The first OCR redesign pass should improve flow clarity only: separate entry modes, clearer guidance, and applying parsed results back into the same manual review form.
+- OCR parser logic and Tesseract runtime can stay unchanged in this checkpoint unless a small UI fix requires otherwise.
 - `MAP-CITY-FALLBACK-001` should add explicit city-level map fallback only when exact endpoint coordinates are unavailable, with lower precision kept visible in the data model.
 - `MAP-CITY-FALLBACK-001` is now the best next small follow-up because the endpoint -> place identity layer exists but route-map coordinate fallback still does not use Place Catalog city coordinates.
 - `JOURNEY-STOPS-AUTO-001` should stay limited to route-anchor derivation plus persisted auto-stop refresh; full Stop editing/review UI is still a separate task.

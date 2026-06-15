@@ -9,6 +9,7 @@ import { searchAirlines, searchLocations } from "../lib/ticketService";
 import { recognizeTicketImage } from "../lib/ocrService";
 
 interface SmartImportProps {
+  mode?: "ocr" | "text";
   onApplyImport: (result: ImportParseResult) => void;
 }
 
@@ -17,9 +18,9 @@ function toPercent(value: number) {
 }
 
 function toConfidenceLabel(value: number) {
-  if (value >= 0.8) return "高";
-  if (value >= 0.55) return "中";
-  return "低";
+  if (value >= 0.8) return "High";
+  if (value >= 0.55) return "Medium";
+  return "Low";
 }
 
 function upsertReview(reviews: ImportFieldReview[], nextReview: ImportFieldReview) {
@@ -34,7 +35,7 @@ function upsertReview(reviews: ImportFieldReview[], nextReview: ImportFieldRevie
   return next;
 }
 
-export function SmartImport({ onApplyImport }: SmartImportProps) {
+export function SmartImport({ mode = "ocr", onApplyImport }: SmartImportProps) {
   const [rawText, setRawText] = useState("");
   const [lastApplied, setLastApplied] = useState("");
   const [ocrStatus, setOcrStatus] = useState("");
@@ -43,6 +44,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [showNormalized, setShowNormalized] = useState(false);
   const [directoryReviews, setDirectoryReviews] = useState<ImportFieldReview[]>([]);
+  const [sourceMode, setSourceMode] = useState<"ocr" | "text">(mode);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const parsed = useMemo<ImportParseResult | null>(() => parseImportedText(rawText), [rawText]);
@@ -54,6 +56,10 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
 
     return directoryReviews.reduce((current, nextReview) => upsertReview(current, nextReview), [...fieldReviews]);
   }, [directoryReviews, fieldReviews]);
+
+  useEffect(() => {
+    setSourceMode(mode);
+  }, [mode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -78,15 +84,15 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
             if (candidateNames.length && (!existingName || !candidateNames.includes(existingName))) {
               nextReviews = upsertReview(nextReviews, {
                 field: "carrierName",
-                label: "承运方",
+                label: "Carrier / operator",
                 severity: "suggestion",
-                message: "本地航空公司主数据提供了更可靠的候选，可直接选择。",
+                message: "Local airline directory found a stronger carrier match you can apply to the form.",
                 suggestedValue: candidateNames[0],
                 suggestedValues: candidateNames,
               });
             }
           } catch {
-            // Ignore directory lookup errors and keep parser-only fallback.
+            // Keep parser-only fallback when directory lookup fails.
           }
         }
       }
@@ -108,9 +114,9 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
           nameField: "departure.name",
           codeField: "departure.code",
           timezoneField: "departure.timezone",
-          nameLabel: "出发地",
-          codeLabel: "出发代码",
-          timezoneLabel: "出发时区",
+          nameLabel: "Departure",
+          codeLabel: "Departure code",
+          timezoneLabel: "Departure timezone",
           currentName: parsed.draft.departure.name,
           currentCode: parsed.draft.departure.code,
           currentTimezone: parsed.draft.departure.timezone,
@@ -120,9 +126,9 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
           nameField: "arrival.name",
           codeField: "arrival.code",
           timezoneField: "arrival.timezone",
-          nameLabel: "到达地",
-          codeLabel: "到达代码",
-          timezoneLabel: "到达时区",
+          nameLabel: "Arrival",
+          codeLabel: "Arrival code",
+          timezoneLabel: "Arrival timezone",
           currentName: parsed.draft.arrival.name,
           currentCode: parsed.draft.arrival.code,
           currentTimezone: parsed.draft.arrival.timezone,
@@ -151,7 +157,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
               field: lookup.nameField,
               label: lookup.nameLabel,
               severity: "suggestion",
-              message: "本地点主数据提供了更可靠的地点候选。",
+              message: "Local location data found a stronger place label candidate.",
               suggestedValue: candidateNames[0],
               suggestedValues: candidateNames,
             });
@@ -162,7 +168,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
               field: lookup.codeField,
               label: lookup.codeLabel,
               severity: "suggestion",
-              message: "可以补充更标准的地点代码。",
+              message: "A more standard code is available for this endpoint.",
               suggestedValue: candidateCodes[0],
               suggestedValues: candidateCodes,
             });
@@ -176,13 +182,13 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
               field: lookup.timezoneField,
               label: lookup.timezoneLabel,
               severity: "suggestion",
-              message: "本地点主数据提供了更匹配的时区候选。",
+              message: "Local location data found a better timezone match.",
               suggestedValue: candidateTimezones[0],
               suggestedValues: candidateTimezones,
             });
           }
         } catch {
-          // Ignore directory lookup errors and keep parser-only fallback.
+          // Keep parser-only fallback when directory lookup fails.
         }
       }
 
@@ -206,8 +212,8 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
     onApplyImport(parsed);
     setLastApplied(
       parsed.detectedType === "train"
-        ? "已将火车票信息填入表单。"
-        : "已将机票信息填入表单。",
+        ? "Applied train ticket details to the manual form."
+        : "Applied flight ticket details to the manual form.",
     );
   };
 
@@ -225,7 +231,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
 
     setIsRecognizing(true);
     setLastApplied("");
-    setOcrStatus("正在初始化 OCR...");
+    setOcrStatus("Initializing OCR...");
     setOcrProgress(0);
     setOcrConfidence(0);
 
@@ -237,10 +243,10 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
 
       setRawText(result.text);
       setOcrConfidence(result.confidence);
-      setOcrStatus("识别完成，可以直接套用到表单。");
+      setOcrStatus("OCR finished. Review the extracted text before applying it.");
       setOcrProgress(1);
     } catch (error) {
-      setOcrStatus(error instanceof Error ? error.message : "图片 OCR 识别失败。");
+      setOcrStatus(error instanceof Error ? error.message : "Image OCR failed.");
     } finally {
       setIsRecognizing(false);
     }
@@ -250,10 +256,15 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <h3>Smart text import</h3>
+          <h3>Import into ticket form</h3>
+          <p className="hero-copy">
+            {sourceMode === "ocr"
+              ? "Scan a ticket image, then review the parsed draft before applying it to the manual form."
+              : "Paste copied booking text, OCR output, SMS, or email details, then review before applying."}
+          </p>
         </div>
         <span className="status-pill">
-          {parsed ? `${parsed.matchedFields.length} fields matched` : "Paste OCR text"}
+          {parsed ? `${parsed.matchedFields.length} fields matched` : sourceMode === "ocr" ? "Image OCR" : "Text import"}
         </span>
       </div>
 
@@ -266,36 +277,74 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
           type="file"
         />
 
-        <div className="import-actions">
+        <div className="import-source-tabs" role="tablist" aria-label="Import mode">
           <button
-            className="primary-button"
-            disabled={isRecognizing}
-            onClick={handleChooseImage}
+            className={sourceMode === "ocr" ? "theme-chip active" : "theme-chip"}
+            onClick={() => setSourceMode("ocr")}
+            role="tab"
             type="button"
           >
-            {isRecognizing ? "正在识别图片..." : "从票据截图识别"}
+            Image OCR
           </button>
-          <span className="detail-loading">也可以直接粘贴 OCR 结果或复制文本</span>
+          <button
+            className={sourceMode === "text" ? "theme-chip active" : "theme-chip"}
+            onClick={() => setSourceMode("text")}
+            role="tab"
+            type="button"
+          >
+            Text import
+          </button>
         </div>
+
+        {sourceMode === "ocr" ? (
+          <div className="import-intro-card">
+            <strong>Step 1. Run OCR on a ticket image</strong>
+            <p className="hero-copy">
+              Use a screenshot, booking image, or scanned ticket. After OCR finishes, you can still edit the extracted text.
+            </p>
+            <div className="import-actions">
+              <button
+                className="primary-button"
+                disabled={isRecognizing}
+                onClick={handleChooseImage}
+                type="button"
+              >
+                {isRecognizing ? "Recognizing image..." : "Choose image for OCR"}
+              </button>
+              <span className="detail-loading">PNG, JPG, WEBP, and BMP are supported.</span>
+            </div>
+          </div>
+        ) : (
+          <div className="import-intro-card">
+            <strong>Step 1. Paste copied ticket text</strong>
+            <p className="hero-copy">
+              Paste booking text from email, SMS, train apps, airline pages, or your own OCR result.
+            </p>
+          </div>
+        )}
 
         {ocrStatus ? (
           <div className="ocr-status-card">
             <div className="ocr-status-main">
               <strong>{ocrStatus}</strong>
-              <small>{`进度 ${toPercent(ocrProgress)}`}</small>
+              <small>{`Progress ${toPercent(ocrProgress)}`}</small>
             </div>
             <span className="ticket-status ticket-status-confidence">
-              {`识字置信度 ${toConfidenceLabel(ocrConfidence)} ${toPercent(ocrConfidence)}`}
+              {`OCR confidence ${toConfidenceLabel(ocrConfidence)} ${toPercent(ocrConfidence)}`}
             </span>
           </div>
         ) : null}
 
         <label>
-          OCR / copied ticket text
+          {sourceMode === "ocr" ? "Step 2. Review OCR text" : "Step 2. Review imported text"}
           <textarea
             className="import-textarea"
             onChange={(event) => setRawText(event.target.value)}
-            placeholder="Paste OCR output, SMS, email text, or copied ticket details here..."
+            placeholder={
+              sourceMode === "ocr"
+                ? "OCR output will appear here. You can also paste or correct the text manually."
+                : "Paste copied booking text, SMS content, OCR output, or reimbursement text here..."
+            }
             value={rawText}
           />
         </label>
@@ -306,9 +355,10 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
               <div className="import-summary-top">
                 <span className="ticket-status ticket-status-saved">{parsed.detectedType}</span>
                 <span className="ticket-status ticket-status-confidence">
-                  {`置信度 ${toConfidenceLabel(parsed.confidence)} ${toPercent(parsed.confidence)}`}
+                  {`Parser confidence ${toConfidenceLabel(parsed.confidence)} ${toPercent(parsed.confidence)}`}
                 </span>
               </div>
+              <span className="import-step-label">Step 3. Review parsed draft</span>
               <strong>{parsed.draft.code || "No code detected yet"}</strong>
               <p>{`${parsed.draft.departure.name || "--"} -> ${parsed.draft.arrival.name || "--"}`}</p>
             </div>
@@ -334,7 +384,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                 onClick={() => setShowNormalized((current) => !current)}
                 type="button"
               >
-                {showNormalized ? "隐藏纠错文本" : "查看纠错后文本"}
+                {showNormalized ? "Hide normalized text" : "Show normalized text"}
               </button>
             </div>
 
@@ -358,7 +408,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
                             : "ticket-status ticket-status-suggestion"
                         }
                       >
-                        {review.severity === "warning" ? "需要检查" : "可直接套用"}
+                        {review.severity === "warning" ? "Needs review" : "Suggested"}
                       </span>
                     </div>
                     <p>{review.message}</p>
@@ -388,7 +438,7 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
 
             <div className="form-actions">
               <button className="primary-button" onClick={handleApply} type="button">
-                Apply to form
+                Apply to manual form
               </button>
               <button className="ghost-button" onClick={() => setRawText("")} type="button">
                 Clear text
@@ -397,8 +447,12 @@ export function SmartImport({ onApplyImport }: SmartImportProps) {
           </div>
         ) : (
           <div className="empty-state">
-            <strong>Ready for semi-automatic import</strong>
-            <p>Paste recognized text from screenshots, PDFs, SMS, or booking pages to auto-fill the form.</p>
+            <strong>Ready to import into the add-ticket form</strong>
+            <p>
+              {sourceMode === "ocr"
+                ? "Run OCR on a ticket image, then review the extracted text and parsed fields."
+                : "Paste copied ticket details to generate a draft for the manual form."}
+            </p>
           </div>
         )}
 

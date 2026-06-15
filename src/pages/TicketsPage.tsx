@@ -11,7 +11,7 @@ type TicketListProps = ComponentProps<typeof TicketList>;
 type DashboardProps = ComponentProps<typeof Dashboard>;
 type TicketsSubview = "browse" | "detail";
 type TicketTypeTab = TicketListProps["filters"]["ticketType"];
-type TicketComposerTab = "form" | "import";
+type TicketComposerTab = "form" | "ocr" | "text";
 type TicketDetailReturnContext =
   | {
       from: "journey-detail";
@@ -154,7 +154,7 @@ export function TicketsPage({
 
   const handleOpenImportComposer = () => {
     setShowComposer(true);
-    setComposerTab("import");
+    setComposerTab("ocr");
     setSubview("browse");
   };
 
@@ -230,14 +230,21 @@ export function TicketsPage({
               onClick={() => setComposerTab("form")}
               type="button"
             >
-              {t("ticketForm")}
+              Manual
             </button>
             <button
-              className={composerTab === "import" ? "theme-chip active" : "theme-chip"}
-              onClick={() => setComposerTab("import")}
+              className={composerTab === "ocr" ? "theme-chip active" : "theme-chip"}
+              onClick={() => setComposerTab("ocr")}
               type="button"
             >
-              {t("ocrImport")}
+              Image OCR
+            </button>
+            <button
+              className={composerTab === "text" ? "theme-chip active" : "theme-chip"}
+              onClick={() => setComposerTab("text")}
+              type="button"
+            >
+              Text import
             </button>
           </div>
         ) : null}
@@ -250,7 +257,11 @@ export function TicketsPage({
               onSubmitTicket={handleSubmitTicket}
             />
           ) : (
-            <SmartImport {...importProps} onApplyImport={handleApplyImport} />
+            <SmartImport
+              {...importProps}
+              mode={composerTab === "text" ? "text" : "ocr"}
+              onApplyImport={handleApplyImport}
+            />
           )}
         </div>
       </div>

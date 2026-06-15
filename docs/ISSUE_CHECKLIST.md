@@ -802,7 +802,10 @@
 
 - `OCR-001`
   - OCR should eventually be fully redesigned as part of the add-ticket flow.
-  - Status: `Open`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - The add-ticket modal now exposes separate `Manual`, `Image OCR`, and `Text import` entry tabs instead of a single mixed import block.
+    - OCR/image recognition and pasted-text parsing remain part of the add-ticket flow and still apply into the same manual form review step.
   - Priority: `Medium`
 
 - `DATA-002`
