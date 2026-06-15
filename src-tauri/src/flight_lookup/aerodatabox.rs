@@ -191,9 +191,31 @@ pub fn lookup_candidates(
 
     if response.status() == StatusCode::BAD_REQUEST
     {
+        let status = response.status();
+        let headers = response.headers().clone();
+        let body = response
+            .text()
+            .unwrap_or_else(|_| "<failed to read AeroDataBox response body>".to_string());
+
+        eprintln!(
+            "[AeroDataBox lookup failed] status={} flight_number={} lookup_date={} body={}",
+            status,
+            flight_number,
+            lookup_date,
+            body
+        );
+
+        eprintln!(
+            "[AeroDataBox rate-limit headers] limit={:?} remaining={:?} reset={:?} rapid_free_remaining={:?}",
+            headers.get("x-ratelimit-requests-limit"),
+            headers.get("x-ratelimit-requests-remaining"),
+            headers.get("x-ratelimit-requests-reset"),
+            headers.get("x-rate-limit-rapid-free-plans-hard-limit-remaining"),
+        );
+
         return Err(error_payload(
             "provider_response_parse_error",
-            "AeroDataBox rejected this flight number and date lookup request.",
+            "AeroDataBox rejected this flight number and date lookup request. AeroDataBox only supports flight lookup dates within the last 365 days and up to 365 days ahead. This ticket date is outside the provider's data range. Please enter the flight details manually.",
             Some(PROVIDER_AERODATABOX),
             false,
             None,
