@@ -58,6 +58,9 @@ interface JourneyCalendarMonth {
   }>;
 }
 
+const JOURNEY_MINI_CALENDAR_WEEKS = 5;
+const JOURNEY_MINI_CALENDAR_DAYS = JOURNEY_MINI_CALENDAR_WEEKS * 7;
+
 interface CreateJourneyDraft {
   title: string;
   destination: string;
@@ -360,56 +363,47 @@ function buildCalendarMonths(journey: Journey): JourneyCalendarMonth[] {
     return [];
   }
 
-  const monthStarts = [
-    new Date(range.start.getFullYear(), range.start.getMonth(), 1),
-  ];
-  const endMonthStart = new Date(range.end.getFullYear(), range.end.getMonth(), 1);
-  if (endMonthStart.getTime() !== monthStarts[0].getTime()) {
-    monthStarts.push(endMonthStart);
+  const todayKey = formatLocalDateKey(new Date());
+  const journeyMidpoint = new Date(Math.round((range.start.getTime() + range.end.getTime()) / 2));
+  const visibleStart = new Date(journeyMidpoint);
+  visibleStart.setDate(journeyMidpoint.getDate() - journeyMidpoint.getDay() - 14);
+  const visibleEnd = new Date(visibleStart);
+  visibleEnd.setDate(visibleStart.getDate() + JOURNEY_MINI_CALENDAR_DAYS - 1);
+
+  while (visibleStart > range.start) {
+    visibleStart.setDate(visibleStart.getDate() - 7);
+    visibleEnd.setDate(visibleEnd.getDate() - 7);
   }
 
-  const todayKey = formatLocalDateKey(new Date());
+  while (visibleEnd < range.end) {
+    visibleStart.setDate(visibleStart.getDate() + 7);
+    visibleEnd.setDate(visibleEnd.getDate() + 7);
+  }
 
-  return monthStarts.slice(0, 2).map((monthStart) => {
-    const year = monthStart.getFullYear();
-    const month = monthStart.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDayOffset = monthStart.getDay();
-    const days: JourneyCalendarMonth["days"] = [];
+  const days: JourneyCalendarMonth["days"] = [];
+  for (let index = 0; index < JOURNEY_MINI_CALENDAR_DAYS; index += 1) {
+    const currentDate = new Date(visibleStart);
+    currentDate.setDate(visibleStart.getDate() + index);
+    const dateKey = formatLocalDateKey(currentDate);
 
-    for (let index = 0; index < firstDayOffset; index += 1) {
-      days.push({
-        key: `${year}-${month}-spacer-${index}`,
-        label: "",
-        inRange: false,
-        isToday: false,
-        isSpacer: true,
-      });
-    }
+    days.push({
+      key: dateKey,
+      label: String(currentDate.getDate()),
+      inRange: currentDate >= range.start && currentDate <= range.end,
+      isToday: dateKey === todayKey,
+      isSpacer: false,
+    });
+  }
 
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const currentDate = new Date(year, month, day);
-      const dateKey = [
-        String(year),
-        String(month + 1).padStart(2, "0"),
-        String(day).padStart(2, "0"),
-      ].join("-");
+  const windowLabel = `${formatDisplayDate(formatLocalDateKey(visibleStart)) ?? ""} ~ ${formatDisplayDate(formatLocalDateKey(visibleEnd)) ?? ""}`;
 
-      days.push({
-        key: dateKey,
-        label: String(day),
-        inRange: currentDate >= range.start && currentDate <= range.end,
-        isToday: dateKey === todayKey,
-        isSpacer: false,
-      });
-    }
-
-    return {
-      key: `${year}-${month}`,
-      label: monthStart.toLocaleDateString("en-AU", { month: "long", year: "numeric" }),
+  return [
+    {
+      key: `${formatLocalDateKey(visibleStart)}-${formatLocalDateKey(visibleEnd)}`,
+      label: windowLabel,
       days,
-    };
-  });
+    },
+  ];
 }
 
 function transportIcon(ticketType: TicketRecord["ticketType"]) {
