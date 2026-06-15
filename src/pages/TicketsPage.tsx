@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { Dashboard } from "../components/Dashboard";
 import { SmartImport } from "../components/SmartImport";
 import { TicketForm } from "../components/TicketForm";
-import { TicketList } from "../components/TicketList";
+import { TicketList, type TicketListView } from "../components/TicketList";
 import { useI18n } from "../lib/i18n";
 
 type SmartImportProps = ComponentProps<typeof SmartImport>;
@@ -69,6 +69,7 @@ export function TicketsPage({
   const [subview, setSubview] = useState<TicketsSubview>("browse");
   const [showComposer, setShowComposer] = useState(false);
   const [composerTab, setComposerTab] = useState<TicketComposerTab>("form");
+  const [viewMode, setViewMode] = useState<TicketListView>("list");
 
   const ticketTabs: Array<{ value: TicketTypeTab; label: string }> = [
     { value: "all", label: t("all") },
@@ -299,19 +300,42 @@ export function TicketsPage({
   return (
     <section className="section-stack tickets-browse-view">
       <div className="tickets-topbar">
-        <div aria-label="Ticket type views" className="tickets-tab-group" role="tablist">
-          {ticketTabs.map((tab) => (
+        <div className="tickets-browse-switch-row">
+          <div aria-label="Ticket type views" className="tickets-tab-group" role="tablist">
+            {ticketTabs.map((tab) => (
+              <button
+                aria-selected={listProps.filters.ticketType === tab.value}
+                className={listProps.filters.ticketType === tab.value ? "theme-chip active" : "theme-chip"}
+                key={tab.value}
+                onClick={() => handleTabChange(tab.value)}
+                role="tab"
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <span className="tickets-switch-divider" aria-hidden="true">/</span>
+          <div className="tickets-tab-group" role="tablist" aria-label="Ticket view mode">
             <button
-              aria-selected={listProps.filters.ticketType === tab.value}
-              className={listProps.filters.ticketType === tab.value ? "theme-chip active" : "theme-chip"}
-              key={tab.value}
-              onClick={() => handleTabChange(tab.value)}
+              aria-selected={viewMode === "list"}
+              className={viewMode === "list" ? "theme-chip active" : "theme-chip"}
+              onClick={() => setViewMode("list")}
               role="tab"
               type="button"
             >
-              {tab.label}
+              {t("list")}
             </button>
-          ))}
+            <button
+              aria-selected={viewMode === "timeline"}
+              className={viewMode === "timeline" ? "theme-chip active" : "theme-chip"}
+              onClick={() => setViewMode("timeline")}
+              role="tab"
+              type="button"
+            >
+              {t("timeline")}
+            </button>
+          </div>
         </div>
 
         <div className="tickets-topbar-actions">
@@ -324,7 +348,7 @@ export function TicketsPage({
         </div>
       </div>
 
-      <TicketList {...listProps} onSelect={handleSelectTicket} />
+      <TicketList {...listProps} onSelect={handleSelectTicket} onViewModeChange={setViewMode} viewMode={viewMode} />
       {composerModal}
     </section>
   );

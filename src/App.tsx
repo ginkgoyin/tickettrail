@@ -210,6 +210,7 @@ export default function App() {
   const [selectedDetail, setSelectedDetail] = useState<TicketDetailPayload | null>(null);
   const [detailVersion, setDetailVersion] = useState(0);
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
+  const [overviewFilters, setOverviewFilters] = useState<TicketFilters>(defaultFilters);
   const [savedViews, setSavedViews] = useState<SavedFilterView[]>([]);
   const [backups, setBackups] = useState<BackupRecord[]>([]);
   const [backupReadiness, setBackupReadiness] = useState<BackupReadiness | null>(null);
@@ -238,24 +239,37 @@ export default function App() {
   });
 
   const deferredQuery = useDeferredValue(filters.query);
+  const deferredOverviewQuery = useDeferredValue(overviewFilters.query);
   const t = useMemo(() => (key: I18nKey) => getMessage(language, key), [language]);
 
-  const visibleTickets = useMemo(() => {
-    const filtered = tickets.filter((ticket) => {
-      if (!matchesQuery(ticket, deferredQuery)) {
+  const filterTicketsByContext = (
+    nextTickets: TicketRecord[],
+    nextFilters: TicketFilters,
+    query: string,
+  ) => {
+    const filtered = nextTickets.filter((ticket) => {
+      if (!matchesQuery(ticket, query)) {
         return false;
       }
-      if (filters.ticketType !== "all" && ticket.ticketType !== filters.ticketType) {
+      if (nextFilters.ticketType !== "all" && ticket.ticketType !== nextFilters.ticketType) {
         return false;
       }
-      if (filters.status !== "all" && ticket.status !== filters.status) {
+      if (nextFilters.status !== "all" && ticket.status !== nextFilters.status) {
         return false;
       }
       return true;
     });
 
-    return sortTickets(filtered, filters.sort);
-  }, [deferredQuery, filters.sort, filters.status, filters.ticketType, tickets]);
+    return sortTickets(filtered, nextFilters.sort);
+  };
+
+  const visibleTickets = useMemo(() => {
+    return filterTicketsByContext(tickets, filters, deferredQuery);
+  }, [deferredQuery, filters, tickets]);
+
+  const visibleOverviewTickets = useMemo(() => {
+    return filterTicketsByContext(tickets, overviewFilters, deferredOverviewQuery);
+  }, [deferredOverviewQuery, overviewFilters, tickets]);
 
   const selectedTicket = visibleTickets.find((ticket) => ticket.id === selectedId) ?? visibleTickets[0] ?? null;
   const editingTicket = tickets.find((ticket) => ticket.id === editingId) ?? null;
@@ -524,7 +538,7 @@ export default function App() {
 
   const handleApplyAnalyticsFilter = (patch: Partial<TicketFilters>) => {
     startTransition(() => {
-      setFilters((current) => ({
+      setOverviewFilters((current) => ({
         ...current,
         ...patch,
       }));
@@ -533,7 +547,7 @@ export default function App() {
 
   const handleApplyArchiveQuery = (query: string) => {
     startTransition(() => {
-      setFilters((current) => ({
+      setOverviewFilters((current) => ({
         ...current,
         query,
       }));
@@ -913,16 +927,18 @@ export default function App() {
           <HomePage
             dashboardProps={{
               ...dashboardProps,
+              activeArchiveContext: overviewFilters,
               mode: "overview",
               onSelectTicket: (ticketId) => {
                 setSelectedId(ticketId);
                 setActiveSection("tickets");
               },
+              ticketsInView: visibleOverviewTickets,
             }}
             statisticsProps={{
-              activeArchiveContext: filters,
+              activeArchiveContext: overviewFilters,
               onApplyArchiveFilter: handleApplyAnalyticsFilter,
-              tickets: visibleTickets,
+              tickets: visibleOverviewTickets,
               totalCount: tickets.length,
             }}
           />

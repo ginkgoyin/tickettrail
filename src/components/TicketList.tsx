@@ -3,7 +3,7 @@ import { useI18n } from "../lib/i18n";
 import type { TicketRecord, TicketStatus, TicketType } from "../types/ticket";
 
 export type TicketSort = "created_desc" | "created_asc" | "departure_asc" | "departure_desc";
-type TicketListView = "list" | "timeline";
+export type TicketListView = "list" | "timeline";
 
 export interface TicketFilters {
   query: string;
@@ -26,6 +26,7 @@ interface TicketListProps {
   selectedId: string;
   busyTicketId?: string;
   filters: TicketFilters;
+  viewMode?: TicketListView;
   savedViews: SavedFilterView[];
   onFiltersChange: (filters: TicketFilters) => void;
   onResetFilters: () => void;
@@ -39,6 +40,7 @@ interface TicketListProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void | Promise<boolean>;
   onUpdateStatus: (id: string, status: Exclude<TicketStatus, "draft">) => void;
+  onViewModeChange?: (viewMode: TicketListView) => void;
 }
 
 function safeText(value: unknown, fallback = "") {
@@ -141,14 +143,15 @@ export function TicketList({
   totalCount,
   selectedId,
   filters,
+  viewMode,
   onFiltersChange,
   onResetFilters,
   onSelect,
 }: TicketListProps) {
   const { language, t } = useI18n();
   const pageSize = 20;
-  const [viewMode, setViewMode] = useState<TicketListView>("list");
   const [page, setPage] = useState(1);
+  const effectiveViewMode = viewMode ?? "list";
 
   const totalPages = Math.max(1, Math.ceil(tickets.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -172,34 +175,6 @@ export function TicketList({
 
   return (
     <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <h3>{t("ticketHistory")}</h3>
-        </div>
-        <span className="status-pill">
-          {tickets.length} shown / {totalCount} total
-        </span>
-      </div>
-
-      <div className="ticket-toolbar compact-ticket-toolbar">
-        <div className="theme-switcher">
-          <button
-            className={viewMode === "list" ? "theme-chip active" : "theme-chip"}
-            onClick={() => setViewMode("list")}
-            type="button"
-          >
-            {t("list")}
-          </button>
-          <button
-            className={viewMode === "timeline" ? "theme-chip active" : "theme-chip"}
-            onClick={() => setViewMode("timeline")}
-            type="button"
-          >
-            {t("timeline")}
-          </button>
-        </div>
-      </div>
-
       <div className="ticket-filters">
         <label>
           {t("search")}
@@ -209,7 +184,7 @@ export function TicketList({
             value={filters.query}
           />
         </label>
-        <label>
+        <label className="ticket-filter-select">
           {t("type")}
           <select
             onChange={(event) =>
@@ -225,7 +200,7 @@ export function TicketList({
             <option value="train">{t("rail")}</option>
           </select>
         </label>
-        <label>
+        <label className="ticket-filter-select">
           {t("status")}
           <select
             onChange={(event) =>
@@ -242,7 +217,7 @@ export function TicketList({
             <option value="archived">{t("archived")}</option>
           </select>
         </label>
-        <label>
+        <label className="ticket-filter-select">
           {t("sort")}
           <select
             onChange={(event) =>
@@ -259,13 +234,16 @@ export function TicketList({
             <option value="created_asc">{t("oldestCreated")}</option>
           </select>
         </label>
+        <button className="ghost-button compact-button filter-reset ticket-filter-reset-inline" onClick={onResetFilters} type="button">
+          {t("resetFilters")}
+        </button>
       </div>
 
-      <button className="ghost-button compact-button filter-reset" onClick={onResetFilters} type="button">
-        {t("resetFilters")}
-      </button>
+      <div className="ticket-results-line">
+        <span>{tickets.length} shown / {totalCount} total</span>
+      </div>
 
-      {viewMode === "list" ? (
+      {effectiveViewMode === "list" ? (
         <div className="ticket-list compact-ticket-list">
           {tickets.length === 0 ? (
             <div className="empty-state">

@@ -2172,7 +2172,7 @@ export function JourneysPage({
             </div>
 
             <div className="content-grid journey-detail-content-grid">
-              <section className="panel journey-detail-notes-card">
+              <section className="journey-detail-notes-card journey-detail-inline-card">
                 <h3>Route summary</h3>
                 <p className="journey-detail-route-line">{routeSummary}</p>
 
