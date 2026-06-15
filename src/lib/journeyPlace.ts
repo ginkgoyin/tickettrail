@@ -2,6 +2,7 @@ import airports from "../data/airports.generated.json";
 import airportAliasesZhCN from "../data/airport-aliases.zh-CN";
 import railStations from "../data/rail-stations.generated.json";
 import type { Language } from "./i18n";
+import { getTransportPlaceMapping } from "./transportPlaceMapping";
 import type { TicketLocation, TicketRecord, TicketType, LocationDirectoryEntry } from "../types/ticket";
 
 export interface JourneyPlace {
@@ -198,7 +199,39 @@ function buildCanonicalAirportPlaceKey(
   return entry.placeKey?.trim();
 }
 
-function getMatchedPlace(entry: LocationDirectoryEntry, source: "airport" | "rail_station", preferredLanguage: Language) {
+function getMappedPlace(entry: LocationDirectoryEntry, source: "airport" | "rail_station", preferredLanguage: Language) {
+  const mapping = getTransportPlaceMapping(source, entry.code);
+  if (!mapping) {
+    return null;
+  }
+
+  const displayNameZh = sanitizeJourneyPlaceDisplayName(mapping.defaultJourneyPlaceNameZh?.trim()) || undefined;
+  const displayNameEn = sanitizeJourneyPlaceDisplayName(mapping.defaultJourneyPlaceNameEn?.trim()) || undefined;
+  const displayName =
+    preferredLanguage === "zh"
+      ? displayNameZh || displayNameEn || entry.nameZh?.trim() || entry.nameEn?.trim() || entry.code?.trim() || ""
+      : displayNameEn || displayNameZh || entry.nameEn?.trim() || entry.nameZh?.trim() || entry.code?.trim() || "";
+
+  if (!displayName) {
+    return null;
+  }
+
+  return {
+    placeKey: mapping.defaultJourneyPlaceKey,
+    displayName,
+    displayNameZh,
+    displayNameEn,
+    countryCode: entry.countryCode?.trim() || undefined,
+    source,
+    confidence: mapping.mappingConfidence,
+  } satisfies JourneyPlace;
+}
+
+function getLegacyMatchedPlace(
+  entry: LocationDirectoryEntry,
+  source: "airport" | "rail_station",
+  preferredLanguage: Language,
+) {
   const displayNameZh =
     (source === "airport"
       ? sanitizeJourneyPlaceDisplayName(deriveAirportDisplayNameZh(entry))
@@ -272,7 +305,9 @@ export function normalizeJourneyPlaceFromLocation(
       continue;
     }
 
-    const matchedPlace = getMatchedPlace(matchedEntry, index.source, preferredLanguage);
+    const matchedPlace =
+      getMappedPlace(matchedEntry, index.source, preferredLanguage)
+      ?? getLegacyMatchedPlace(matchedEntry, index.source, preferredLanguage);
     if (matchedPlace) {
       return matchedPlace;
     }

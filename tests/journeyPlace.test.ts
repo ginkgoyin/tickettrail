@@ -72,7 +72,7 @@ describe("journeyPlace", () => {
     });
   });
 
-  it("normalizes airport endpoints to city-level chinese labels when chinese aliases are available", () => {
+  it("normalizes airport endpoints to place catalog chinese labels when mapping exists", () => {
     const changsha = normalizeJourneyPlaceFromLocation(
       makeLocation("Changsha Huanghua International Airport", "CSX"),
       { preferredLanguage: "zh", ticketType: "flight" },
@@ -84,11 +84,11 @@ describe("journeyPlace", () => {
 
     expect(changsha).toMatchObject({
       placeKey: "cn-changsha",
-      displayName: "长沙",
+      displayName: "长沙市",
     });
     expect(qingdao).toMatchObject({
       placeKey: "cn-qingdao",
-      displayName: "青岛",
+      displayName: "青岛市",
     });
   });
 
@@ -123,7 +123,22 @@ describe("journeyPlace", () => {
       confidence: "medium",
     });
     expect(chinesePlace?.displayName).toBe(chinesePlace?.displayNameZh);
-    expect(chinesePlace?.displayNameZh).toBeTruthy();
+    expect(chinesePlace?.displayNameZh).toBe("青岛市");
+  });
+
+  it("uses place catalog standard labels instead of endpoint aliases when endpoint mapping exists", () => {
+    const place = normalizeJourneyPlaceFromLocation(
+      makeLocation("Qingdao Jiaodong International Airport", "TAO"),
+      { preferredLanguage: "zh", ticketType: "flight" },
+    );
+
+    expect(place).toMatchObject({
+      placeKey: "cn-qingdao",
+      displayName: "青岛市",
+      displayNameZh: "青岛市",
+      displayNameEn: "Qingdao",
+    });
+    expect(place?.displayName).not.toContain("机场");
   });
 
   it("falls back to the raw endpoint when no metadata match exists", () => {

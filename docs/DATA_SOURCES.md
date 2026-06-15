@@ -369,3 +369,87 @@ Official GeoNames references:
 - 12306 `station_name.js` remains the rail endpoint source.
 - Wikidata remains a future multilingual enrichment candidate only.
 - OpenStreetMap is not used for this Place Catalog because ODbL / derived-database obligations would require a separate review.
+
+## 19. Transport Endpoint -> Place Mapping
+
+- Transport endpoint -> Place Catalog mapping is now generated as a separate derived file:
+  - [C:\yx\00app\ticket\scripts\generate-transport-place-data.mjs](C:/yx/00app/ticket/scripts/generate-transport-place-data.mjs)
+  - [C:\yx\00app\ticket\src\data\transport-place.generated.json](C:/yx/00app/ticket/src/data/transport-place.generated.json)
+- This layer keeps airport and rail endpoint catalogs separate from the standard Place Catalog.
+- It does not replace endpoint records.
+- It adds stable `defaultJourneyPlaceKey` mappings for Journey-level place meaning.
+
+Current generated mapping shape stores:
+
+- mapped airport codes
+- mapped rail telecodes
+- one deduped place-label dictionary keyed by `placeKey`
+- per-endpoint:
+  - `defaultJourneyPlaceKey`
+  - `mappingSource`
+  - `mappingConfidence`
+- per-place:
+  - standard `nameEn`
+  - optional standard `nameZh`
+
+Runtime rule:
+
+- raw ticket detail still shows exact airport / station endpoint fields
+- Journey place normalization now prefers Place Catalog standard labels when a transport endpoint mapping exists
+- aliases remain search-only fields
+- airport / rail endpoint aliases should not be used as Journey display labels once mapped
+
+## 20. Airport Mapping Rules
+
+Current airport mapping is intentionally conservative and uses the existing generated airport metadata plus the Place Catalog:
+
+1. explicit override if one is later added
+2. direct generated airport `placeKey` if that exact key exists in the Place Catalog
+3. duplicate-segment airport `placeKey` collapse only for obviously repeated patterns such as `cn-changsha-changsha -> cn-changsha`
+4. `countryCode + normalized placeNameEn`
+5. `countryCode + normalized municipality`
+6. otherwise leave unmapped
+
+Important rules:
+
+- do not add broad served-city assumptions
+- do not automatically convert disputed airports such as `NRT` into `Tokyo`
+- use `countryCode` to avoid cross-country city collisions
+
+## 21. Rail Mapping Rules
+
+Current rail mapping uses the conservative rail-place layer from `RAIL-STATION-PLACE-001` plus the Place Catalog:
+
+1. explicit override if one is later added
+2. medium/high-confidence generated rail `placeKey` if that exact key exists in the Place Catalog
+3. medium/high-confidence `countryCode + placeNameZh`
+4. medium/high-confidence `countryCode + placeNameEn / pinyin`
+5. low-confidence rail entries stay unmapped
+
+Important rules:
+
+- low-confidence station records are not forcibly merged into the Place Catalog
+- current unmapped rail fallback still preserves the existing conservative station-derived display
+- no exact rail station coordinates are added here
+
+## 22. Endpoint Labels vs Place Labels
+
+The repository now treats these as distinct layers:
+
+- airport / rail endpoint catalogs:
+  - search fields
+  - endpoint names
+  - exact airport coordinates
+  - conservative rail metadata
+- Place Catalog:
+  - standard city/place identity
+  - standard multilingual labels
+  - city-level coordinates
+- transport-place mapping:
+  - endpoint -> `defaultJourneyPlaceKey`
+
+This means:
+
+- `Qingdao Jiaodong International Airport` can still appear as the raw ticket endpoint
+- Journey destination / route normalization can now display the Place Catalog label `Qingdao` / `青岛市`
+- `Qingdao North` and `TAO` can share the same stable place identity without pretending the station and airport are the same endpoint

@@ -289,7 +289,7 @@ describe("journeySummary helpers", () => {
       "Changsha -> Qingdao -> Changsha",
     );
     expect(buildJourneyRouteSummaryFromTickets([flightIn, railOut], { preferredLanguage: "zh" })).toBe(
-      "长沙 -> 青岛 -> 长沙",
+      "长沙市 -> 青岛市 -> 长沙市",
     );
     expect(deriveVisitedDestinationsForJourney(journey, [flightIn, railOut])).toEqual(["Qingdao"]);
   });

@@ -709,7 +709,10 @@
 
 - `TRANSPORT-PLACE-MAPPING-001`
   - Map airport and rail endpoint catalogs to a stable `defaultJourneyPlaceKey` so Journey display and Stops can consume standard place identities instead of endpoint aliases.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Transport endpoint -> Place Catalog mapping now lives in a separate generated file instead of rewriting the endpoint catalogs directly.
+    - Journey place normalization now prefers Place Catalog standard labels when endpoint mappings exist, while raw ticket endpoint fields stay unchanged.
   - Priority: `High`
 
 - `MAP-CITY-FALLBACK-001`

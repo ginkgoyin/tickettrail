@@ -461,18 +461,17 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `PLACE-CATALOG-001`.
+Current task: `TRANSPORT-PLACE-MAPPING-001`.
 
-This checkpoint adds the first real GeoNames-backed Place Catalog foundation, but it still does not wire endpoint -> place mapping into Journey runtime or map runtime yet.
+This checkpoint adds a generated transport endpoint -> Place Catalog mapping layer and wires Journey place normalization to use Place Catalog standard labels when a safe endpoint mapping exists.
 
 The recommended next implementation order is now:
 
-1. `TRANSPORT-PLACE-MAPPING-001`
-2. `MAP-CITY-FALLBACK-001`
-3. `JOURNEY-STOPS-AUTO-002`
-4. `JOURNEY-STOPS-UI-001`
-5. `JOURNEY-SUMMARY-STOPS-001`
-6. `TRAIN-STATION-GEO-001`
+1. `MAP-CITY-FALLBACK-001`
+2. `JOURNEY-STOPS-AUTO-002`
+3. `JOURNEY-STOPS-UI-001`
+4. `JOURNEY-SUMMARY-STOPS-001`
+5. `TRAIN-STATION-GEO-001`
 
 Implementation notes:
 
@@ -488,9 +487,12 @@ Implementation notes:
 - `PLACE-CATALOG-AND-RAIL-GEO-DESIGN-001` now records the next architectural split: standard Place Catalog vs transport endpoint catalogs vs Journey-level Stops/summary meaning.
 - `PLACE-CATALOG-001` now provides the first real GeoNames-backed city/place source of truth.
 - Current size findings showed `cities1000.zip` was too large for the current repository/runtime foundation, so the practical default is now `cities5000.zip`.
-- `TRANSPORT-PLACE-MAPPING-001` should now connect airport and rail endpoint catalogs to stable `defaultJourneyPlaceKey` values while preserving endpoint fidelity and exact airport coordinates.
+- `TRANSPORT-PLACE-MAPPING-001` is now implemented as a separate generated mapping file so runtime does not need to eagerly import the full 26 MB Place Catalog just to normalize Journey labels.
+- The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
+- Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
+- Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.
 - `MAP-CITY-FALLBACK-001` should add explicit city-level map fallback only when exact endpoint coordinates are unavailable, with lower precision kept visible in the data model.
-- `PLACE-CATALOG-001` should stay data-layer-only in this phase; it should not rewrite Journey place runtime or map runtime yet.
+- `MAP-CITY-FALLBACK-001` is now the best next small follow-up because the endpoint -> place identity layer exists but route-map coordinate fallback still does not use Place Catalog city coordinates.
 - `JOURNEY-STOPS-AUTO-001` should stay limited to route-anchor derivation plus persisted auto-stop refresh; full Stop editing/review UI is still a separate task.
 - `TRAIN-STATION-GEO-001` remains the future exact-coordinate task for rail endpoints; do not mix it into the current place-label metadata or Place Catalog work.
 - Train station exact coordinates remain future work; the current place layer does not add or infer rail coordinates.
