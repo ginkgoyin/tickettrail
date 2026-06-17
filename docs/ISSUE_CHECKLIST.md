@@ -808,6 +808,14 @@
     - OCR/image recognition and pasted-text parsing remain part of the add-ticket flow and still apply into the same manual form review step.
   - Priority: `Medium`
 
+- `OCR-002`
+  - Rework the add-ticket `Image OCR` and `Text import` experience more substantially instead of only polishing the current first-pass layout.
+  - Status: `Open / future UX redesign`
+  - Notes:
+    - The current modal flow is acceptable as a checkpoint, but the import area still needs a larger structural pass.
+    - Revisit how `Image OCR` and `Text import` are separated, how the first-step input modules are presented, and how duplicated or confusing affordances are removed.
+  - Priority: `Medium`
+
 - `DATA-002`
   - Train/rail suggestions now use generated nationwide 12306 `station_name.js` data with telecode and pinyin support.
   - Status: `Implemented / needs manual verification`

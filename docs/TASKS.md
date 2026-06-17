@@ -495,6 +495,7 @@ Implementation notes:
 - `OCR-001` should stay inside the current add-ticket modal rather than becoming a standalone workspace block again.
 - The first OCR redesign pass should improve flow clarity only: separate entry modes, clearer guidance, and applying parsed results back into the same manual review form.
 - OCR parser logic and Tesseract runtime can stay unchanged in this checkpoint unless a small UI fix requires otherwise.
+- After the first OCR pass, record a separate `OCR-002` follow-up for the larger `Image OCR` / `Text import` UX redesign instead of trying to keep stretching the current checkpoint.
 - `MAP-CITY-FALLBACK-001` should add explicit city-level map fallback only when exact endpoint coordinates are unavailable, with lower precision kept visible in the data model.
 - `MAP-CITY-FALLBACK-001` is now the best next small follow-up because the endpoint -> place identity layer exists but route-map coordinate fallback still does not use Place Catalog city coordinates.
 - `JOURNEY-STOPS-AUTO-001` should stay limited to route-anchor derivation plus persisted auto-stop refresh; full Stop editing/review UI is still a separate task.
