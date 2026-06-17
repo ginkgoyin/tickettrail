@@ -44,7 +44,6 @@ export function SmartImport({ mode = "ocr", onApplyImport }: SmartImportProps) {
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [showNormalized, setShowNormalized] = useState(false);
   const [directoryReviews, setDirectoryReviews] = useState<ImportFieldReview[]>([]);
-  const [sourceMode, setSourceMode] = useState<"ocr" | "text">(mode);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const parsed = useMemo<ImportParseResult | null>(() => parseImportedText(rawText), [rawText]);
@@ -56,10 +55,6 @@ export function SmartImport({ mode = "ocr", onApplyImport }: SmartImportProps) {
 
     return directoryReviews.reduce((current, nextReview) => upsertReview(current, nextReview), [...fieldReviews]);
   }, [directoryReviews, fieldReviews]);
-
-  useEffect(() => {
-    setSourceMode(mode);
-  }, [mode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -258,13 +253,13 @@ export function SmartImport({ mode = "ocr", onApplyImport }: SmartImportProps) {
         <div>
           <h3>Import into ticket form</h3>
           <p className="hero-copy">
-            {sourceMode === "ocr"
+            {mode === "ocr"
               ? "Scan a ticket image, then review the parsed draft before applying it to the manual form."
               : "Paste copied booking text, OCR output, SMS, or email details, then review before applying."}
           </p>
         </div>
         <span className="status-pill">
-          {parsed ? `${parsed.matchedFields.length} fields matched` : sourceMode === "ocr" ? "Image OCR" : "Text import"}
+          {parsed ? `${parsed.matchedFields.length} fields matched` : mode === "ocr" ? "Image OCR" : "Text import"}
         </span>
       </div>
 
@@ -277,26 +272,7 @@ export function SmartImport({ mode = "ocr", onApplyImport }: SmartImportProps) {
           type="file"
         />
 
-        <div className="import-source-tabs" role="tablist" aria-label="Import mode">
-          <button
-            className={sourceMode === "ocr" ? "theme-chip active" : "theme-chip"}
-            onClick={() => setSourceMode("ocr")}
-            role="tab"
-            type="button"
-          >
-            Image OCR
-          </button>
-          <button
-            className={sourceMode === "text" ? "theme-chip active" : "theme-chip"}
-            onClick={() => setSourceMode("text")}
-            role="tab"
-            type="button"
-          >
-            Text import
-          </button>
-        </div>
-
-        {sourceMode === "ocr" ? (
+        {mode === "ocr" ? (
           <div className="import-intro-card">
             <strong>Step 1. Run OCR on a ticket image</strong>
             <p className="hero-copy">
@@ -336,12 +312,12 @@ export function SmartImport({ mode = "ocr", onApplyImport }: SmartImportProps) {
         ) : null}
 
         <label>
-          {sourceMode === "ocr" ? "Step 2. Review OCR text" : "Step 2. Review imported text"}
+          {mode === "ocr" ? "Step 2. Review OCR text" : "Step 2. Paste or review imported text"}
           <textarea
             className="import-textarea"
             onChange={(event) => setRawText(event.target.value)}
             placeholder={
-              sourceMode === "ocr"
+              mode === "ocr"
                 ? "OCR output will appear here. You can also paste or correct the text manually."
                 : "Paste copied booking text, SMS content, OCR output, or reimbursement text here..."
             }
@@ -449,7 +425,7 @@ export function SmartImport({ mode = "ocr", onApplyImport }: SmartImportProps) {
           <div className="empty-state">
             <strong>Ready to import into the add-ticket form</strong>
             <p>
-              {sourceMode === "ocr"
+              {mode === "ocr"
                 ? "Run OCR on a ticket image, then review the extracted text and parsed fields."
                 : "Paste copied ticket details to generate a draft for the manual form."}
             </p>
