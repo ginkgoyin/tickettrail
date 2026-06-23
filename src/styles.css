@@ -2094,9 +2094,8 @@ label {
 
 .field-helper-slot {
   display: grid;
-  gap: 6px;
+  gap: 2px;
   align-content: start;
-  min-height: 54px;
 }
 
 .field-meta-chip {

@@ -4,6 +4,11 @@ import {
   lookupFlightCandidates,
   type FlightLookupCandidate,
 } from "../lib/flightLookup";
+import {
+  extractFlightCodePrefix,
+  isNumericOnlyFlightNumber,
+  normalizeFlightNumberInput,
+} from "../lib/flightCode";
 import { useI18n } from "../lib/i18n";
 import type { ImportFieldKey, ImportFieldReview } from "../lib/importParser";
 import { searchAirlines, searchLocations } from "../lib/ticketService";
@@ -161,6 +166,42 @@ function getDateOnly(value: string) {
   return value ? value.slice(0, 10) : "";
 }
 
+function buildAirlineSuggestionLabel(airline: AirlineDirectoryEntry) {
+  return `${airline.iataCode} | ${airline.nameEn}`;
+}
+
+function airlineMatchesCarrierName(airline: AirlineDirectoryEntry, carrierName: string) {
+  const normalized = carrierName.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const comparableValues = [
+    airline.iataCode,
+    airline.icaoCode || "",
+    airline.nameEn,
+    airline.nameZh || "",
+    ...airline.aliases,
+  ];
+
+  return comparableValues.some((value) => value.trim().toLowerCase() === normalized);
+}
+
+function normalizeFlightDraftCodes(draft: TicketDraft): TicketDraft {
+  if (draft.ticketType !== "flight") {
+    return draft;
+  }
+
+  return {
+    ...draft,
+    code: normalizeFlightNumberInput(draft.code),
+    segments: (draft.segments ?? []).map((segment) => ({
+      ...segment,
+      code: normalizeFlightNumberInput(segment.code),
+    })),
+  };
+}
+
 function describeLookupCandidate(candidate: FlightLookupCandidate) {
   const departureTimeLabel = candidate.departureTimeLocal
     ? candidate.departureTimeLocal.slice(11, 16)
@@ -197,6 +238,7 @@ export function TicketForm({
   const [segmentLookupCandidates, setSegmentLookupCandidates] = useState<Record<number, FlightLookupCandidate[]>>({});
   const [segmentLookupBusy, setSegmentLookupBusy] = useState<Record<number, boolean>>({});
   const [segmentLookupMessages, setSegmentLookupMessages] = useState<Record<number, string>>({});
+  const [flightCodeAirlineMatch, setFlightCodeAirlineMatch] = useState<AirlineDirectoryEntry | null>(null);
   const airlineSuggestionCacheRef = useRef(new Map<string, AirlineDirectoryEntry[]>());
   const locationSuggestionCacheRef = useRef(new Map<string, LocationDirectoryEntry[]>());
   const reviewMap = buildReviewMap(mode === "edit" ? null : importReview);
@@ -209,6 +251,20 @@ export function TicketForm({
       ),
     [draft.segments, draft.ticketType],
   );
+  const normalizedMainFlightCode = draft.ticketType === "flight"
+    ? normalizeFlightNumberInput(draft.code)
+    : draft.code;
+  const numericOnlyFlightCodeWarning =
+    draft.ticketType === "flight" && isNumericOnlyFlightNumber(normalizedMainFlightCode)
+      ? "Enter full flight number, e.g. JQ661."
+      : null;
+  const carrierMismatchWarning =
+    draft.ticketType === "flight" &&
+    flightCodeAirlineMatch &&
+    draft.carrierName.trim() &&
+    !airlineMatchesCarrierName(flightCodeAirlineMatch, draft.carrierName)
+      ? `Flight number prefix ${flightCodeAirlineMatch.iataCode} does not match selected carrier.`
+      : null;
   const mainDepartureQuery = (draft.departure.name || draft.departure.code || "").trim();
   const mainArrivalQuery = (draft.arrival.name || draft.arrival.code || "").trim();
   const segmentLocationQueries = useMemo(
@@ -273,25 +329,25 @@ export function TicketForm({
     }
   }, [draft.ticketType]);
 
+  const resolveAirlineSuggestions = async (query: string) => {
+    const trimmed = query.trim();
+    if (draft.ticketType !== "flight" || trimmed.length < 1) {
+      return [];
+    }
+
+    const cacheKey = trimmed.toLowerCase();
+    const cached = airlineSuggestionCacheRef.current.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const results = await searchAirlines(trimmed);
+    airlineSuggestionCacheRef.current.set(cacheKey, results);
+    return results;
+  };
+
   useEffect(() => {
     let isMounted = true;
-
-    const resolveAirlineSuggestions = async (query: string) => {
-      const trimmed = query.trim();
-      if (draft.ticketType !== "flight" || trimmed.length < 1) {
-        return [];
-      }
-
-      const cacheKey = trimmed.toLowerCase();
-      const cached = airlineSuggestionCacheRef.current.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      const results = await searchAirlines(trimmed);
-      airlineSuggestionCacheRef.current.set(cacheKey, results);
-      return results;
-    };
 
     const loadAirlineSuggestions = async () => {
       const uniqueQueries = Array.from(
@@ -327,6 +383,61 @@ export function TicketForm({
       isMounted = false;
     };
   }, [draft.ticketType, mainAirlineQuery, segmentAirlineQueries]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFlightCodeAirlineMatch = async () => {
+      if (draft.ticketType !== "flight") {
+        setFlightCodeAirlineMatch(null);
+        return;
+      }
+
+      const prefix = extractFlightCodePrefix(normalizedMainFlightCode);
+      if (!prefix) {
+        setFlightCodeAirlineMatch(null);
+        return;
+      }
+
+      try {
+        const results = await resolveAirlineSuggestions(prefix);
+        if (!isMounted) {
+          return;
+        }
+
+        const exactMatch =
+          results.find((entry) => entry.iataCode.trim().toUpperCase() === prefix) ?? null;
+        setFlightCodeAirlineMatch(exactMatch);
+
+        if (exactMatch && !draft.carrierName.trim()) {
+          setDraft((current) => {
+            if (
+              current.ticketType !== "flight" ||
+              current.carrierName.trim() ||
+              normalizeFlightNumberInput(current.code) !== normalizedMainFlightCode
+            ) {
+              return current;
+            }
+
+            return {
+              ...current,
+              carrierName: exactMatch.nameEn,
+            };
+          });
+        }
+      } catch {
+        if (isMounted) {
+          setFlightCodeAirlineMatch(null);
+        }
+      }
+    };
+
+    void loadFlightCodeAirlineMatch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [draft.ticketType, draft.carrierName, normalizedMainFlightCode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -406,6 +517,19 @@ export function TicketForm({
 
   const updateField = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const normalizeMainFlightCodeField = () => {
+    if (draft.ticketType !== "flight") {
+      return draft.code;
+    }
+
+    const normalized = normalizeFlightNumberInput(draft.code);
+    if (normalized !== draft.code) {
+      setDraft((current) => ({ ...current, code: normalized }));
+    }
+
+    return normalized;
   };
 
   const updateLocationField = (
@@ -700,6 +824,7 @@ export function TicketForm({
       ...current,
       carrierName: airline.nameEn,
     }));
+    setFlightCodeAirlineMatch(airline);
     setActiveSuggestField(null);
   };
 
@@ -742,11 +867,37 @@ export function TicketForm({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!draft.carrierName || !draft.code || !draft.departure.name || !draft.arrival.name) {
-      return;
-    }
+    void (async () => {
+      let nextDraft = normalizeFlightDraftCodes(draft);
+      if (nextDraft.code !== draft.code || (nextDraft.segments ?? []).some((segment, index) => segment.code !== (draft.segments ?? [])[index]?.code)) {
+        setDraft(nextDraft);
+      }
 
-    void onSubmitTicket(draft).then(() => {
+      if (nextDraft.ticketType === "flight" && !nextDraft.carrierName.trim()) {
+        const prefix = extractFlightCodePrefix(nextDraft.code);
+        if (prefix) {
+          try {
+            const results = await resolveAirlineSuggestions(prefix);
+            const exactMatch = results.find((entry) => entry.iataCode.trim().toUpperCase() === prefix);
+            if (exactMatch) {
+              nextDraft = {
+                ...nextDraft,
+                carrierName: exactMatch.nameEn,
+              };
+              setDraft(nextDraft);
+              setFlightCodeAirlineMatch(exactMatch);
+            }
+          } catch {
+            // Keep manual carrier entry flow when the directory lookup fails.
+          }
+        }
+      }
+
+      if (!nextDraft.carrierName || !nextDraft.code || !nextDraft.departure.name || !nextDraft.arrival.name) {
+        return;
+      }
+
+      await onSubmitTicket(nextDraft);
       if (mode === "create") {
         setDraft(createDefaultDraft());
         setFlightLookupDate("");
@@ -755,17 +906,24 @@ export function TicketForm({
         setAirlineSuggestions([]);
         setDepartureSuggestions([]);
         setArrivalSuggestions([]);
+        setFlightCodeAirlineMatch(null);
       }
-    });
+    })();
   };
 
   const handleLookupFlight = async () => {
     const normalizedDate = flightLookupDate.trim();
-    const normalizedFlightNumber = draft.code.trim();
+    const normalizedFlightNumber = normalizeMainFlightCodeField();
 
     if (!normalizedFlightNumber || !normalizedDate) {
       setFlightLookupCandidates([]);
       setFlightLookupMessage("Enter a flight number and departure date before looking up a flight.");
+      return;
+    }
+
+    if (isNumericOnlyFlightNumber(normalizedFlightNumber)) {
+      setFlightLookupCandidates([]);
+      setFlightLookupMessage("Enter full flight number, e.g. JQ661, before looking up a flight.");
       return;
     }
 
@@ -795,13 +953,26 @@ export function TicketForm({
   const handleLookupSegmentFlight = async (index: number) => {
     const segment = draft.segments?.[index];
     const normalizedDate = (segmentLookupDates[index] ?? "").trim();
-    const normalizedFlightNumber = segment?.code.trim() ?? "";
+    const normalizedFlightNumber = normalizeFlightNumberInput(segment?.code ?? "");
+
+    if (segment && normalizedFlightNumber !== segment.code) {
+      updateExtraSegmentField(index, "code", normalizedFlightNumber);
+    }
 
     if (!segment || !normalizedFlightNumber || !normalizedDate) {
       setSegmentLookupCandidates((current) => ({ ...current, [index]: [] }));
       setSegmentLookupMessages((current) => ({
         ...current,
         [index]: "Enter a flight number and departure date before looking up a flight.",
+      }));
+      return;
+    }
+
+    if (isNumericOnlyFlightNumber(normalizedFlightNumber)) {
+      setSegmentLookupCandidates((current) => ({ ...current, [index]: [] }));
+      setSegmentLookupMessages((current) => ({
+        ...current,
+        [index]: "Enter full flight number, e.g. JQ661, before looking up a flight.",
       }));
       return;
     }
@@ -1112,24 +1283,34 @@ export function TicketForm({
                       onMouseDown={() => applyAirlineSuggestion(airline)}
                       type="button"
                     >
-                      <strong>{airline.nameEn}</strong>
-                      <span>{`${airline.nameZh || "Airline"} | ${airline.iataCode}`}</span>
+                      <strong>{buildAirlineSuggestionLabel(airline)}</strong>
+                      <span>{airline.nameZh || airline.icaoCode || "Airline"}</span>
                     </button>
                   ))}
                 </div>
               ) : null}
             </div>
-            {renderReviewNote("carrierName")}
+            <div className="field-helper-slot">
+              {renderReviewNote("carrierName")}
+              {carrierMismatchWarning ? <small className="field-review-note">{carrierMismatchWarning}</small> : null}
+            </div>
           </label>
 
           <label className={getLabelClassName("code")}>
             {getTicketNumberLabel(draft.ticketType, t("flightNo"), t("trainNo"))}
             <input
+              onBlur={() => {
+                normalizeMainFlightCodeField();
+                window.setTimeout(() => setActiveSuggestField(null), 120);
+              }}
               onChange={(event) => updateField("code", event.target.value)}
               placeholder="MU561"
               value={draft.code}
             />
-            {renderReviewNote("code")}
+            <div className="field-helper-slot">
+              {renderReviewNote("code")}
+              {numericOnlyFlightCodeWarning ? <small className="field-review-note">{numericOnlyFlightCodeWarning}</small> : null}
+            </div>
           </label>
           </div>
 
@@ -1481,8 +1662,8 @@ export function TicketForm({
                                 onMouseDown={() => applyExtraSegmentAirlineSuggestion(index, airline)}
                                 type="button"
                               >
-                                <strong>{airline.nameEn}</strong>
-                                <span>{`${airline.nameZh || "Airline"} | ${airline.iataCode}`}</span>
+                                <strong>{buildAirlineSuggestionLabel(airline)}</strong>
+                                <span>{airline.nameZh || airline.icaoCode || "Airline"}</span>
                               </button>
                             ))}
                           </div>
@@ -1493,6 +1674,12 @@ export function TicketForm({
                     <label>
                       {getTicketNumberLabel(draft.ticketType, t("flightNo"), t("trainNo"))}
                       <input
+                        onBlur={() => {
+                          const normalized = normalizeFlightNumberInput(segment.code);
+                          if (draft.ticketType === "flight" && normalized !== segment.code) {
+                            updateExtraSegmentField(index, "code", normalized);
+                          }
+                        }}
                         onChange={(event) => updateExtraSegmentField(index, "code", event.target.value)}
                         placeholder="MU561"
                         value={segment.code}

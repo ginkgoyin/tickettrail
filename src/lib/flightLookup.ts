@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { normalizeFlightNumberInput } from "./flightCode";
 
 export interface FlightLookupRequest {
   flightNumber: string;
@@ -212,7 +213,7 @@ const MOCK_FLIGHTS: Record<string, MockFlightTemplate[]> = {
 };
 
 function normalizeFlightNumber(value: string) {
-  return value.replace(/[^a-z0-9]/gi, "").trim().toUpperCase();
+  return normalizeFlightNumberInput(value);
 }
 
 function normalizeProvider(value: string | null | undefined): FlightDataSourceProvider {

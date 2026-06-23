@@ -165,6 +165,33 @@
   - Status: `Open / future hardening`
   - Priority: `High`
 
+- `FLIGHT-CODE-001`
+  - Normalize flight-number input into canonical full-code formatting such as `JQ661` without composing code from the carrier field.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `FLIGHT-CODE-002`
+  - Flight lookup should use normalized full flight codes and block suffix-only numeric input such as `661`.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `FLIGHT-CODE-003`
+  - Infer Carrier / Operator from a full flight-number prefix such as `JQ` when the airline directory has a safe exact match and the carrier field is empty.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `FLIGHT-CODE-004`
+  - Warn when the selected carrier conflicts with the full flight-number prefix instead of silently overwriting the carrier field.
+  - Status: `Implemented / needs manual verification`
+  - Priority: `High`
+
+- `AIRLINE-DATA-001`
+  - Replace the current bootstrap airline seed with a reviewed full-source dataset/import pipeline and do not claim complete airline coverage until that work is done.
+  - Status: `Open / future data pipeline`
+  - Notes:
+    - The current airline seed remains useful for bootstrap directory lookup but is incomplete and should not be treated as full global coverage.
+  - Priority: `High`
+
 - `SEGMENT-DESIGN-001`
   - Redesign multi-segment ticket semantics and detail UI.
   - Status: `Documented / docs-only`
