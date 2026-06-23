@@ -1,4 +1,4 @@
-import type { Journey } from "../types/journey";
+import type { Journey, JourneyStop } from "../types/journey";
 import type { TicketLocation, TicketRecord } from "../types/ticket";
 import { normalizeJourneyDisplayText } from "./journeyDisplay";
 import type { Language } from "./i18n";
@@ -29,6 +29,12 @@ export interface JourneySummaryCalendarWeek {
 }
 
 export interface JourneySummaryDestinationStat {
+  label: string;
+  journeyCount: number;
+  dedupedTravelDays: number;
+}
+
+export interface JourneySummaryUnresolvedStayStat {
   label: string;
   journeyCount: number;
   dedupedTravelDays: number;
@@ -74,6 +80,7 @@ export interface JourneySummaryBase {
   availableYears: string[];
   journeysByYear: Map<string, Set<string>>;
   topDestinations: JourneySummaryDestinationStat[];
+  unresolvedStays: JourneySummaryUnresolvedStayStat[];
   topCompanions: JourneySummaryCompanionStat[];
   topCompanionGroups: JourneySummaryCompanionGroup[];
   costByCurrency: JourneySummaryCurrencyStat[];
@@ -98,6 +105,24 @@ interface JourneyRouteAnchor {
 
 interface JourneyPlaceDisplayOptions {
   preferredLanguage?: Language;
+}
+
+type JourneySummaryStopsLookup = Map<string, JourneyStop[]> | Record<string, JourneyStop[]>;
+
+interface JourneySummaryBuildOptions extends JourneyPlaceDisplayOptions {
+  stopsByJourneyId?: JourneySummaryStopsLookup;
+}
+
+interface JourneySummaryPlaceWindow {
+  key: string;
+  label: string;
+  journeyId: string;
+  dateKeys: string[];
+}
+
+interface JourneySummaryResolvedStops {
+  confirmed: JourneySummaryPlaceWindow[];
+  unresolved: JourneySummaryPlaceWindow[];
 }
 
 function normalizeLocationCode(value?: string) {
@@ -255,6 +280,40 @@ function incrementDateKey(dateKey: string) {
   const parsed = new Date(`${dateKey}T00:00:00`);
   parsed.setDate(parsed.getDate() + 1);
   return formatLocalDateKey(parsed);
+}
+
+function extractDateKeyFromDateTime(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+
+  return undefined;
+}
+
+function enumerateDateKeysBetween(startDateKey?: string, endDateKey?: string) {
+  if (!startDateKey || !endDateKey) {
+    return [] as string[];
+  }
+
+  let start = startDateKey;
+  let end = endDateKey;
+  if (end < start) {
+    [start, end] = [end, start];
+  }
+
+  const dateKeys: string[] = [];
+  let cursor = start;
+  while (cursor <= end) {
+    dateKeys.push(cursor);
+    cursor = incrementDateKey(cursor);
+  }
+
+  return dateKeys;
 }
 
 export function enumerateJourneyDateKeys(journey: Journey) {
@@ -539,11 +598,126 @@ function getLinkedTicketsForJourney(journey: Journey, ticketsById: Map<string, T
     .filter((ticket): ticket is TicketRecord => Boolean(ticket));
 }
 
+function getSummaryStopsForJourney(journeyId: string, stopsByJourneyId?: JourneySummaryStopsLookup) {
+  if (!stopsByJourneyId) {
+    return [] as JourneyStop[];
+  }
+
+  if (stopsByJourneyId instanceof Map) {
+    return stopsByJourneyId.get(journeyId) ?? [];
+  }
+
+  return stopsByJourneyId[journeyId] ?? [];
+}
+
+function getFirstJourneyArrivalDateKey(linkedTickets: TicketRecord[]) {
+  const firstTicket = sortTicketsByTripDate(linkedTickets)[0];
+  return extractDateKeyFromDateTime(firstTicket?.arrivalTimeLocal);
+}
+
+function normalizeStopLabel(stop: Pick<JourneyStop, "placeName">) {
+  return normalizeJourneyDisplayText(stop.placeName);
+}
+
+function buildSummaryPlaceIdentity(stop: Pick<JourneyStop, "placeKey" | "placeName">) {
+  const label = normalizeJourneyDisplayText(stop.placeName);
+  if (!label) {
+    return null;
+  }
+
+  const key = stop.placeKey?.trim().toLowerCase() || label.toLowerCase();
+  return { key, label };
+}
+
+function resolveJourneyStopsForSummary(
+  journey: Journey,
+  linkedTickets: TicketRecord[],
+  stops: JourneyStop[],
+): JourneySummaryResolvedStops {
+  const orderedStops = [...stops]
+    .filter((stop) => normalizeStopLabel(stop))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.createdAt.localeCompare(right.createdAt));
+
+  if (orderedStops.length === 0) {
+    return { confirmed: [], unresolved: [] };
+  }
+
+  const confirmed: JourneySummaryPlaceWindow[] = [];
+  const unresolved: JourneySummaryPlaceWindow[] = [];
+  let currentArrivalDateKey = getFirstJourneyArrivalDateKey(linkedTickets) || journey.startDate || undefined;
+
+  for (let index = 0; index < orderedStops.length; index += 1) {
+    const stop = orderedStops[index];
+    const placeIdentity = buildSummaryPlaceIdentity(stop);
+    if (!placeIdentity) {
+      continue;
+    }
+
+    const departureDateKey = extractDateKeyFromDateTime(stop.departureDateTime);
+    if (departureDateKey) {
+      confirmed.push({
+        ...placeIdentity,
+        journeyId: journey.id,
+        dateKeys: enumerateDateKeysBetween(currentArrivalDateKey, departureDateKey),
+      });
+      currentArrivalDateKey = departureDateKey;
+      continue;
+    }
+
+    const blockStops = [stop];
+    let nextKnownStop: JourneyStop | null = null;
+
+    for (let nextIndex = index + 1; nextIndex < orderedStops.length; nextIndex += 1) {
+      const candidate = orderedStops[nextIndex];
+      blockStops.push(candidate);
+      if (extractDateKeyFromDateTime(candidate.departureDateTime)) {
+        nextKnownStop = candidate;
+        index = nextIndex;
+        break;
+      }
+    }
+
+    if (!nextKnownStop) {
+      continue;
+    }
+
+    const unresolvedLabel = blockStops
+      .map((row) => normalizeStopLabel(row))
+      .filter((label): label is string => Boolean(label))
+      .join(" + ");
+    if (!unresolvedLabel) {
+      continue;
+    }
+
+    const groupDepartureDateKey = extractDateKeyFromDateTime(nextKnownStop.departureDateTime);
+    unresolved.push({
+      key: unresolvedLabel.toLowerCase(),
+      label: unresolvedLabel,
+      journeyId: journey.id,
+      dateKeys: enumerateDateKeysBetween(currentArrivalDateKey, groupDepartureDateKey),
+    });
+    currentArrivalDateKey = groupDepartureDateKey;
+  }
+
+  return { confirmed, unresolved };
+}
+
+function recordJourneySummaryPlaceWindow<T extends { label: string; journeyIds: Set<string>; travelDays: Set<string> }>(
+  map: Map<string, T>,
+  entry: JourneySummaryPlaceWindow,
+  createValue: () => T,
+) {
+  const stat = map.get(entry.key) ?? createValue();
+  stat.journeyIds.add(entry.journeyId);
+  entry.dateKeys.forEach((dateKey) => stat.travelDays.add(dateKey));
+  map.set(entry.key, stat);
+}
+
 export function buildJourneySummaryBase(
   journeys: Journey[],
   tickets: TicketRecord[],
   currentSummaryYear: string,
-  options: JourneyPlaceDisplayOptions = {},
+  options: JourneySummaryBuildOptions = {},
 ) {
   const ticketsById = buildJourneyTicketMap(tickets);
   const travelDayEntries = new Map<string, JourneySummaryTravelDayEntry[]>();
@@ -551,6 +725,7 @@ export function buildJourneySummaryBase(
   const journeysByYear = new Map<string, Set<string>>();
   const travelDaysByMonth = new Map<string, Set<string>>();
   const destinationMap = new Map<string, { label: string; journeyIds: Set<string>; travelDays: Set<string> }>();
+  const unresolvedStayMap = new Map<string, { label: string; journeyIds: Set<string>; travelDays: Set<string> }>();
   const companionMap = new Map<string, { label: string; journeyIds: Set<string> }>();
   const costByCurrencyMap = new Map<string, { totalAmount: number; journeyCount: number }>();
   let comparableCostCnyTotal = 0;
@@ -562,6 +737,7 @@ export function buildJourneySummaryBase(
 
   journeys.forEach((journey) => {
     const linkedTickets = getLinkedTicketsForJourney(journey, ticketsById);
+    const journeyStops = getSummaryStopsForJourney(journey.id, options.stopsByJourneyId);
     const journeyDateKeys = enumerateJourneyDateKeys(journey);
     const rangeLabel = formatJourneyDateRangeCompact(journey);
 
@@ -601,24 +777,46 @@ export function buildJourneySummaryBase(
       travelDaysByMonth.set(monthKey, monthDays);
     });
 
-    const destinationLabels = deriveVisitedDestinationsForJourney(journey, linkedTickets, options);
-    const destinationEntries = destinationLabels.length > 0 ? destinationLabels : ["No destination"];
+    const resolvedStops = resolveJourneyStopsForSummary(journey, linkedTickets, journeyStops);
 
-    destinationEntries.forEach((destinationLabel) => {
-      const normalizedLabel = normalizeJourneyDisplayText(destinationLabel) || "No destination";
-      const destinationKey = normalizedLabel.toLowerCase();
-      const destinationStat =
-        destinationMap.get(destinationKey) ??
-        {
-          label: normalizedLabel,
+    if (resolvedStops.confirmed.length > 0 || resolvedStops.unresolved.length > 0) {
+      resolvedStops.confirmed.forEach((entry) => {
+        recordJourneySummaryPlaceWindow(destinationMap, entry, () => ({
+          label: entry.label,
           journeyIds: new Set<string>(),
           travelDays: new Set<string>(),
-        };
+        }));
+      });
 
-      destinationStat.journeyIds.add(journey.id);
-      journeyDateKeys.forEach((dateKey) => destinationStat.travelDays.add(dateKey));
-      destinationMap.set(destinationKey, destinationStat);
-    });
+      resolvedStops.unresolved.forEach((entry) => {
+        recordJourneySummaryPlaceWindow(unresolvedStayMap, entry, () => ({
+          label: entry.label,
+          journeyIds: new Set<string>(),
+          travelDays: new Set<string>(),
+        }));
+      });
+    } else {
+      const destinationLabels = deriveVisitedDestinationsForJourney(journey, linkedTickets, options);
+      destinationLabels.forEach((destinationLabel) => {
+        const normalizedLabel = normalizeJourneyDisplayText(destinationLabel);
+        if (!normalizedLabel) {
+          return;
+        }
+
+        const destinationKey = normalizedLabel.toLowerCase();
+        const destinationStat =
+          destinationMap.get(destinationKey) ??
+          {
+            label: normalizedLabel,
+            journeyIds: new Set<string>(),
+            travelDays: new Set<string>(),
+          };
+
+        destinationStat.journeyIds.add(journey.id);
+        journeyDateKeys.forEach((dateKey) => destinationStat.travelDays.add(dateKey));
+        destinationMap.set(destinationKey, destinationStat);
+      });
+    }
 
     const uniqueCompanions = new Map<string, string>();
     journey.companions.forEach((companion) => {
@@ -669,7 +867,7 @@ export function buildJourneySummaryBase(
         if (!highestCostJourney || convertedCny > highestCostJourney.convertedCny) {
           highestCostJourney = {
             title: journey.title,
-            amountLabel: formatJourneyCostLabel(journey) ?? `${costCurrency} ${formatCurrencyAmount(journey.costAmount)}`,
+            amountLabel: formatJourneyCostLabel(journey) ?? (costCurrency + " " + formatCurrencyAmount(journey.costAmount)),
             convertedCny,
             convertedLabel: formatCurrencyAmount(convertedCny),
           };
@@ -684,6 +882,22 @@ export function buildJourneySummaryBase(
 
   const topDestinations = [...destinationMap.values()]
     .map<JourneySummaryDestinationStat>((value) => ({
+      label: value.label,
+      journeyCount: value.journeyIds.size,
+      dedupedTravelDays: value.travelDays.size,
+    }))
+    .sort((left, right) => {
+      if (right.journeyCount !== left.journeyCount) {
+        return right.journeyCount - left.journeyCount;
+      }
+      if (right.dedupedTravelDays !== left.dedupedTravelDays) {
+        return right.dedupedTravelDays - left.dedupedTravelDays;
+      }
+      return left.label.localeCompare(right.label);
+    });
+
+  const unresolvedStays = [...unresolvedStayMap.values()]
+    .map<JourneySummaryUnresolvedStayStat>((value) => ({
       label: value.label,
       journeyCount: value.journeyIds.size,
       dedupedTravelDays: value.travelDays.size,
@@ -756,6 +970,7 @@ export function buildJourneySummaryBase(
     availableYears,
     journeysByYear,
     topDestinations,
+    unresolvedStays,
     topCompanions,
     topCompanionGroups,
     costByCurrency,

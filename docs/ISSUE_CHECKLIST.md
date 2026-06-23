@@ -747,7 +747,11 @@
 
 - `JOURNEY-SUMMARY-STOPS-001`
   - Move Journey Summary destination aggregation from raw Journey destination/route inference toward persisted Journey Stays/Stops when that data is available.
-  - Status: `Open / future summary follow-up`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Summary Top destinations now prefers persisted Journey Stays/Stops when present and falls back to legacy route/destination inference only for older Journeys without Stops.
+    - `No destination` is no longer ranked as a Top destination row.
+    - Unresolved grouped Stay blocks such as `Nara + Tokyo` now appear in a separate Summary subsection instead of splitting their days across individual places.
   - Priority: `High`
 
 - `JOURNEY-STAYS-EDIT-001`

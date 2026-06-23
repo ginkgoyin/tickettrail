@@ -461,17 +461,17 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `JOURNEY-STAYS-EDIT-001`.
+Latest completed implementation checkpoint: `JOURNEY-SUMMARY-STOPS-001`.
 
-Recommended next task: `manual verification / JOURNEY-STOPS-UI-001`.
+Recommended next task: `manual verification / next chosen issue`.
 
 The recommended next implementation order is now:
 
-1. `manual verification for JOURNEY-STAYS-EDIT-001`
+1. `manual verification for JOURNEY-SUMMARY-STOPS-001`
 2. `JOURNEY-STOPS-UI-001`
-3. `JOURNEY-SUMMARY-STOPS-001`
-4. `MAP-CITY-FALLBACK-001`
-5. `TRAIN-STATION-GEO-001`
+3. `MAP-CITY-FALLBACK-001`
+4. `TRAIN-STATION-GEO-001`
+5. `JOURNEY-STAY-DETAILS-001`
 6. `next chosen issue`
 
 Implementation notes:

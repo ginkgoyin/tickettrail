@@ -813,6 +813,7 @@ export function JourneysPage({
   const [yearFilter, setYearFilter] = useState<JourneyYearFilter>("all");
   const [monthFilter, setMonthFilter] = useState<JourneyMonthFilter>("all");
   const [summaryYear, setSummaryYear] = useState(currentSummaryYear);
+  const [summaryStopsByJourneyId, setSummaryStopsByJourneyId] = useState<Record<string, JourneyStop[]>>({});
   const [journeyModalMode, setJourneyModalMode] = useState<JourneyModalMode | null>(null);
   const [journeyDraft, setJourneyDraft] = useState<CreateJourneyDraft>(EMPTY_CREATE_JOURNEY_DRAFT);
   const [journeyTicketSearch, setJourneyTicketSearch] = useState("");
@@ -913,8 +914,11 @@ export function JourneysPage({
     || formatLocalDateKey(new Date());
 
   const summaryBase = useMemo<JourneySummaryBase>(
-    () => buildJourneySummaryBase(journeys, tickets, currentSummaryYear, { preferredLanguage: language }),
-    [currentSummaryYear, journeys, language, tickets],
+    () => buildJourneySummaryBase(journeys, tickets, currentSummaryYear, {
+      preferredLanguage: language,
+      stopsByJourneyId: summaryStopsByJourneyId,
+    }),
+    [currentSummaryYear, journeys, language, summaryStopsByJourneyId, tickets],
   );
 
   const summaryCalendar = useMemo<JourneySummaryCalendar>(
@@ -993,6 +997,35 @@ export function JourneysPage({
 
     void loadStoredJourneys();
   }, [journeysLoaded, journeysLoading]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (journeys.length === 0) {
+      setSummaryStopsByJourneyId({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void Promise.all(
+      journeys.map(async (journey) => {
+        try {
+          return [journey.id, await listJourneyStops(journey.id)] as const;
+        } catch {
+          return [journey.id, []] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (!cancelled) {
+        setSummaryStopsByJourneyId(Object.fromEntries(entries));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [journeys]);
 
   useEffect(() => {
     if (activeJourneyId && activeJourneyId !== selectedJourneyId) {
@@ -1753,21 +1786,36 @@ export function JourneysPage({
 
             <div className="panel journey-summary-panel">
               <h3>Top destinations</h3>
-              {summaryBase.topDestinations.length > 0 ? (
+              {summaryBase.topDestinations.length > 0 || summaryBase.unresolvedStays.length > 0 ? (
                 <div className="journey-summary-list">
-                  {summaryBase.topDestinations.slice(0, 6).map((destination) => (
-                    <div key={destination.label} className="journey-summary-list-row">
-                      <div>
-                        <strong>{destination.label}</strong>
-                        <div className="journey-summary-list-meta">
-                          {formatCountLabel(destination.journeyCount, "journey")}
+                  {summaryBase.topDestinations.length > 0 ? (
+                    <>
+                      {summaryBase.topDestinations.slice(0, 5).map((destination) => (
+                        <div key={destination.label} className="journey-summary-list-row">
+                          <div>
+                            <strong>{destination.label}</strong>
+                            <div className="journey-summary-list-meta">
+                              {formatCountLabel(destination.journeyCount, "journey")}
+                            </div>
+                          </div>
+                          <span className="journey-summary-list-value">
+                            {formatCountLabel(destination.dedupedTravelDays, "day")}
+                          </span>
                         </div>
-                      </div>
-                      <span className="journey-summary-list-value">
-                        {formatCountLabel(destination.dedupedTravelDays, "day")}
-                      </span>
-                    </div>
-                  ))}
+                      ))}
+                    </>
+                  ) : null}
+                  {summaryBase.unresolvedStays.length > 0 ? (
+                    <p className="journey-summary-item-note">
+                      Unresolved stays total {formatCountLabel(
+                        summaryBase.unresolvedStays.reduce(
+                          (total, destination) => total + destination.dedupedTravelDays,
+                          0,
+                        ),
+                        "day",
+                      )} not included.
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <p className="hero-copy">No destination data recorded yet.</p>

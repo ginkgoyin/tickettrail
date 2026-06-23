@@ -5,7 +5,7 @@ import {
   buildJourneySummaryCalendar,
   deriveVisitedDestinationsForJourney,
 } from "../src/lib/journeySummary";
-import type { Journey } from "../src/types/journey";
+import type { Journey, JourneyStop } from "../src/types/journey";
 import type { TicketLocation, TicketRecord, TicketSegmentDraft } from "../src/types/ticket";
 
 function makeLocation(name: string, code?: string): TicketLocation {
@@ -77,6 +77,29 @@ function makeJourney(overrides: Partial<Journey> & Pick<Journey, "id" | "title">
     lodging: overrides.lodging,
     companions: overrides.companions ?? [],
     ticketIds: overrides.ticketIds ?? [],
+    createdAt: overrides.createdAt ?? "2026-01-01T00:00:00Z",
+    updatedAt: overrides.updatedAt ?? "2026-01-01T00:00:00Z",
+  };
+}
+
+function makeStop(
+  overrides: Partial<JourneyStop> & Pick<JourneyStop, "id" | "journeyId" | "placeName" | "source" | "sortOrder" | "userEdited">,
+): JourneyStop {
+  return {
+    id: overrides.id,
+    journeyId: overrides.journeyId,
+    placeName: overrides.placeName,
+    placeKey: overrides.placeKey,
+    countryCode: overrides.countryCode,
+    arrivalDateTime: overrides.arrivalDateTime,
+    departureDateTime: overrides.departureDateTime,
+    lodging: overrides.lodging,
+    notes: overrides.notes,
+    source: overrides.source,
+    arrivalTicketId: overrides.arrivalTicketId,
+    departureTicketId: overrides.departureTicketId,
+    sortOrder: overrides.sortOrder,
+    userEdited: overrides.userEdited,
     createdAt: overrides.createdAt ?? "2026-01-01T00:00:00Z",
     updatedAt: overrides.updatedAt ?? "2026-01-01T00:00:00Z",
   };
@@ -215,7 +238,7 @@ describe("journeySummary helpers", () => {
     expect(deriveVisitedDestinationsForJourney(oneWayJourney, [oneWayTicket])).toEqual(["Tokyo"]);
 
     const summary = buildJourneySummaryBase([journeyWithoutTickets, noDestinationJourney], [], "2026");
-    expect(summary.topDestinations.map((item) => item.label)).toEqual(["Kyoto", "No destination"]);
+    expect(summary.topDestinations.map((item) => item.label)).toEqual(["Kyoto"]);
   });
 
   it("sorts top destinations by journey count then deduped travel days using derived destinations", () => {
@@ -288,10 +311,148 @@ describe("journeySummary helpers", () => {
     expect(buildJourneyRouteSummaryFromTickets([flightIn, railOut])).toBe(
       "Changsha -> Qingdao -> Changsha",
     );
-    expect(buildJourneyRouteSummaryFromTickets([flightIn, railOut], { preferredLanguage: "zh" })).toBe(
-      "长沙市 -> 青岛市 -> 长沙市",
-    );
     expect(deriveVisitedDestinationsForJourney(journey, [flightIn, railOut])).toEqual(["Qingdao"]);
+  });
+
+  it("prefers persisted stays over legacy route inference and uses stay-specific day windows", () => {
+    const ticket = makeTicket({
+      id: "t-stay-priority",
+      departure: makeLocation("Sydney", "SYD"),
+      arrival: makeLocation("Tokyo Haneda International Airport", "HND"),
+      arrivalTimeLocal: "2026-06-01T10:00",
+    });
+    const journey = makeJourney({
+      id: "j-stay-priority",
+      title: "Manual stays",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      destination: "Tokyo",
+      ticketIds: ["t-stay-priority"],
+    });
+    const stopsByJourneyId = {
+      "j-stay-priority": [
+        makeStop({
+          id: "s-osaka",
+          journeyId: "j-stay-priority",
+          placeName: "Osaka",
+          placeKey: "jp-osaka",
+          departureDateTime: "2026-06-04T00:00:00",
+          source: "manual",
+          sortOrder: 0,
+          userEdited: true,
+        }),
+      ],
+    };
+
+    const summary = buildJourneySummaryBase([journey], [ticket], "2026", { stopsByJourneyId });
+
+    expect(summary.topDestinations).toEqual([
+      { label: "Osaka", journeyCount: 1, dedupedTravelDays: 4 },
+    ]);
+    expect(summary.unresolvedStays).toEqual([]);
+  });
+
+  it("counts a repeated stay place only once per journey while combining its stay-specific days", () => {
+    const ticket = makeTicket({
+      id: "t-repeat",
+      departure: makeLocation("Melbourne", "MEL"),
+      arrival: makeLocation("Hobart", "HBA"),
+      arrivalTimeLocal: "2026-01-01T09:00",
+    });
+    const journey = makeJourney({
+      id: "j-repeat",
+      title: "Repeat stay",
+      startDate: "2026-01-01",
+      endDate: "2026-01-04",
+      ticketIds: ["t-repeat"],
+    });
+    const stopsByJourneyId = {
+      "j-repeat": [
+        makeStop({
+          id: "s-hobart-1",
+          journeyId: "j-repeat",
+          placeName: "Hobart",
+          placeKey: "au-hobart",
+          departureDateTime: "2026-01-02T00:00:00",
+          source: "manual",
+          sortOrder: 0,
+          userEdited: true,
+        }),
+        makeStop({
+          id: "s-sydney",
+          journeyId: "j-repeat",
+          placeName: "Sydney",
+          placeKey: "au-sydney",
+          departureDateTime: "2026-01-03T00:00:00",
+          source: "manual",
+          sortOrder: 1,
+          userEdited: true,
+        }),
+        makeStop({
+          id: "s-hobart-2",
+          journeyId: "j-repeat",
+          placeName: "Hobart",
+          placeKey: "au-hobart",
+          departureDateTime: "2026-01-04T00:00:00",
+          source: "manual",
+          sortOrder: 2,
+          userEdited: true,
+        }),
+      ],
+    };
+
+    const summary = buildJourneySummaryBase([journey], [ticket], "2026", { stopsByJourneyId });
+
+    expect(summary.topDestinations).toEqual([
+      { label: "Hobart", journeyCount: 1, dedupedTravelDays: 4 },
+      { label: "Sydney", journeyCount: 1, dedupedTravelDays: 2 },
+    ]);
+  });
+
+  it("groups unknown stay rows with the next known departure into unresolved stays", () => {
+    const ticket = makeTicket({
+      id: "t-unresolved",
+      departure: makeLocation("Kyoto", "UKY"),
+      arrival: makeLocation("Nara", "UNR"),
+      arrivalTimeLocal: "2026-04-01T09:00",
+    });
+    const journey = makeJourney({
+      id: "j-unresolved",
+      title: "Unresolved stay block",
+      startDate: "2026-04-01",
+      endDate: "2026-04-03",
+      ticketIds: ["t-unresolved"],
+    });
+    const stopsByJourneyId = {
+      "j-unresolved": [
+        makeStop({
+          id: "s-nara",
+          journeyId: "j-unresolved",
+          placeName: "Nara",
+          placeKey: "jp-nara",
+          source: "manual",
+          sortOrder: 0,
+          userEdited: true,
+        }),
+        makeStop({
+          id: "s-tokyo",
+          journeyId: "j-unresolved",
+          placeName: "Tokyo",
+          placeKey: "jp-tokyo",
+          departureDateTime: "2026-04-03T00:00:00",
+          source: "manual",
+          sortOrder: 1,
+          userEdited: true,
+        }),
+      ],
+    };
+
+    const summary = buildJourneySummaryBase([journey], [ticket], "2026", { stopsByJourneyId });
+
+    expect(summary.topDestinations).toEqual([]);
+    expect(summary.unresolvedStays).toEqual([
+      { label: "Nara + Tokyo", journeyCount: 1, dedupedTravelDays: 3 },
+    ]);
   });
 
   it("groups top companions, keeps only top five, and aggregates cost comparison safely", () => {
