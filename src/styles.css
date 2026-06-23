@@ -757,6 +757,148 @@ html {
   min-height: 100%;
 }
 
+.journey-create-section-basic {
+  order: 1;
+}
+
+.journey-create-section-tickets {
+  order: 2;
+}
+
+.journey-create-section-stays {
+  order: 3;
+  grid-column: 1 / -1;
+}
+
+.journey-create-section-people {
+  order: 4;
+}
+
+.journey-create-section-notes {
+  order: 5;
+}
+
+.journey-stays-suggestions {
+  display: grid;
+  gap: 10px;
+}
+
+.journey-stays-suggestions > span,
+.journey-stays-table-header,
+.journey-stay-grip {
+  color: var(--text-soft);
+}
+
+.journey-stays-chip-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.journey-stay-chip {
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-strong);
+  font-size: 0.86rem;
+}
+
+.journey-stay-chip.active {
+  border-color: rgba(112, 212, 255, 0.34);
+  background: rgba(112, 212, 255, 0.1);
+}
+
+.journey-stays-table {
+  display: grid;
+  gap: 12px;
+}
+
+.journey-stays-table-header,
+.journey-stay-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.9fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.journey-stays-table-header {
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.journey-stays-actions-header {
+  text-align: right;
+}
+
+.journey-stay-row {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.journey-stay-place-field,
+.journey-stay-row-actions,
+.journey-stay-departure-field {
+  display: flex;
+  align-items: center;
+}
+
+.journey-stay-place-field,
+.journey-stay-departure-field,
+.journey-stay-row-actions {
+  gap: 10px;
+}
+
+.journey-stay-place-field input,
+.journey-stay-departure-field input[type="date"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.journey-stay-grip {
+  display: grid;
+  grid-template-columns: repeat(2, 4px);
+  gap: 4px;
+  padding: 2px;
+}
+
+.journey-stay-grip span {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.journey-stay-departure-toggle {
+  min-width: 92px;
+}
+
+.journey-stay-departure-field > .journey-stay-departure-toggle:only-child {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.journey-stay-row-actions {
+  justify-content: flex-end;
+}
+
+.journey-stay-remove-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 112, 92, 0.28);
+  background: rgba(255, 112, 92, 0.1);
+  color: #ffcab7;
+  font-size: 1rem;
+  line-height: 1;
+}
 .journey-create-section-top,
 .journey-ticket-option-top,
 .journey-ticket-option {
@@ -3238,6 +3380,15 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .journey-stays-table-header,
+  .journey-stay-row {
+    grid-template-columns: 1fr;
+  }
+
+  .journey-stays-actions-header {
+    text-align: left;
+  }
+
   .field-span-1,
   .field-span-2,
   .field-span-4 {
@@ -3299,3 +3450,9 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+
+
+
+
+

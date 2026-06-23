@@ -461,18 +461,18 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Current task: `OCR-001`.
+Latest completed implementation checkpoint: `JOURNEY-STAYS-EDIT-001`.
 
-This checkpoint should finish the first real add-ticket OCR/text-import UX pass by turning the mixed import area into a clearer modal flow with separate manual, image-OCR, and text-import entry points.
+Recommended next task: `manual verification / JOURNEY-STOPS-UI-001`.
 
 The recommended next implementation order is now:
 
-1. `manual verification / OCR follow-up polish`
-2. `MAP-CITY-FALLBACK-001`
-3. `JOURNEY-STOPS-AUTO-002`
-4. `JOURNEY-STOPS-UI-001`
-5. `JOURNEY-SUMMARY-STOPS-001`
-6. `TRAIN-STATION-GEO-001`
+1. `manual verification for JOURNEY-STAYS-EDIT-001`
+2. `JOURNEY-STOPS-UI-001`
+3. `JOURNEY-SUMMARY-STOPS-001`
+4. `MAP-CITY-FALLBACK-001`
+5. `TRAIN-STATION-GEO-001`
+6. `next chosen issue`
 
 Implementation notes:
 
@@ -492,16 +492,18 @@ Implementation notes:
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.
-- `OCR-001` should stay inside the current add-ticket modal rather than becoming a standalone workspace block again.
-- The first OCR redesign pass should improve flow clarity only: separate entry modes, clearer guidance, and applying parsed results back into the same manual review form.
-- OCR parser logic and Tesseract runtime can stay unchanged in this checkpoint unless a small UI fix requires otherwise.
-- After the first OCR pass, record a separate `OCR-002` follow-up for the larger `Image OCR` / `Text import` UX redesign instead of trying to keep stretching the current checkpoint.
 - `MAP-CITY-FALLBACK-001` should add explicit city-level map fallback only when exact endpoint coordinates are unavailable, with lower precision kept visible in the data model.
 - `MAP-CITY-FALLBACK-001` is now the best next small follow-up because the endpoint -> place identity layer exists but route-map coordinate fallback still does not use Place Catalog city coordinates.
 - `JOURNEY-STOPS-AUTO-001` should stay limited to route-anchor derivation plus persisted auto-stop refresh; full Stop editing/review UI is still a separate task.
 - `TRAIN-STATION-GEO-001` remains the future exact-coordinate task for rail endpoints; do not mix it into the current place-label metadata or Place Catalog work.
 - Train station exact coordinates remain future work; the current place layer does not add or infer rail coordinates.
 - `JOURNEY-STOPS-DATA-001`, `JOURNEY-STOPS-AUTO-001`, `JOURNEY-STOPS-UI-001`, and `JOURNEY-SUMMARY-STOPS-001` should remain separate follow-up phases rather than one large Stops implementation.
+- Stays are now the intended structured Journey destination model: Create/Edit should eventually focus on Stays, while `journeys.destination` remains only a fallback for legacy or stay-less Journeys.
+- Route summary and Stays must remain separate concepts: route summary keeps movement fidelity, while Stays represent visited places.
+- Transfer places such as the middle airport in `Changsha -> Xiamen -> Sydney` should remain suggestion-only by default and must not auto-become Stays unless the user explicitly adopts them.
+- Future Stays editor work should stay lightweight at first: suggested ticket tags, Place/Departure rows, add/delete controls, automatic sorting for known dates, and user-positioned Unknown rows.
+- Statistics/day calculations may group consecutive Unknown departure rows with the next known Stay block, but normal Journey display should keep the rows separate.
+- Summary/top-destination aggregation should eventually move to Stays and distinguish confirmed destinations from unresolved grouped stays instead of assigning the same full day block to each place.
 - `JOURNEY-LIST-001` should now be manually verified together with `JOURNEY-CREATE-001`.
 - Ticket selector search now belongs to the implemented `JOURNEY-CREATE-001` baseline rather than a later polish pass.
 - `JOURNEY-CREATE-002 + JOURNEY-LIST-002` should stay limited to layout polish plus live derived date/currency preview and compact Journey cards.
@@ -517,3 +519,6 @@ Implementation notes:
 - Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.
 - `OVERVIEW-REDESIGN-001` remains a separate docs/design task.
 - UI art-style redesign remains deferred and should not block Journey MVP implementation.
+
+
+

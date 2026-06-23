@@ -633,14 +633,24 @@
   - Status: `Documented / docs-only`
   - Priority: `High`
 
+- `JOURNEY-STAY-BLOCKS-DESIGN-001`
+  - Record the confirmed Stay-block design direction: Stays become the structured Journey destination model, destination text becomes a fallback, and Unknown/grouped-stay statistics rules stay separate from normal display.
+  - Status: `Documented / docs-only`
+  - Priority: `High`
+
 - `JOURNEY-DESTINATION-001`
   - Derive visited Summary destinations from linked ticket endpoints while excluding internal transfer cities inside multi-segment tickets.
   - Status: `Implemented / needs manual verification`
+  - Notes:
+    - This is now a transitional endpoint-based destination pass.
+    - Future Journey destination display and Summary aggregation should move to Stays instead of staying on raw route anchors or legacy destination text.
   - Priority: `High`
 
 - `JOURNEY-ROUTE-001`
   - Build Journey route summaries from ticket-level endpoints while excluding internal transfer cities inside multi-segment tickets.
   - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Route summary must stay distinct from the future Stays model.
   - Priority: `High`
 
 - `JOURNEY-PLACE-001`
@@ -731,14 +741,28 @@
   - Priority: `High`
 
 - `JOURNEY-STOPS-UI-001`
-  - Add future Journey Stop editing/review UI, including manual add/edit/delete and stale-stop review after linked-ticket changes.
+  - Add future Journey Stop editing/review UI, aligned with the lightweight Stays editor direction rather than an endpoint-style stop editor, including manual add/edit/delete and stale-stop review after linked-ticket changes.
   - Status: `Open / future implementation`
   - Priority: `Medium`
 
 - `JOURNEY-SUMMARY-STOPS-001`
-  - Move Journey Summary destination aggregation from raw Journey destination/route inference toward persisted Journey Stops when Stop data is available.
+  - Move Journey Summary destination aggregation from raw Journey destination/route inference toward persisted Journey Stays/Stops when that data is available.
   - Status: `Open / future summary follow-up`
   - Priority: `High`
+
+- `JOURNEY-STAYS-EDIT-001`
+  - Implement the future lightweight Create/Edit Journey Stays editor with suggested ticket tags, Place/Departure rows, add/delete controls, and mixed known-date/Unknown ordering rules.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Create/Edit Journey now includes a lightweight Stays editor backed by persisted `journey_stops` rows.
+    - Suggested ticket tags can auto-add confirmed destination stays, while transfer places stay suggestion-only unless the user clicks them.
+    - Unknown rows currently use simple up/down ordering controls instead of full drag-and-drop.
+  - Priority: `High`
+
+- `JOURNEY-STAY-DETAILS-001`
+  - Add later per-stay lodging, per-stay notes, and review prompts when linked tickets change after user-edited Stays exist.
+  - Status: `Open / future enhancement`
+  - Priority: `Medium`
 
 - `JOURNEY-MAP-004`
   - Add later Journey-colored map and yearly filtering only after the non-map Journey CRUD flow is stable.
@@ -895,3 +919,6 @@
   - Replaced by the implemented language-switch scaffold above; keep future i18n work under `I18N-005` and later follow-up items instead of re-opening this original placeholder.
   - Status: `Superseded`
   - Priority: `Medium`
+
+
+

@@ -1,5 +1,6 @@
 import type { Journey } from "../types/journey";
 import type { TicketLocation, TicketRecord } from "../types/ticket";
+import { normalizeJourneyDisplayText } from "./journeyDisplay";
 import type { Language } from "./i18n";
 import { getTicketEndpointPlaces } from "./journeyPlace";
 
@@ -452,7 +453,7 @@ export function buildJourneyRouteSummaryFromTickets(
 }
 
 function getJourneyFallbackDestination(journey: Journey) {
-  const fallback = journey.destination?.trim();
+  const fallback = normalizeJourneyDisplayText(journey.destination);
   return fallback ? [fallback] : [];
 }
 
@@ -604,7 +605,7 @@ export function buildJourneySummaryBase(
     const destinationEntries = destinationLabels.length > 0 ? destinationLabels : ["No destination"];
 
     destinationEntries.forEach((destinationLabel) => {
-      const normalizedLabel = destinationLabel.trim() || "No destination";
+      const normalizedLabel = normalizeJourneyDisplayText(destinationLabel) || "No destination";
       const destinationKey = normalizedLabel.toLowerCase();
       const destinationStat =
         destinationMap.get(destinationKey) ??
@@ -783,3 +784,5 @@ export function buildJourneySummaryCalendar(summaryBase: JourneySummaryBase, sum
     weeks: buildJourneySummaryCalendarWeeks(Number.parseInt(summaryYear, 10), selectedYearEntries, today),
   };
 }
+
+

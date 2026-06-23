@@ -19,13 +19,26 @@ import {
   createJourney,
   deleteJourney,
   getJourney,
+  listJourneyStops,
   listJourneys,
-  refreshAutoJourneyStops,
+  replaceJourneyStops,
   updateJourney,
 } from "../lib/journeyService";
-import { resolveJourneyDestinationAutofill } from "../lib/journeyDestinationAutofill";
+import {
+  addJourneyStayDraftFromSuggestion,
+  buildJourneyStayDisplay,
+  buildJourneyStayDraftFromStop,
+  buildJourneyStaySuggestions,
+  buildJourneyStopInputsFromDrafts,
+  createEmptyJourneyStayDraft,
+  getJourneyStayIdentity,
+  mergeAutoJourneyStayDrafts,
+  sortJourneyStayDrafts,
+  type JourneyStayDraft,
+} from "../lib/journeyStays";
+import { normalizeJourneyDisplayText } from "../lib/journeyDisplay";
 import { useI18n } from "../lib/i18n";
-import type { CreateJourneyInput, Journey, JourneyDateMode } from "../types/journey";
+import type { CreateJourneyInput, Journey, JourneyDateMode, JourneyStop } from "../types/journey";
 import type { TicketRecord } from "../types/ticket";
 
 type JourneysSubview = "summary" | "list";
@@ -460,12 +473,19 @@ function formatTicketDateTime(value: string) {
   return value.replace("T", " ").slice(0, 16) || value;
 }
 
+const FILLED_STAR = String.fromCodePoint(0x2605);
+const EMPTY_STAR = String.fromCodePoint(0x2606);
+
+function formatJourneyStarString(rating: number) {
+  return `${FILLED_STAR.repeat(rating)}${EMPTY_STAR.repeat(5 - rating)}`;
+}
+
 function formatJourneyRating(rating?: number) {
   if (typeof rating !== "number" || rating <= 0) {
     return null;
   }
 
-  return `${rating}/5`;
+  return formatJourneyStarString(rating);
 }
 
 function buildCalendarMonths(journey: Journey): JourneyCalendarMonth[] {
@@ -709,7 +729,7 @@ function deriveJourneyCurrencySuggestion(selectedTickets: TicketRecord[]) {
   return uniqueCurrencies.length === 1 ? uniqueCurrencies[0] : "";
 }
 
-function buildCreateJourneyInput(draft: CreateJourneyDraft): CreateJourneyInput {
+function buildCreateJourneyInput(draft: CreateJourneyDraft, destination: string | undefined): CreateJourneyInput {
   const trimmedCostAmount = draft.costAmount.trim();
   const parsedCostAmount =
     trimmedCostAmount.length > 0 ? Number.parseFloat(trimmedCostAmount) : Number.NaN;
@@ -720,7 +740,7 @@ function buildCreateJourneyInput(draft: CreateJourneyDraft): CreateJourneyInput 
 
   return {
     title: draft.title.trim(),
-    destination: draft.destination.trim() || undefined,
+    destination: destination || draft.destination.trim() || undefined,
     dateMode: draft.dateMode,
     startDate:
       draft.dateMode === "manual" ? draft.manualStartDate.trim() || undefined : undefined,
@@ -789,8 +809,12 @@ export function JourneysPage({
   const [journeyTitleError, setJourneyTitleError] = useState("");
   const [journeyExchangeRateError, setJourneyExchangeRateError] = useState("");
   const [journeyCostCurrencyTouched, setJourneyCostCurrencyTouched] = useState(false);
-  const [journeyDestinationManuallyEdited, setJourneyDestinationManuallyEdited] = useState(false);
-  const [lastAutoFilledJourneyDestination, setLastAutoFilledJourneyDestination] = useState("");
+  const [journeyStayDrafts, setJourneyStayDrafts] = useState<JourneyStayDraft[]>([]);
+  const [journeyStayDismissedIdentities, setJourneyStayDismissedIdentities] = useState<string[]>([]);
+  const [journeyStopsLoading, setJourneyStopsLoading] = useState(false);
+  const [journeyStayDraftsHydrated, setJourneyStayDraftsHydrated] = useState(false);
+  const [journeyStayHasPersistedRows, setJourneyStayHasPersistedRows] = useState(false);
+  const [journeyDetailStops, setJourneyDetailStops] = useState<JourneyStop[]>([]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deletePending, setDeletePending] = useState(false);
@@ -818,6 +842,20 @@ export function JourneysPage({
     return availableTickets.filter((ticket) => selectedIds.has(ticket.id));
   }, [availableTickets, journeyDraft.selectedTicketIds]);
 
+  const journeyStaySuggestions = useMemo(
+    () => buildJourneyStaySuggestions(selectedTickets, { preferredLanguage: language }),
+    [language, selectedTickets],
+  );
+
+  const journeyDraftDestinationPreview = useMemo(() => {
+    const staySummary = buildJourneyStayDisplay(sortJourneyStayDrafts(journeyStayDrafts));
+    return staySummary || normalizeJourneyDisplayText(formatDerivedJourneyDestination(selectedTickets, language)) || normalizeJourneyDisplayText(journeyDraft.destination);
+  }, [journeyDraft.destination, journeyStayDrafts, language, selectedTickets]);
+
+  const selectedJourneyStayIdentities = useMemo(
+    () => new Set(journeyStayDrafts.map((row) => getJourneyStayIdentity(row)).filter(Boolean)),
+    [journeyStayDrafts],
+  );
   const detailLinkedTickets = useMemo(
     () => sortTicketsByTripDate(getLinkedTickets(journeyDetail, tickets)),
     [journeyDetail, tickets],
@@ -829,10 +867,26 @@ export function JourneysPage({
   );
   const activeDetailCalendarMonth = detailCalendarMonths[Math.min(detailCalendarIndex, Math.max(detailCalendarMonths.length - 1, 0))] ?? null;
 
+  const detailDestinationDisplay = useMemo(() => {
+    const staySummary = buildJourneyStayDisplay(journeyDetailStops, 4);
+    if (staySummary) {
+      return staySummary;
+    }
+
+    const derivedDestination = normalizeJourneyDisplayText(formatDerivedJourneyDestination(detailLinkedTickets, language));
+    return normalizeJourneyDisplayText(journeyDetail?.destination) || derivedDestination || journeyDetail?.title || "Journey detail";
+  }, [detailLinkedTickets, journeyDetail?.destination, journeyDetail?.title, journeyDetailStops, language]);
+
   const autoDatePreview = useMemo(() => deriveJourneyDatePreview(selectedTickets), [selectedTickets]);
   const normalizedJourneyCostCurrency = journeyDraft.costCurrency.trim().toUpperCase();
   const showJourneyExchangeRateField =
     normalizedJourneyCostCurrency.length > 0 && normalizedJourneyCostCurrency !== "CNY";
+  const defaultJourneyStayDate =
+    journeyDraft.manualEndDate
+    || journeyDraft.manualStartDate
+    || autoDatePreview.endDate
+    || autoDatePreview.startDate
+    || formatLocalDateKey(new Date());
 
   const summaryBase = useMemo<JourneySummaryBase>(
     () => buildJourneySummaryBase(journeys, tickets, currentSummaryYear, { preferredLanguage: language }),
@@ -864,6 +918,7 @@ export function JourneysPage({
   const openJourneyDetail = async (journeyId: string, fallbackToListOnError = false) => {
     setSelectedJourneyId(journeyId);
     setJourneyDetail(null);
+    setJourneyDetailStops([]);
     setJourneyDetailError("");
     setJourneyDetailLoading(true);
     onJourneyDetailChange?.(journeyId);
@@ -871,10 +926,18 @@ export function JourneysPage({
     try {
       const storedJourney = await getJourney(journeyId);
       setJourneyDetail(storedJourney);
+
+      try {
+        const storedStops = await listJourneyStops(journeyId);
+        setJourneyDetailStops(storedStops);
+      } catch {
+        setJourneyDetailStops([]);
+      }
     } catch (error) {
       if (fallbackToListOnError) {
         setSelectedJourneyId("");
         setJourneyDetail(null);
+        setJourneyDetailStops([]);
         setJourneyDetailError("");
         setSubview("list");
         onJourneyDetailChange?.(null);
@@ -889,6 +952,7 @@ export function JourneysPage({
   const closeJourneyDetail = () => {
     setSelectedJourneyId("");
     setJourneyDetail(null);
+    setJourneyDetailStops([]);
     setJourneyDetailError("");
     setJourneyDetailLoading(false);
     resetJourneyModalState();
@@ -924,34 +988,63 @@ export function JourneysPage({
   }, [detailCalendarIndex, detailCalendarMonths.length]);
 
   useEffect(() => {
-    const suggestedDestination = formatDerivedJourneyDestination(selectedTickets, language);
-    const autofillResult = resolveJourneyDestinationAutofill(
-      {
-        destination: journeyDraft.destination,
-        previousAutoFilledDestination: lastAutoFilledJourneyDestination,
-        manuallyEdited: journeyDestinationManuallyEdited,
-      },
-      suggestedDestination,
-    );
-
-    if (
-      autofillResult.destination === journeyDraft.destination &&
-      autofillResult.previousAutoFilledDestination === lastAutoFilledJourneyDestination
-    ) {
+    if (journeyModalMode !== "edit" || !selectedJourneyId) {
       return;
     }
 
-    setJourneyDraft((current) => ({
-      ...current,
-      destination: autofillResult.destination,
-    }));
-    setLastAutoFilledJourneyDestination(autofillResult.previousAutoFilledDestination);
+    let cancelled = false;
+    setJourneyStopsLoading(true);
+    setJourneyError("");
+
+    void listJourneyStops(selectedJourneyId)
+      .then((storedStops) => {
+        if (cancelled) {
+          return;
+        }
+
+        setJourneyStayDrafts(storedStops.map((stop) => buildJourneyStayDraftFromStop(stop)));
+        setJourneyStayHasPersistedRows(storedStops.length > 0);
+        setJourneyStayDraftsHydrated(true);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setJourneyStayDrafts([]);
+        setJourneyStayHasPersistedRows(false);
+        setJourneyStayDraftsHydrated(true);
+        setJourneyError(error instanceof Error ? error.message : "Failed to load journey stays.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setJourneyStopsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [journeyModalMode, selectedJourneyId]);
+
+  useEffect(() => {
+    if (!journeyModalMode || !journeyStayDraftsHydrated) {
+      return;
+    }
+
+    if (journeyModalMode === "edit" && journeyStayHasPersistedRows) {
+      return;
+    }
+
+    setJourneyStayDrafts((current) =>
+      mergeAutoJourneyStayDrafts(current, journeyStaySuggestions, journeyStayDismissedIdentities),
+    );
   }, [
-    journeyDestinationManuallyEdited,
-    journeyDraft.destination,
-    language,
-    lastAutoFilledJourneyDestination,
-    selectedTickets,
+    journeyModalMode,
+    journeyStayDismissedIdentities,
+    journeyStayDraftsHydrated,
+    journeyStayHasPersistedRows,
+    journeyStaySuggestions,
   ]);
 
   useEffect(() => {
@@ -1094,8 +1187,11 @@ export function JourneysPage({
     setJourneyTitleError("");
     setJourneyExchangeRateError("");
     setJourneyCostCurrencyTouched(false);
-    setJourneyDestinationManuallyEdited(false);
-    setLastAutoFilledJourneyDestination("");
+    setJourneyStayDrafts([]);
+    setJourneyStayDismissedIdentities([]);
+    setJourneyStopsLoading(false);
+    setJourneyStayDraftsHydrated(true);
+    setJourneyStayHasPersistedRows(false);
   };
 
   const openEditJourneyModal = (journey: Journey) => {
@@ -1106,8 +1202,11 @@ export function JourneysPage({
     setJourneyTitleError("");
     setJourneyExchangeRateError("");
     setJourneyCostCurrencyTouched(false);
-    setJourneyDestinationManuallyEdited(Boolean(journey.destination?.trim()));
-    setLastAutoFilledJourneyDestination("");
+    setJourneyStayDrafts([]);
+    setJourneyStayDismissedIdentities([]);
+    setJourneyStopsLoading(true);
+    setJourneyStayDraftsHydrated(false);
+    setJourneyStayHasPersistedRows(false);
   };
 
   const resetJourneyModalState = () => {
@@ -1118,8 +1217,11 @@ export function JourneysPage({
     setJourneyExchangeRateError("");
     setJourneyTicketSearch("");
     setJourneyCostCurrencyTouched(false);
-    setJourneyDestinationManuallyEdited(false);
-    setLastAutoFilledJourneyDestination("");
+    setJourneyStayDrafts([]);
+    setJourneyStayDismissedIdentities([]);
+    setJourneyStopsLoading(false);
+    setJourneyStayDraftsHydrated(false);
+    setJourneyStayHasPersistedRows(false);
   };
 
   const closeJourneyModal = () => {
@@ -1143,6 +1245,47 @@ export function JourneysPage({
     });
   };
 
+  const addManualJourneyStay = () => {
+    setJourneyStayDrafts((current) => sortJourneyStayDrafts([...current, createEmptyJourneyStayDraft(current)]));
+  };
+
+  const updateJourneyStayDraft = (
+    draftId: string,
+    updater: (row: JourneyStayDraft) => JourneyStayDraft,
+  ) => {
+    setJourneyStayDrafts((current) =>
+      sortJourneyStayDrafts(current.map((row) => (row.draftId === draftId ? updater(row) : row))),
+    );
+  };
+
+  const addJourneyStaySuggestion = (identity: string) => {
+    const suggestion = journeyStaySuggestions.find((item) => item.identity === identity);
+    if (!suggestion) {
+      return;
+    }
+
+    setJourneyStayDismissedIdentities((current) => current.filter((value) => value !== identity));
+    setJourneyStayDrafts((current) => addJourneyStayDraftFromSuggestion(current, suggestion));
+  };
+
+  const removeJourneyStayDraft = (draftId: string) => {
+    setJourneyStayDrafts((current) => {
+      const row = current.find((item) => item.draftId === draftId);
+      if (!row) {
+        return current;
+      }
+
+      const identity = getJourneyStayIdentity(row);
+      if (identity && row.source === "auto" && !row.userEdited) {
+        setJourneyStayDismissedIdentities((existing) =>
+          existing.includes(identity) ? existing : [...existing, identity],
+        );
+      }
+
+      return sortJourneyStayDrafts(current.filter((item) => item.draftId !== draftId));
+    });
+  };
+
   const handleSaveJourney = async () => {
     const trimmedTitle = journeyDraft.title.trim();
     if (!trimmedTitle) {
@@ -1163,6 +1306,13 @@ export function JourneysPage({
       }
     }
 
+    const stayInputs = buildJourneyStopInputsFromDrafts(journeyStayDrafts);
+    const nextDestination =
+      buildJourneyStayDisplay(stayInputs)
+      || normalizeJourneyDisplayText(formatDerivedJourneyDestination(selectedTickets, language))
+      || normalizeJourneyDisplayText(journeyDraft.destination)
+      || undefined;
+
     setJourneySaving(true);
     setJourneyError("");
     setJourneyTitleError("");
@@ -1174,9 +1324,13 @@ export function JourneysPage({
           throw new Error("Journey detail is not available to edit.");
         }
 
-        const updatedJourney = await updateJourney(selectedJourneyId, buildCreateJourneyInput(journeyDraft));
-        await refreshAutoJourneyStops(updatedJourney, tickets, { preferredLanguage: language });
+        const updatedJourney = await updateJourney(
+          selectedJourneyId,
+          buildCreateJourneyInput(journeyDraft, nextDestination),
+        );
+        const savedStops = await replaceJourneyStops(selectedJourneyId, stayInputs);
         setJourneyDetail(updatedJourney);
+        setJourneyDetailStops(savedStops);
         const listReloaded = await loadStoredJourneys();
         if (!listReloaded) {
           throw new Error("Journey was updated, but the Journey List could not be refreshed.");
@@ -1186,8 +1340,8 @@ export function JourneysPage({
         setJourneyDetailError("");
         resetJourneyModalState();
       } else {
-        const createdJourney = await createJourney(buildCreateJourneyInput(journeyDraft));
-        await refreshAutoJourneyStops(createdJourney, tickets, { preferredLanguage: language });
+        const createdJourney = await createJourney(buildCreateJourneyInput(journeyDraft, nextDestination));
+        await replaceJourneyStops(createdJourney.id, stayInputs);
         setYearFilter("all");
         setMonthFilter("all");
         setSubview("list");
@@ -1573,7 +1727,7 @@ export function JourneysPage({
                 </div>
 
                 <div className="ticket-row-submeta">
-                  <span>{journey.destination || "No destination yet"}</span>
+                  <span>{normalizeJourneyDisplayText(journey.destination) || "No destination yet"}</span>
                   <span>
                     {journey.ticketIds.length} linked ticket{journey.ticketIds.length === 1 ? "" : "s"}
                   </span>
@@ -1586,8 +1740,7 @@ export function JourneysPage({
                   ) : null}
                   {typeof journey.rating === "number" ? (
                     <span className="journey-list-meta-chip journey-list-meta-chip-rating">
-                      {"★".repeat(journey.rating)}
-                      {"☆".repeat(5 - journey.rating)}
+                      {formatJourneyStarString(journey.rating)}
                     </span>
                   ) : null}
                   {journey.mood ? (
@@ -1634,7 +1787,8 @@ export function JourneysPage({
             onClick={closeJourneyModal}
             type="button"
           >
-            ×          </button>
+            X
+          </button>
         </div>
 
         <div className="tickets-modal-body">
@@ -1670,18 +1824,10 @@ export function JourneysPage({
                   ) : null}
                 </label>
 
-                <label>
-                  <span>Destination</span>
-                  <input
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setJourneyDraft((current) => ({ ...current, destination: nextValue }));
-                      setJourneyDestinationManuallyEdited(nextValue.trim() !== lastAutoFilledJourneyDestination.trim());
-                    }}
-                    placeholder="Tokyo"
-                    value={journeyDraft.destination}
-                  />
-                </label>
+                <div className="journey-create-derived-card">
+                  <span>Destination preview</span>
+                  <strong>{journeyDraftDestinationPreview || "No stays yet"}</strong>
+                </div>
 
                 <label>
                   <span>Date mode</span>
@@ -1736,6 +1882,150 @@ export function JourneysPage({
                       value={journeyDraft.manualEndDate}
                     />
                   </label>
+                </div>
+              </div>
+            </section>
+
+
+            <section className="panel journey-create-section journey-create-section-stays">
+              <div className="journey-create-section-top">
+                <div>
+                  <h3>Stays</h3>
+                </div>
+                <button className="ghost-button compact-button" onClick={addManualJourneyStay} type="button">
+                  + Add stay
+                </button>
+              </div>
+
+              <div className="journey-create-fields">
+                <div className="journey-stays-suggestions">
+                  <span>Suggested from tickets</span>
+                  <div className="journey-stays-chip-row">
+                    {journeyStaySuggestions.length > 0 ? (
+                      journeyStaySuggestions.map((suggestion) => {
+                        const selected = selectedJourneyStayIdentities.has(suggestion.identity);
+                        return (
+                          <button
+                            className={selected ? "journey-stay-chip active" : "journey-stay-chip"}
+                            key={suggestion.identity}
+                            onClick={() => addJourneyStaySuggestion(suggestion.identity)}
+                            type="button"
+                          >
+                            {suggestion.placeName}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <span className="detail-helper-text">Select tickets to generate stay suggestions.</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="journey-stays-table" role="table" aria-label="Journey stays editor">
+                  <div className="journey-stays-table-header" role="row">
+                    <span>Place</span>
+                    <span>Departure</span>
+                    <span className="journey-stays-actions-header">Actions</span>
+                  </div>
+
+                  {journeyStopsLoading ? (
+                    <div className="empty-state">Loading stays...</div>
+                  ) : journeyStayDrafts.length === 0 ? (
+                    <div className="empty-state">Add a stay manually or choose a suggested place.</div>
+                  ) : (
+                    sortJourneyStayDrafts(journeyStayDrafts).map((stay) => {
+                      const isUnknown = !stay.departureDateTime?.slice(0, 10);
+                      return (
+                        <div className="journey-stay-row" key={stay.draftId} role="row">
+                          <div className="journey-stay-place-field">
+                            <span className="journey-stay-grip" aria-hidden="true">
+                              <span />
+                              <span />
+                              <span />
+                              <span />
+                              <span />
+                              <span />
+                            </span>
+                            <input
+                              onChange={(event) =>
+                                updateJourneyStayDraft(stay.draftId, (current) => ({
+                                  ...current,
+                                  placeName: event.target.value,
+                                  placeKey: undefined,
+                                  countryCode: undefined,
+                                  source: "manual",
+                                  userEdited: true,
+                                }))
+                              }
+                              placeholder="Osaka"
+                              value={stay.placeName}
+                            />
+                          </div>
+
+                          <div className="journey-stay-departure-field">
+                            {isUnknown ? (
+                              <button
+                                className="ghost-button compact-button journey-stay-departure-toggle"
+                                onClick={() =>
+                                  updateJourneyStayDraft(stay.draftId, (current) => ({
+                                    ...current,
+                                    departureDateTime: `${defaultJourneyStayDate}T00:00:00`,
+                                    source: "manual",
+                                    userEdited: true,
+                                  }))
+                                }
+                                type="button"
+                              >
+                                Unknown
+                              </button>
+                            ) : (
+                              <>
+                                <input
+                                  onChange={(event) =>
+                                    updateJourneyStayDraft(stay.draftId, (current) => ({
+                                      ...current,
+                                      departureDateTime: event.target.value
+                                        ? `${event.target.value}T00:00:00`
+                                        : undefined,
+                                      source: "manual",
+                                      userEdited: true,
+                                    }))
+                                  }
+                                  type="date"
+                                  value={stay.departureDateTime?.slice(0, 10) ?? ""}
+                                />
+                                <button
+                                  className="ghost-button compact-button journey-stay-departure-toggle"
+                                  onClick={() =>
+                                    updateJourneyStayDraft(stay.draftId, (current) => ({
+                                      ...current,
+                                      departureDateTime: undefined,
+                                      source: "manual",
+                                      userEdited: true,
+                                    }))
+                                  }
+                                  type="button"
+                                >
+                                  Unknown
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="journey-stay-row-actions">
+                            <button
+                              aria-label={`Remove stay ${stay.placeName || "row"}`}
+                              className="journey-stay-remove-button"
+                              onClick={() => removeJourneyStayDraft(stay.draftId)}
+                              type="button"
+                            >
+                              -
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </section>
@@ -1852,7 +2142,7 @@ export function JourneysPage({
                         }
                         type="button"
                       >
-                        ★
+                        {FILLED_STAR}
                       </button>
                     ))}
                     {journeyDraft.rating ? (
@@ -1986,10 +2276,11 @@ export function JourneysPage({
   if (selectedJourneyId) {
     const fallbackJourney = journeys.find((journey) => journey.id === selectedJourneyId);
     const displayedJourney = journeyDetail ?? fallbackJourney ?? null;
-    const routeSummary = buildJourneyRouteSummaryFromTickets(detailLinkedTickets, {
-      preferredLanguage: language,
-    });
-    const derivedDestination = formatDerivedJourneyDestination(detailLinkedTickets, language);
+    const routeSummary = journeyDetailStops.length > 0
+      ? detailDestinationDisplay
+      : buildJourneyRouteSummaryFromTickets(detailLinkedTickets, {
+          preferredLanguage: language,
+        });
     const ticketCount = displayedJourney?.ticketIds.length ?? detailLinkedTickets.length;
     const segmentCount = countJourneySegments(detailLinkedTickets);
     const cost = displayedJourney ? formatJourneyCost(displayedJourney) : null;
@@ -2055,7 +2346,7 @@ export function JourneysPage({
               <section className="panel journey-detail-summary-card">
                 <div>
                   <span className="ticket-kind">Journey summary</span>
-                  <h3>{displayedJourney.destination || derivedDestination || displayedJourney.title}</h3>
+                  <h3>{detailDestinationDisplay}</h3>
                   <p className="hero-copy">{formatJourneyDateRange(displayedJourney)}</p>
                 </div>
 
@@ -2103,7 +2394,7 @@ export function JourneysPage({
                         onClick={() => setDetailCalendarIndex((current) => Math.max(current - 1, 0))}
                         type="button"
                       >
-                        ◀
+                        <span aria-hidden="true">&lt;</span>
                       </button>
                       <strong>{activeDetailCalendarMonth?.navigationLabel ?? activeDetailCalendarMonth?.label}</strong>
                       <button
@@ -2116,7 +2407,7 @@ export function JourneysPage({
                         }
                         type="button"
                       >
-                        ▶
+                        <span aria-hidden="true">&gt;</span>
                       </button>
                     </div>
                   ) : null}
@@ -2201,8 +2492,7 @@ export function JourneysPage({
                         {approximateCny ? (
                           <p className="journey-detail-note-text">{`Approx. CNY: ${approximateCny}`}</p>
                         ) : null}
-                      </>
-                    ) : null}
+                      </>) : null}
                     {displayedJourney.costCurrency?.toUpperCase() !== "CNY" && !exchangeRate ? (
                       <p className="journey-detail-note-text">Exchange rate to CNY not set.</p>
                     ) : null}
@@ -2368,3 +2658,36 @@ export function JourneysPage({
     </section>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
