@@ -267,9 +267,7 @@ function buildTransferSuggestions(
 
 function getNextUnknownOrder(rows: JourneyStayDraft[]) {
   return rows.reduce((maxOrder, row) => {
-    return !extractDateKey(row.departureDateTime) && row.unknownOrder > maxOrder
-      ? row.unknownOrder
-      : maxOrder;
+    return row.unknownOrder > maxOrder ? row.unknownOrder : maxOrder;
   }, -1) + 1;
 }
 
@@ -368,45 +366,77 @@ export function createEmptyJourneyStayDraft(rows: JourneyStayDraft[] = []) {
   } satisfies JourneyStayDraft;
 }
 
+function compareJourneyStayDraftsByDate(left: JourneyStayDraft, right: JourneyStayDraft) {
+  const leftDate = extractDateKey(left.departureDateTime);
+  const rightDate = extractDateKey(right.departureDateTime);
+
+  return leftDate.localeCompare(rightDate)
+    || left.sortOrderHint - right.sortOrderHint
+    || left.placeName.localeCompare(right.placeName)
+    || left.draftId.localeCompare(right.draftId);
+}
+
+function normalizeJourneyStayVisualOrder(rows: JourneyStayDraft[]) {
+  return rows.map((row, index) => ({
+    ...row,
+    unknownOrder: index,
+  }));
+}
+
+function insertUnknownJourneyStayDraftAtVisualIndexInternal(
+  rows: JourneyStayDraft[],
+  draggedDraftId: string,
+  targetIndex: number,
+) {
+  const sortedRows = sortJourneyStayDrafts(rows);
+  const draggedIndex = sortedRows.findIndex((row) => row.draftId === draggedDraftId);
+  if (draggedIndex < 0) {
+    return sortedRows;
+  }
+
+  const draggedRow = sortedRows[draggedIndex];
+  if (!draggedRow || extractDateKey(draggedRow.departureDateTime)) {
+    return sortedRows;
+  }
+
+  const remainingRows = [...sortedRows];
+  remainingRows.splice(draggedIndex, 1);
+
+  const clampedTargetIndex = Math.max(0, Math.min(targetIndex, sortedRows.length));
+  const adjustedTargetIndex = clampedTargetIndex > draggedIndex ? clampedTargetIndex - 1 : clampedTargetIndex;
+  remainingRows.splice(adjustedTargetIndex, 0, draggedRow);
+
+  return sortJourneyStayDrafts(normalizeJourneyStayVisualOrder(remainingRows));
+}
+
 export function sortJourneyStayDrafts(rows: JourneyStayDraft[]) {
-  const sortedRows = [...rows].sort((left, right) => {
+  const baseRows = [...rows].sort((left, right) => {
     const leftDate = extractDateKey(left.departureDateTime);
     const rightDate = extractDateKey(right.departureDateTime);
 
-    if (leftDate && rightDate) {
-      return leftDate.localeCompare(rightDate)
-        || left.sortOrderHint - right.sortOrderHint
-        || left.placeName.localeCompare(right.placeName)
-        || left.draftId.localeCompare(right.draftId);
-    }
-
-    if (leftDate) {
-      return -1;
-    }
-
-    if (rightDate) {
-      return 1;
-    }
-
     return left.unknownOrder - right.unknownOrder
       || left.sortOrderHint - right.sortOrderHint
+      || leftDate.localeCompare(rightDate)
       || left.placeName.localeCompare(right.placeName)
       || left.draftId.localeCompare(right.draftId);
   });
 
-  let nextUnknownOrder = 0;
-  return sortedRows.map((row) => {
-    if (extractDateKey(row.departureDateTime)) {
+  const sortedKnownRows = baseRows
+    .filter((row) => extractDateKey(row.departureDateTime))
+    .sort(compareJourneyStayDraftsByDate);
+
+  let knownIndex = 0;
+  const visuallySortedRows = baseRows.map((row) => {
+    if (!extractDateKey(row.departureDateTime)) {
       return row;
     }
 
-    const normalizedRow = {
-      ...row,
-      unknownOrder: nextUnknownOrder,
-    };
-    nextUnknownOrder += 1;
-    return normalizedRow;
+    const nextKnownRow = sortedKnownRows[knownIndex];
+    knownIndex += 1;
+    return nextKnownRow ?? row;
   });
+
+  return normalizeJourneyStayVisualOrder(visuallySortedRows);
 }
 
 export function mergeAutoJourneyStayDrafts(
@@ -453,32 +483,52 @@ export function moveUnknownJourneyStayDraft(
   draftId: string,
   direction: -1 | 1,
 ) {
-  const unknownRows = sortJourneyStayDrafts(rows).filter((row) => !extractDateKey(row.departureDateTime));
-  const currentIndex = unknownRows.findIndex((row) => row.draftId === draftId);
-  if (currentIndex < 0) {
+  const sortedRows = sortJourneyStayDrafts(rows);
+  const unknownIndices = sortedRows
+    .map((row, index) => (!extractDateKey(row.departureDateTime) ? index : -1))
+    .filter((index) => index >= 0);
+  const currentVisualIndex = sortedRows.findIndex((row) => row.draftId === draftId);
+  const currentUnknownIndex = unknownIndices.findIndex((index) => index === currentVisualIndex);
+  if (currentVisualIndex < 0 || currentUnknownIndex < 0) {
+    return sortedRows;
+  }
+
+  const nextUnknownIndex = currentUnknownIndex + direction;
+  if (nextUnknownIndex < 0 || nextUnknownIndex >= unknownIndices.length) {
+    return sortedRows;
+  }
+
+  const targetVisualIndex = direction < 0
+    ? unknownIndices[nextUnknownIndex]
+    : unknownIndices[nextUnknownIndex] + 1;
+
+  return insertUnknownJourneyStayDraftAtVisualIndexInternal(sortedRows, draftId, targetVisualIndex);
+}
+
+export function reorderUnknownJourneyStayDrafts(
+  rows: JourneyStayDraft[],
+  draggedDraftId: string,
+  targetDraftId: string,
+) {
+  if (!draggedDraftId || !targetDraftId || draggedDraftId === targetDraftId) {
     return sortJourneyStayDrafts(rows);
   }
 
-  const nextIndex = currentIndex + direction;
-  if (nextIndex < 0 || nextIndex >= unknownRows.length) {
-    return sortJourneyStayDrafts(rows);
+  const sortedRows = sortJourneyStayDrafts(rows);
+  const targetIndex = sortedRows.findIndex((row) => row.draftId === targetDraftId);
+  if (targetIndex < 0) {
+    return sortedRows;
   }
 
-  const reordered = [...unknownRows];
-  const [moved] = reordered.splice(currentIndex, 1);
-  reordered.splice(nextIndex, 0, moved);
+  return insertUnknownJourneyStayDraftAtVisualIndexInternal(sortedRows, draggedDraftId, targetIndex);
+}
 
-  const nextOrders = new Map(reordered.map((row, index) => [row.draftId, index]));
-  return sortJourneyStayDrafts(
-    rows.map((row) =>
-      extractDateKey(row.departureDateTime)
-        ? row
-        : {
-            ...row,
-            unknownOrder: nextOrders.get(row.draftId) ?? row.unknownOrder,
-          },
-    ),
-  );
+export function insertUnknownJourneyStayDraftAtIndex(
+  rows: JourneyStayDraft[],
+  draggedDraftId: string,
+  targetIndex: number,
+) {
+  return insertUnknownJourneyStayDraftAtVisualIndexInternal(rows, draggedDraftId, targetIndex);
 }
 
 export function buildJourneyStayDisplay(

@@ -860,6 +860,75 @@ html {
   min-width: 0;
 }
 
+.journey-stays-table-body {
+  display: grid;
+}
+
+.journey-stay-entry {
+  display: grid;
+}
+
+.journey-stay-drop-slot {
+  position: relative;
+  height: 14px;
+  pointer-events: none;
+}
+
+.journey-stay-drop-slot.is-active {
+  height: 14px;
+}
+
+.journey-stay-drop-slot.is-active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(112, 212, 255, 0.96);
+  box-shadow: 0 0 0 1px rgba(112, 212, 255, 0.18);
+  transform: translateY(-50%);
+}
+
+.journey-stay-drop-slot.is-terminal {
+  margin-bottom: 0;
+}
+
+.journey-stay-row.is-drop-target-unknown {
+  border-color: rgba(112, 212, 255, 0.34);
+  box-shadow: 0 0 0 1px rgba(112, 212, 255, 0.16) inset;
+}
+
+.journey-stay-row.is-dragging-unknown {
+  opacity: 0.72;
+}
+
+.journey-stay-grip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-soft);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.journey-stay-grip-button:active {
+  cursor: grabbing;
+}
+
+.journey-stay-grip-button.is-locked {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .journey-stay-grip {
   display: grid;
   grid-template-columns: repeat(2, 4px);
@@ -875,13 +944,44 @@ html {
   opacity: 0.7;
 }
 
-.journey-stay-departure-toggle {
-  min-width: 92px;
+.journey-stay-departure-field {
+  position: relative;
 }
 
-.journey-stay-departure-field > .journey-stay-departure-toggle:only-child {
+.journey-stay-departure-button {
   width: 100%;
   justify-content: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-strong);
+  text-align: left;
+}
+
+.journey-stay-departure-popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2000;
+  display: grid;
+  gap: 10px;
+  min-width: 220px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 20, 31, 0.98);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28);
+}
+
+.journey-stay-departure-popover-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.journey-stay-departure-popover-actions .compact-button {
+  min-width: 72px;
 }
 
 .journey-stay-row-actions {
@@ -1533,7 +1633,7 @@ html {
   position: absolute;
   top: calc(100% + 10px);
   left: 0;
-  z-index: 20;
+  z-index: 2000;
   min-width: 220px;
   max-width: 320px;
   padding: 10px 12px;
@@ -2123,6 +2223,23 @@ textarea {
   align-items: center;
 }
 
+.tickets-modal .form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  justify-content: flex-end;
+  padding: 10px 24px 10px;
+  margin: 8px -24px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(5, 22, 34, 0.84), rgba(5, 22, 34, 0.98));
+  backdrop-filter: blur(10px);
+}
+
+.tickets-modal .form-actions .wide {
+  width: auto;
+  min-width: 180px;
+}
+
 .segment-planner,
 .segment-stack {
   display: grid;
@@ -2461,6 +2578,13 @@ textarea {
   background: rgba(112, 212, 255, 0.12);
 }
 
+.modal-close-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 0 auto;
+}
+
 .tickets-modal-tabs {
   display: flex;
   gap: 10px;
@@ -2472,7 +2596,7 @@ textarea {
   overflow: auto;
   display: grid;
   gap: 18px;
-  padding: 16px 24px 24px;
+  padding: 16px 24px 0;
 }
 
 .saved-views-panel,
@@ -3450,6 +3574,7 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
 
 
 

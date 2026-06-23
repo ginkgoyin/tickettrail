@@ -219,7 +219,12 @@ export function TicketsPage({
             onClick={handleCancelComposer}
             type="button"
           >
-            X
+            <svg aria-hidden="true" className="modal-close-icon" viewBox="0 0 24 24">
+              <path
+                d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.59l3.9-3.9a1 1 0 1 1 1.4 1.42L13.41 12l3.9 3.9a1 1 0 0 1-1.42 1.4L12 13.41l-3.9 3.9a1 1 0 0 1-1.4-1.42l3.89-3.89-3.9-3.9a1 1 0 0 1 0-1.4Z"
+                fill="currentColor"
+              />
+            </svg>
           </button>
         </div>
 

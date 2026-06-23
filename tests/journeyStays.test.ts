@@ -4,8 +4,10 @@ import {
   buildJourneyStayDisplay,
   buildJourneyStayDraftFromSuggestion,
   buildJourneyStaySuggestions,
+  insertUnknownJourneyStayDraftAtIndex,
   mergeAutoJourneyStayDrafts,
   moveUnknownJourneyStayDraft,
+  reorderUnknownJourneyStayDrafts,
   sortJourneyStayDrafts,
   type JourneyStayDraft,
 } from "../src/lib/journeyStays";
@@ -127,22 +129,23 @@ describe("journeyStays helpers", () => {
     ]);
   });
 
-  it("sorts known departures before unknown rows and keeps unknown rows at the end", () => {
+  it("keeps known departures date-sorted while preserving unknown visual slots", () => {
     const rows = sortJourneyStayDrafts([
-      makeDraft({
-        draftId: "unknown-1",
-        placeName: "Unknown first",
-        departureDateTime: undefined,
-        source: "manual",
-        userEdited: true,
-        unknownOrder: 0,
-      }),
       makeDraft({
         draftId: "known-late",
         placeName: "Late",
         departureDateTime: "2026-06-05T00:00:00",
         source: "manual",
         userEdited: true,
+        unknownOrder: 0,
+      }),
+      makeDraft({
+        draftId: "unknown-1",
+        placeName: "Unknown first",
+        departureDateTime: undefined,
+        source: "manual",
+        userEdited: true,
+        unknownOrder: 1,
       }),
       makeDraft({
         draftId: "known-early",
@@ -150,6 +153,7 @@ describe("journeyStays helpers", () => {
         departureDateTime: "2026-06-03T00:00:00",
         source: "manual",
         userEdited: true,
+        unknownOrder: 2,
       }),
       makeDraft({
         draftId: "unknown-2",
@@ -157,14 +161,14 @@ describe("journeyStays helpers", () => {
         departureDateTime: undefined,
         source: "manual",
         userEdited: true,
-        unknownOrder: 1,
+        unknownOrder: 3,
       }),
     ]);
 
     expect(rows.map((row) => row.placeName)).toEqual([
       "Early",
-      "Late",
       "Unknown first",
+      "Late",
       "Unknown second",
     ]);
   });
@@ -250,12 +254,97 @@ describe("journeyStays helpers", () => {
     const moved = moveUnknownJourneyStayDraft([known, unknownA, unknownB], "unknown-b", -1);
     expect(moved.map((row) => row.placeName)).toEqual(["Osaka", "Tokyo", "Narita"]);
   });
+  it("inserts an unknown row into a visual gap between known-date rows", () => {
+    const rows = sortJourneyStayDrafts([
+      makeDraft({
+        draftId: "known-a",
+        placeName: "Sydney",
+        departureDateTime: "2026-06-01T00:00:00",
+        source: "manual",
+        userEdited: true,
+        unknownOrder: 0,
+      }),
+      makeDraft({
+        draftId: "known-b",
+        placeName: "Hobart",
+        departureDateTime: "2026-06-04T00:00:00",
+        source: "manual",
+        userEdited: true,
+        unknownOrder: 1,
+      }),
+      makeDraft({
+        draftId: "unknown-a",
+        placeName: "Unknown row A",
+        source: "manual",
+        userEdited: true,
+        unknownOrder: 2,
+      }),
+      makeDraft({
+        draftId: "known-c",
+        placeName: "Yulara",
+        departureDateTime: "2026-06-10T00:00:00",
+        source: "manual",
+        userEdited: true,
+        unknownOrder: 3,
+      }),
+    ]);
+
+    const inserted = insertUnknownJourneyStayDraftAtIndex(rows, "unknown-a", 1);
+    expect(inserted.map((row) => row.placeName)).toEqual([
+      "Sydney",
+      "Unknown row A",
+      "Hobart",
+      "Yulara",
+    ]);
+  });
+
+  it("reorders unknown rows by drag target while preserving their visual slot order", () => {
+    const known = buildJourneyStayDraftFromSuggestion({
+      identity: "key:jp-osaka",
+      placeName: "Osaka",
+      placeKey: "jp-osaka",
+      countryCode: "JP",
+      departureDateTime: "2026-06-04T00:00:00",
+      orderHint: 0,
+      autoAdd: true,
+      confidence: "high",
+      kind: "destination",
+    });
+    const unknownA = makeDraft({
+      draftId: "unknown-a",
+      placeName: "Narita",
+      source: "manual",
+      userEdited: true,
+      unknownOrder: 0,
+      sortOrderHint: 2,
+    });
+    const unknownB = makeDraft({
+      draftId: "unknown-b",
+      placeName: "Tokyo",
+      source: "manual",
+      userEdited: true,
+      unknownOrder: 1,
+      sortOrderHint: 3,
+    });
+    const unknownC = makeDraft({
+      draftId: "unknown-c",
+      placeName: "Nara",
+      source: "manual",
+      userEdited: true,
+      unknownOrder: 2,
+      sortOrderHint: 4,
+    });
+
+    const moved = reorderUnknownJourneyStayDrafts([known, unknownA, unknownB, unknownC], "unknown-c", "unknown-a");
+    expect(moved.map((row) => row.placeName)).toEqual(["Osaka", "Nara", "Narita", "Tokyo"]);
+  });
+
 
   it("builds a display summary from ordered stays", () => {
     expect(buildJourneyStayDisplay([
       { placeName: "Osaka" },
       { placeName: "Nara" },
       { placeName: "Tokyo" },
-    ])).toBe("Osaka ¡¤ Nara ¡¤ Tokyo");
+    ])).toBe(`Osaka ${String.fromCodePoint(0x00b7)} Nara ${String.fromCodePoint(0x00b7)} Tokyo`);
   });
 });

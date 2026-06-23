@@ -1,4 +1,5 @@
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildJourneyRouteSummaryFromTickets,
   buildJourneySummaryBase,
@@ -33,6 +34,7 @@ import {
   createEmptyJourneyStayDraft,
   getJourneyStayIdentity,
   mergeAutoJourneyStayDrafts,
+  insertUnknownJourneyStayDraftAtIndex,
   sortJourneyStayDrafts,
   type JourneyStayDraft,
 } from "../lib/journeyStays";
@@ -104,6 +106,16 @@ interface DerivedJourneyDatePreview {
 }
 
 type JourneyModalMode = "create" | "edit";
+
+interface JourneyStayDepartureEditorState {
+  draftId: string;
+  pendingDate: string;
+  anchorRect: {
+    top: number;
+    left: number;
+    width: number;
+  };
+}
 
 const EMPTY_CREATE_JOURNEY_DRAFT: CreateJourneyDraft = {
   title: "",
@@ -819,6 +831,13 @@ export function JourneysPage({
   const [deleteError, setDeleteError] = useState("");
   const [deletePending, setDeletePending] = useState(false);
   const [detailCalendarIndex, setDetailCalendarIndex] = useState(0);
+  const [journeyStayDepartureEditor, setJourneyStayDepartureEditor] = useState<JourneyStayDepartureEditorState | null>(null);
+  const [draggedUnknownStayId, setDraggedUnknownStayId] = useState<string | null>(null);
+  const [journeyStayDropIndex, setJourneyStayDropIndex] = useState<number | null>(null);
+  const journeyStayPointerDragRef = useRef<{
+    draftId: string;
+    pointerId: number;
+  } | null>(null);
 
   const availableTickets = useMemo(() => {
     return [...tickets].sort((left, right) => {
@@ -847,10 +866,15 @@ export function JourneysPage({
     [language, selectedTickets],
   );
 
+  const sortedJourneyStayDraftRows = useMemo(
+    () => sortJourneyStayDrafts(journeyStayDrafts),
+    [journeyStayDrafts],
+  );
+
   const journeyDraftDestinationPreview = useMemo(() => {
-    const staySummary = buildJourneyStayDisplay(sortJourneyStayDrafts(journeyStayDrafts));
+    const staySummary = buildJourneyStayDisplay(sortedJourneyStayDraftRows);
     return staySummary || normalizeJourneyDisplayText(formatDerivedJourneyDestination(selectedTickets, language)) || normalizeJourneyDisplayText(journeyDraft.destination);
-  }, [journeyDraft.destination, journeyStayDrafts, language, selectedTickets]);
+  }, [journeyDraft.destination, language, selectedTickets, sortedJourneyStayDraftRows]);
 
   const selectedJourneyStayIdentities = useMemo(
     () => new Set(journeyStayDrafts.map((row) => getJourneyStayIdentity(row)).filter(Boolean)),
@@ -1048,6 +1072,109 @@ export function JourneysPage({
   ]);
 
   useEffect(() => {
+    if (!journeyStayDepartureEditor) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+
+      const activeEditor = event.target.closest(
+        `[data-journey-stay-departure-editor="${journeyStayDepartureEditor.draftId}"]`,
+      );
+      if (activeEditor) {
+        return;
+      }
+
+      setJourneyStayDepartureEditor(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setJourneyStayDepartureEditor(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [journeyStayDepartureEditor]);
+
+  useEffect(() => {
+    if (!draggedUnknownStayId) {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const activeDrag = journeyStayPointerDragRef.current;
+      if (!activeDrag || activeDrag.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const staysBody = document.querySelector<HTMLElement>("[data-journey-stays-body=\"true\"]");
+      const stayRows = [...document.querySelectorAll<HTMLElement>("[data-journey-stay-row-id]")];
+      if (!staysBody || stayRows.length === 0) {
+        setJourneyStayDropIndex(null);
+        return;
+      }
+
+      const bodyRect = staysBody.getBoundingClientRect();
+      if (
+        event.clientX < bodyRect.left
+        || event.clientX > bodyRect.right
+        || event.clientY < bodyRect.top
+        || event.clientY > bodyRect.bottom
+      ) {
+        setJourneyStayDropIndex(null);
+        return;
+      }
+
+      let nextDropIndex = stayRows.length;
+      for (let index = 0; index < stayRows.length; index += 1) {
+        const row = stayRows[index];
+        const rect = row.getBoundingClientRect();
+        if (event.clientY < rect.top + rect.height / 2) {
+          nextDropIndex = index;
+          break;
+        }
+      }
+
+      setJourneyStayDropIndex((current) => (current === nextDropIndex ? current : nextDropIndex));
+    };
+
+    const handlePointerEnd = (event: PointerEvent) => {
+      const activeDrag = journeyStayPointerDragRef.current;
+      if (!activeDrag || activeDrag.pointerId !== event.pointerId) {
+        return;
+      }
+
+      if (journeyStayDropIndex !== null) {
+        setJourneyStayDrafts((current) =>
+          insertUnknownJourneyStayDraftAtIndex(current, activeDrag.draftId, journeyStayDropIndex),
+        );
+      }
+
+      clearJourneyStayDragState();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerEnd);
+    window.addEventListener("pointercancel", handlePointerEnd);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerEnd);
+      window.removeEventListener("pointercancel", handlePointerEnd);
+    };
+  }, [draggedUnknownStayId, journeyStayDropIndex]);
+
+
+  useEffect(() => {
     if (journeyCostCurrencyTouched || journeyDraft.costCurrency.trim()) {
       return;
     }
@@ -1192,6 +1319,9 @@ export function JourneysPage({
     setJourneyStopsLoading(false);
     setJourneyStayDraftsHydrated(true);
     setJourneyStayHasPersistedRows(false);
+    setJourneyStayDepartureEditor(null);
+    setDraggedUnknownStayId(null);
+    setJourneyStayDropIndex(null);
   };
 
   const openEditJourneyModal = (journey: Journey) => {
@@ -1207,6 +1337,9 @@ export function JourneysPage({
     setJourneyStopsLoading(true);
     setJourneyStayDraftsHydrated(false);
     setJourneyStayHasPersistedRows(false);
+    setJourneyStayDepartureEditor(null);
+    setDraggedUnknownStayId(null);
+    setJourneyStayDropIndex(null);
   };
 
   const resetJourneyModalState = () => {
@@ -1222,6 +1355,9 @@ export function JourneysPage({
     setJourneyStopsLoading(false);
     setJourneyStayDraftsHydrated(false);
     setJourneyStayHasPersistedRows(false);
+    setJourneyStayDepartureEditor(null);
+    setDraggedUnknownStayId(null);
+    setJourneyStayDropIndex(null);
   };
 
   const closeJourneyModal = () => {
@@ -1284,6 +1420,78 @@ export function JourneysPage({
 
       return sortJourneyStayDrafts(current.filter((item) => item.draftId !== draftId));
     });
+
+    setJourneyStayDepartureEditor((current) => (current?.draftId === draftId ? null : current));
+    setDraggedUnknownStayId((current) => (current === draftId ? null : current));
+    setJourneyStayDropIndex(null);
+  };
+
+  const openJourneyStayDepartureEditor = (
+    stay: JourneyStayDraft,
+    triggerElement: HTMLButtonElement,
+  ) => {
+    const departureDate = stay.departureDateTime?.slice(0, 10) ?? defaultJourneyStayDate;
+    const triggerRect = triggerElement.getBoundingClientRect();
+    setJourneyStayDepartureEditor({
+      draftId: stay.draftId,
+      pendingDate: departureDate,
+      anchorRect: {
+        top: triggerRect.bottom + 8,
+        left: triggerRect.left,
+        width: triggerRect.width,
+      },
+    });
+  };
+
+  const updateJourneyStayDeparturePickerDate = (value: string) => {
+    setJourneyStayDepartureEditor((current) =>
+      current ? { ...current, pendingDate: value || defaultJourneyStayDate } : current,
+    );
+  };
+
+  const applyJourneyStayDepartureDate = (draftId: string, dateValue: string) => {
+    const nextDate = dateValue || defaultJourneyStayDate;
+    updateJourneyStayDraft(draftId, (current) => ({
+      ...current,
+      departureDateTime: `${nextDate}T00:00:00`,
+      source: "manual",
+      userEdited: true,
+    }));
+    setJourneyStayDepartureEditor(null);
+  };
+
+  const forgetJourneyStayDepartureDate = (draftId: string) => {
+    updateJourneyStayDraft(draftId, (current) => ({
+      ...current,
+      departureDateTime: undefined,
+      source: "manual",
+      userEdited: true,
+    }));
+    setJourneyStayDepartureEditor(null);
+  };
+
+  const clearJourneyStayDragState = () => {
+    journeyStayPointerDragRef.current = null;
+    setDraggedUnknownStayId(null);
+    setJourneyStayDropIndex(null);
+  };
+
+  const handleJourneyStayDragStart = (
+    draftId: string,
+    isUnknown: boolean,
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) => {
+    if (!isUnknown) {
+      return;
+    }
+
+    event.preventDefault();
+    journeyStayPointerDragRef.current = {
+      draftId,
+      pointerId: event.pointerId,
+    };
+    setDraggedUnknownStayId(draftId);
+    setJourneyStayDropIndex(null);
   };
 
   const handleSaveJourney = async () => {
@@ -1774,11 +1982,6 @@ export function JourneysPage({
             <h3 id="create-journey-title">
               {journeyModalMode === "edit" ? "Edit journey" : "Create journey"}
             </h3>
-            <p className="hero-copy">
-              {journeyModalMode === "edit"
-                ? "Update journey details, linked tickets, companions, and notes."
-                : "Group existing tickets into one travel record."}
-            </p>
           </div>
           <button
             aria-label={journeyModalMode === "edit" ? "Close edit journey modal" : "Close create journey modal"}
@@ -1787,7 +1990,12 @@ export function JourneysPage({
             onClick={closeJourneyModal}
             type="button"
           >
-            X
+            <svg aria-hidden="true" className="modal-close-icon" viewBox="0 0 24 24">
+              <path
+                d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.59l3.9-3.9a1 1 0 1 1 1.4 1.42L13.41 12l3.9 3.9a1 1 0 0 1-1.42 1.4L12 13.41l-3.9 3.9a1 1 0 0 1-1.4-1.42l3.89-3.89-3.9-3.9a1 1 0 0 1 0-1.4Z"
+                fill="currentColor"
+              />
+            </svg>
           </button>
         </div>
 
@@ -1933,98 +2141,160 @@ export function JourneysPage({
                   ) : journeyStayDrafts.length === 0 ? (
                     <div className="empty-state">Add a stay manually or choose a suggested place.</div>
                   ) : (
-                    sortJourneyStayDrafts(journeyStayDrafts).map((stay) => {
-                      const isUnknown = !stay.departureDateTime?.slice(0, 10);
-                      return (
-                        <div className="journey-stay-row" key={stay.draftId} role="row">
-                          <div className="journey-stay-place-field">
-                            <span className="journey-stay-grip" aria-hidden="true">
-                              <span />
-                              <span />
-                              <span />
-                              <span />
-                              <span />
-                              <span />
-                            </span>
-                            <input
-                              onChange={(event) =>
-                                updateJourneyStayDraft(stay.draftId, (current) => ({
-                                  ...current,
-                                  placeName: event.target.value,
-                                  placeKey: undefined,
-                                  countryCode: undefined,
-                                  source: "manual",
-                                  userEdited: true,
-                                }))
-                              }
-                              placeholder="Osaka"
-                              value={stay.placeName}
-                            />
-                          </div>
+                    <div className="journey-stays-table-body" data-journey-stays-body="true">
+                      {sortedJourneyStayDraftRows.map((stay, index) => {
+                        const departureValue = stay.departureDateTime?.slice(0, 10) ?? "";
+                        const isUnknown = !departureValue;
+                        const isEditingDeparture = journeyStayDepartureEditor?.draftId === stay.draftId;
+                        const isDraggedUnknown = isUnknown && draggedUnknownStayId === stay.draftId;
+                        const draggedRowIndex = draggedUnknownStayId
+                          ? sortedJourneyStayDraftRows.findIndex((row) => row.draftId === draggedUnknownStayId)
+                          : -1;
+                        const isInsertionBeforeRow = journeyStayDropIndex === index
+                          && journeyStayDropIndex !== draggedRowIndex
+                          && journeyStayDropIndex !== draggedRowIndex + 1;
 
-                          <div className="journey-stay-departure-field">
-                            {isUnknown ? (
-                              <button
-                                className="ghost-button compact-button journey-stay-departure-toggle"
-                                onClick={() =>
-                                  updateJourneyStayDraft(stay.draftId, (current) => ({
-                                    ...current,
-                                    departureDateTime: `${defaultJourneyStayDate}T00:00:00`,
-                                    source: "manual",
-                                    userEdited: true,
-                                  }))
-                                }
-                                type="button"
+                        const departurePopover = isEditingDeparture
+                          ? createPortal(
+                              <div
+                                aria-label="Edit stay departure"
+                                className="journey-stay-departure-popover"
+                                data-journey-stay-departure-editor={stay.draftId}
+                                role="dialog"
+                                style={{
+                                  left: Math.max(
+                                    16,
+                                    Math.min(
+                                      journeyStayDepartureEditor.anchorRect.left,
+                                      window.innerWidth - Math.max(journeyStayDepartureEditor.anchorRect.width, 220) - 16,
+                                    ),
+                                  ),
+                                  minWidth: Math.max(journeyStayDepartureEditor.anchorRect.width, 220),
+                                  position: "fixed",
+                                  top: Math.min(journeyStayDepartureEditor.anchorRect.top, window.innerHeight - 180),
+                                  zIndex: 2000,
+                                }}
                               >
-                                Unknown
-                              </button>
-                            ) : (
-                              <>
+                                <input
+                                  onChange={(event) => updateJourneyStayDeparturePickerDate(event.target.value)}
+                                  type="date"
+                                  value={journeyStayDepartureEditor.pendingDate}
+                                />
+                                <div className="journey-stay-departure-popover-actions">
+                                  <button
+                                    className="ghost-button compact-button"
+                                    onClick={() => updateJourneyStayDeparturePickerDate(formatLocalDateKey(new Date()))}
+                                    type="button"
+                                  >
+                                    Today
+                                  </button>
+                                  <button
+                                    className="ghost-button compact-button"
+                                    onClick={() => forgetJourneyStayDepartureDate(stay.draftId)}
+                                    type="button"
+                                  >
+                                    Forget
+                                  </button>
+                                  <button
+                                    className="primary-button compact-button"
+                                    onClick={() =>
+                                      applyJourneyStayDepartureDate(stay.draftId, journeyStayDepartureEditor.pendingDate)
+                                    }
+                                    type="button"
+                                  >
+                                    Confirm
+                                  </button>
+                                </div>
+                              </div>,
+                              document.body,
+                            )
+                          : null;
+
+                        return (
+                          <div className="journey-stay-entry" key={stay.draftId}>
+                            <div
+                              aria-hidden="true"
+                              className={isInsertionBeforeRow ? "journey-stay-drop-slot is-active" : "journey-stay-drop-slot"}
+                            />
+                            <div
+                              className={[
+                                "journey-stay-row",
+                                isDraggedUnknown ? "is-dragging-unknown" : "",
+                              ].filter(Boolean).join(" ")}
+                              data-journey-stay-row-id={stay.draftId}
+                              role="row"
+                            >
+                              <div className="journey-stay-place-field">
+                                <button
+                                  aria-label={isUnknown ? `Drag stay ${stay.placeName || "row"}` : "Known departure rows stay date-sorted"}
+                                  className={isUnknown ? "journey-stay-grip-button" : "journey-stay-grip-button is-locked"}
+                                  disabled={!isUnknown}
+                                  onPointerDown={(event) => handleJourneyStayDragStart(stay.draftId, isUnknown, event)}
+                                  type="button"
+                                >
+                                  <span className="journey-stay-grip" aria-hidden="true">
+                                    <span />
+                                    <span />
+                                    <span />
+                                    <span />
+                                    <span />
+                                    <span />
+                                  </span>
+                                </button>
                                 <input
                                   onChange={(event) =>
                                     updateJourneyStayDraft(stay.draftId, (current) => ({
                                       ...current,
-                                      departureDateTime: event.target.value
-                                        ? `${event.target.value}T00:00:00`
-                                        : undefined,
+                                      placeName: event.target.value,
+                                      placeKey: undefined,
+                                      countryCode: undefined,
                                       source: "manual",
                                       userEdited: true,
                                     }))
                                   }
-                                  type="date"
-                                  value={stay.departureDateTime?.slice(0, 10) ?? ""}
+                                  placeholder="Osaka"
+                                  value={stay.placeName}
                                 />
+                              </div>
+
+                              <div
+                                className="journey-stay-departure-field"
+                                data-journey-stay-departure-editor={stay.draftId}
+                              >
                                 <button
-                                  className="ghost-button compact-button journey-stay-departure-toggle"
-                                  onClick={() =>
-                                    updateJourneyStayDraft(stay.draftId, (current) => ({
-                                      ...current,
-                                      departureDateTime: undefined,
-                                      source: "manual",
-                                      userEdited: true,
-                                    }))
-                                  }
+                                  className="journey-stay-departure-button"
+                                  onClick={(event) => openJourneyStayDepartureEditor(stay, event.currentTarget)}
                                   type="button"
                                 >
-                                  Unknown
+                                  {departureValue || "Unknown"}
                                 </button>
-                              </>
-                            )}
-                          </div>
+                                {departurePopover}
+                              </div>
 
-                          <div className="journey-stay-row-actions">
-                            <button
-                              aria-label={`Remove stay ${stay.placeName || "row"}`}
-                              className="journey-stay-remove-button"
-                              onClick={() => removeJourneyStayDraft(stay.draftId)}
-                              type="button"
-                            >
-                              -
-                            </button>
+                              <div className="journey-stay-row-actions">
+                                <button
+                                  aria-label={`Remove stay ${stay.placeName || "row"}`}
+                                  className="journey-stay-remove-button"
+                                  onClick={() => removeJourneyStayDraft(stay.draftId)}
+                                  type="button"
+                                >
+                                  -
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      })}
+                      <div
+                        aria-hidden="true"
+                        className={journeyStayDropIndex === sortedJourneyStayDraftRows.length
+                          && journeyStayDropIndex !== (draggedUnknownStayId
+                            ? sortedJourneyStayDraftRows.findIndex((row) => row.draftId === draggedUnknownStayId) + 1
+                            : -1)
+                          ? "journey-stay-drop-slot is-active is-terminal"
+                          : "journey-stay-drop-slot is-terminal"}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -2581,8 +2851,13 @@ export function JourneysPage({
                   onClick={closeDeleteDialog}
                   type="button"
                 >
-                  X
-                </button>
+            <svg aria-hidden="true" className="modal-close-icon" viewBox="0 0 24 24">
+              <path
+                d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.59l3.9-3.9a1 1 0 1 1 1.4 1.42L13.41 12l3.9 3.9a1 1 0 0 1-1.42 1.4L12 13.41l-3.9 3.9a1 1 0 0 1-1.4-1.42l3.89-3.89-3.9-3.9a1 1 0 0 1 0-1.4Z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
               </div>
 
               <div className="tickets-modal-body">

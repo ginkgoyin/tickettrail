@@ -1075,14 +1075,7 @@ export function TicketForm({
   }, [effectiveSegments]);
 
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <h3>{mode === "edit" ? t("editTicketRecord") : t("createTicketRecord")}</h3>
-        </div>
-      </div>
-
-      <form className="ticket-form" onSubmit={handleSubmit}>
+    <form className="ticket-form" onSubmit={handleSubmit}>
         {mode === "create" ? (
           <div className="toggle-group" role="tablist" aria-label="Ticket type">
             {(["flight", "train"] as TicketType[]).map((type) => (
@@ -1807,7 +1800,7 @@ export function TicketForm({
         </div>
 
         <div className="form-actions">
-          {mode === "edit" ? (
+          {onCancelEdit ? (
             <button className="ghost-button" onClick={onCancelEdit} type="button">
               {t("cancelEdit")}
             </button>
@@ -1822,7 +1815,6 @@ export function TicketForm({
                 : t("saveTicketDraft")}
           </button>
         </div>
-      </form>
-    </section>
+    </form>
   );
 }
