@@ -461,16 +461,16 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`.
+Latest completed implementation checkpoint: `RAIL-STATION-PLACE-REVIEW-001A`.
 
-Recommended next task: `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001, then review pass for RAIL-STATION-PLACE-REVIEW-001`.
+Recommended next task: `PLACE-CATALOG-GEONAMES-CN-RAIL-001`.
 
 The recommended next implementation order is now:
 
-1. `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`
-2. `RAIL-STATION-PLACE-REVIEW-001`
-3. `TRAIN-STATION-GEO-001`
-4. `AIRLINE-DATA-001`
+1. `PLACE-CATALOG-GEONAMES-CN-RAIL-001`
+2. `RAIL-STATION-PLACE-OVERRIDE-001`
+3. `RAIL-STATION-PLACE-COVERAGE-002`
+4. `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`
 5. `next chosen issue`
 
 Implementation notes:

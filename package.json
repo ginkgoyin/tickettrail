@@ -16,6 +16,7 @@
     "data:generate:place-catalog": "node scripts/generate-place-catalog-data.mjs --download",
     "data:generate:transport-place": "node scripts/generate-transport-place-data.mjs",
     "data:generate:rail-stations": "node scripts/generate-rail-stations-data.mjs",
+    "data:review:rail-geonames-candidates": "node scripts/generate-rail-geonames-candidate-review.mjs",
     "generate:rail-stations": "node scripts/generate-rail-stations-data.mjs --download",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/check-release-version.mjs",

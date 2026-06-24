@@ -793,6 +793,33 @@
     - Do not treat unresolved stations as exact or reviewed city mappings until the review queue is processed.
   - Priority: `High`
 
+- `RAIL-STATION-PLACE-REVIEW-001A`
+  - Generate a grouped unresolved rail -> GeoNames China candidate review CSV before expanding the Place Catalog with rail-needed China detail.
+  - Status: `Implemented / generated candidate review CSV`
+  - Notes:
+    - Candidate review output now lives at `docs/reviews/rail-geonames-candidate-review.csv`.
+    - Rows are grouped by unresolved `placeKey` / place-name group instead of individual station rows.
+    - English/ascii/slug-only matches remain review-only and are not treated as auto-resolved additions.
+  - Priority: `High`
+
+- `PLACE-CATALOG-GEONAMES-CN-RAIL-001`
+  - Add a rail-needed China GeoNames extraction pipeline on top of the existing global `cities5000` Place Catalog baseline.
+  - Status: `Open / next implementation step`
+  - Notes:
+    - Prefer unique Chinese exact matches from local `cities1000` + filtered `alternateNamesV2`.
+    - Do not replace the global catalog with China-only data or blindly add every China `cities1000` record.
+  - Priority: `High`
+
+- `RAIL-STATION-PLACE-OVERRIDE-001`
+  - Add a reviewed override layer for unresolved or ambiguous rail station -> place mappings after grouped candidate review output exists.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
+- `RAIL-STATION-PLACE-COVERAGE-002`
+  - Re-run rail station place coverage after China rail-needed Place Catalog additions and reviewed overrides are applied.
+  - Status: `Open / future implementation`
+  - Priority: `High`
+
 - `JOURNEY-STOPS-DATA-001`
   - Add the future `journey_stops` persistence model and migration path after Stop semantics and place normalization are accepted.
   - Status: `Implemented / needs manual verification`
