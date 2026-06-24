@@ -45,6 +45,21 @@ function hasUsableRoute(route: MapRoutePayload | null | undefined) {
   );
 }
 
+function hasUnresolvedRailPoint(point: MapPointPayload | null | undefined) {
+  return point?.coordinateSource === "unresolved_rail_place";
+}
+
+function routeHasUnresolvedRail(route: MapRoutePayload | null | undefined, segments: MapSegmentPayload[]) {
+  return Boolean(
+    hasUnresolvedRailPoint(route?.origin) ||
+      hasUnresolvedRailPoint(route?.destination) ||
+      segments.some(
+        (segment) =>
+          hasUnresolvedRailPoint(segment.origin) || hasUnresolvedRailPoint(segment.destination),
+      ),
+  );
+}
+
 function buildActiveSegments(route: MapRoutePayload, segments: MapSegmentPayload[]) {
   if (segments.length) {
     return segments;
@@ -146,7 +161,11 @@ export function RouteMap({
 
   useEffect(() => {
     if (!hasRenderableRoute) {
-      setLoadMessage("Route map unavailable for this ticket.");
+      setLoadMessage(
+        routeHasUnresolvedRail(route, segments)
+          ? "Map location unavailable for some rail stations."
+          : "Route map unavailable for this ticket.",
+      );
       return;
     }
 
@@ -177,7 +196,7 @@ export function RouteMap({
           },
         ],
       },
-      center: [route.origin.longitude, route.origin.latitude],
+      center: [route.origin.longitude!, route.origin.latitude!],
       zoom: 2.2,
       renderWorldCopies: false,
       attributionControl: {
@@ -388,8 +407,8 @@ export function RouteMap({
           geometry: {
             type: "LineString",
             coordinates: [
-              [segment.origin.longitude, segment.origin.latitude],
-              [segment.destination.longitude, segment.destination.latitude],
+              [segment.origin.longitude!, segment.origin.latitude!],
+              [segment.destination.longitude!, segment.destination.latitude!],
             ],
           },
         })),
@@ -410,7 +429,7 @@ export function RouteMap({
           },
           geometry: {
             type: "Point",
-            coordinates: [record.point.longitude, record.point.latitude],
+            coordinates: [record.point.longitude!, record.point.latitude!],
           },
         })),
       });

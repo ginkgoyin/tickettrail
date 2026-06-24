@@ -198,8 +198,10 @@ pub struct MapPointPayload {
     pub label: String,
     pub code: Option<String>,
     pub timezone: String,
-    pub latitude: f64,
-    pub longitude: f64,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub coordinate_precision: Option<String>,
+    pub coordinate_source: Option<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -216,7 +218,7 @@ pub struct MapViewportPayload {
 pub struct MapRoutePayload {
     pub line_label: String,
     pub direction_hint: String,
-    pub distance_hint_km: u32,
+    pub distance_hint_km: Option<u32>,
     pub origin: MapPointPayload,
     pub destination: MapPointPayload,
     pub viewport: MapViewportPayload,
@@ -231,7 +233,7 @@ pub struct MapSegmentPayload {
     pub code: String,
     pub line_label: String,
     pub direction_hint: String,
-    pub distance_hint_km: u32,
+    pub distance_hint_km: Option<u32>,
     pub origin: MapPointPayload,
     pub destination: MapPointPayload,
 }

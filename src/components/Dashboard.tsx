@@ -392,7 +392,6 @@ function hasUsableMapRoute(route: MapRoutePayload | null | undefined): route is 
     route &&
       typeof route.lineLabel === "string" &&
       typeof route.directionHint === "string" &&
-      isFiniteNumber(route.distanceHintKm) &&
       hasUsableMapPoint(route.origin) &&
       hasUsableMapPoint(route.destination) &&
       route.viewport &&
@@ -408,10 +407,29 @@ function hasUsableMapSegment(segment: MapSegmentPayload | null | undefined): seg
     segment &&
       typeof segment.lineLabel === "string" &&
       typeof segment.directionHint === "string" &&
-      isFiniteNumber(segment.distanceHintKm) &&
       hasUsableMapPoint(segment.origin) &&
       hasUsableMapPoint(segment.destination),
   );
+}
+
+function hasUnresolvedRailMapPoint(point: MapPointPayload | null | undefined) {
+  return point?.coordinateSource === "unresolved_rail_place";
+}
+
+function detailHasUnresolvedRailMap(detail: TicketDetailPayload | null | undefined) {
+  return Boolean(
+    detail &&
+      (hasUnresolvedRailMapPoint(detail.map.origin) ||
+        hasUnresolvedRailMapPoint(detail.map.destination) ||
+        detail.segments.some(
+          (segment) =>
+            hasUnresolvedRailMapPoint(segment.origin) || hasUnresolvedRailMapPoint(segment.destination),
+        )),
+  );
+}
+
+function formatDistanceLabel(distanceHintKm?: number) {
+  return isFiniteNumber(distanceHintKm) ? `${distanceHintKm} km` : "Distance unavailable";
 }
 
 function buildScopeMapPayload(details: TicketDetailPayload[]) {
@@ -445,14 +463,13 @@ function buildScopeMapPayload(details: TicketDetailPayload[]) {
   const orderedDetails = [...details].sort((left, right) =>
     safeText(left.ticket.departureTimeLocal).localeCompare(safeText(right.ticket.departureTimeLocal)),
   );
-  const minLatitude = Math.min(...allPoints.map((point) => point.latitude));
-  const maxLatitude = Math.max(...allPoints.map((point) => point.latitude));
-  const minLongitude = Math.min(...allPoints.map((point) => point.longitude));
-  const maxLongitude = Math.max(...allPoints.map((point) => point.longitude));
-  const totalDistanceKm = segments.reduce((sum, segment) => sum + segment.distanceHintKm, 0);
-  const firstSegment = orderedDetails[0]?.segments[0] ?? segments[0];
-  const lastSegments = orderedDetails[orderedDetails.length - 1]?.segments ?? [];
-  const lastSegment = lastSegments[lastSegments.length - 1] ?? segments[segments.length - 1];
+  const minLatitude = Math.min(...allPoints.map((point) => point.latitude!));
+  const maxLatitude = Math.max(...allPoints.map((point) => point.latitude!));
+  const minLongitude = Math.min(...allPoints.map((point) => point.longitude!));
+  const maxLongitude = Math.max(...allPoints.map((point) => point.longitude!));
+  const totalDistanceKm = segments.reduce((sum, segment) => sum + (segment.distanceHintKm ?? 0), 0);
+  const firstSegment = segments[0];
+  const lastSegment = segments[segments.length - 1];
 
   const route: MapRoutePayload = {
     lineLabel: `${details.length} ticket scope`,
@@ -606,10 +623,9 @@ export function Dashboard({
     }
 
     const segmentCount = activeDetail.segments.length;
-    const totalDistanceKm = activeDetail.segments.reduce(
-      (sum, segment) => sum + segment.distanceHintKm,
-      0,
-    );
+    const totalDistanceKm = activeDetail.segments.every((segment) => isFiniteNumber(segment.distanceHintKm))
+      ? activeDetail.segments.reduce((sum, segment) => sum + (segment.distanceHintKm ?? 0), 0)
+      : undefined;
     const firstSegment = activeDetail.segments[0];
     const lastSegment = activeDetail.segments[segmentCount - 1];
 
@@ -1213,8 +1229,10 @@ export function Dashboard({
           <div>
             <h3 className="detail-module-title route-map-title">{mapModuleLabel}</h3>
           </div>
-          {activeDetail && canRenderActiveMap ? (
-            <span className="status-pill">{`${activeDetail.map.distanceHintKm} km`}</span>
+          {activeDetail && canRenderActiveMap && isFiniteNumber(activeDetail.map.distanceHintKm) ? (
+            <span className="status-pill">{formatDistanceLabel(activeDetail.map.distanceHintKm)}</span>
+          ) : activeDetail && detailHasUnresolvedRailMap(activeDetail) ? (
+            <span className="status-pill">Distance unavailable</span>
           ) : null}
         </div>
         {activeDetail ? (
@@ -1227,7 +1245,11 @@ export function Dashboard({
           ) : (
             <div className="empty-state">
               <strong>Route preview is unavailable</strong>
-              <p>The saved ticket data is incomplete, so the route preview was skipped safely.</p>
+              <p>
+                {detailHasUnresolvedRailMap(activeDetail)
+                  ? "Map location unavailable for some rail stations."
+                  : "The saved ticket data is incomplete, so the route preview was skipped safely."}
+              </p>
             </div>
           )
         ) : (
@@ -1253,7 +1275,9 @@ export function Dashboard({
           <div className="map-summary route-map-footer">
             <span>
               <strong>Origin coordinate</strong>
-              {`${formatCoordinate(activeDetail.map.origin.latitude)}, ${formatCoordinate(activeDetail.map.origin.longitude)}`}
+              {activeDetail.map.origin.latitude !== undefined && activeDetail.map.origin.longitude !== undefined
+                ? `${formatCoordinate(activeDetail.map.origin.latitude)}, ${formatCoordinate(activeDetail.map.origin.longitude)}`
+                : "Unavailable"}
             </span>
             <span>
               <strong>{t("duration")}</strong>
@@ -1261,7 +1285,7 @@ export function Dashboard({
             </span>
             <span>
               <strong>Distance</strong>
-              {`${activeDetail.map.distanceHintKm} km`}
+              {formatDistanceLabel(activeDetail.map.distanceHintKm)}
             </span>
           </div>
         ) : null}
@@ -1305,7 +1329,7 @@ export function Dashboard({
             </div>
             <div>
               <span>Total distance</span>
-              <strong>{`${itinerarySummary.totalDistanceKm} km`}</strong>
+              <strong>{formatDistanceLabel(itinerarySummary.totalDistanceKm)}</strong>
             </div>
             <div>
               <span>First departure</span>

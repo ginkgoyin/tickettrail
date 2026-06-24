@@ -101,8 +101,10 @@ export interface MapPointPayload {
   label: string;
   code?: string;
   timezone: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
+  coordinatePrecision?: "exact" | "city" | "fallback" | "pseudo" | "unknown";
+  coordinateSource?: "location_directory" | "place_catalog" | "airport_seed" | "hardcoded" | "pseudo" | "unresolved_rail_place";
 }
 
 export interface MapViewportPayload {
@@ -115,7 +117,7 @@ export interface MapViewportPayload {
 export interface MapRoutePayload {
   lineLabel: string;
   directionHint: string;
-  distanceHintKm: number;
+  distanceHintKm?: number;
   origin: MapPointPayload;
   destination: MapPointPayload;
   viewport: MapViewportPayload;
@@ -129,7 +131,7 @@ export interface MapSegmentPayload {
   code: string;
   lineLabel: string;
   directionHint: string;
-  distanceHintKm: number;
+  distanceHintKm?: number;
   origin: MapPointPayload;
   destination: MapPointPayload;
 }

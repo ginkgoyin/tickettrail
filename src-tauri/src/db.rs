@@ -24,6 +24,9 @@ const SCHEMA_SQL: &str = include_str!("../../database/schema.sql");
 const AIRLINES_SEED_JSON: &str = include_str!("../../src/data/airlines.seed.json");
 const LOCATIONS_SEED_JSON: &str = include_str!("../../src/data/locations.seed.json");
 const GENERATED_AIRPORTS_JSON: &str = include_str!("../../src/data/airports.generated.json");
+const GENERATED_RAIL_STATIONS_JSON: &str = include_str!("../../src/data/rail-stations.generated.json");
+const PLACE_CATALOG_JSON: &str = include_str!("../../src/data/place-catalog.generated.json");
+const TRANSPORT_PLACE_JSON: &str = include_str!("../../src/data/transport-place.generated.json");
 const LEGACY_JOURNEYS_TABLE: &str = "journeys";
 const LEGACY_SEGMENTS_TABLE: &str = "segments";
 const TICKET_ITINERARIES_TABLE: &str = "ticket_itineraries";
@@ -36,6 +39,7 @@ struct AirlineSeedEntry {
     icao_code: Option<String>,
     name_en: String,
     name_zh: Option<String>,
+    #[serde(default)]
     aliases: Vec<String>,
     country_code: Option<String>,
     logo_key: Option<String>,
@@ -49,6 +53,7 @@ struct LocationSeedEntry {
     code: Option<String>,
     name_zh: Option<String>,
     name_en: Option<String>,
+    #[serde(default)]
     aliases: Vec<String>,
     latitude: Option<f64>,
     longitude: Option<f64>,
@@ -64,6 +69,7 @@ struct GeneratedAirportEntry {
     name_en: Option<String>,
     municipality: Option<String>,
     place_name_en: Option<String>,
+    #[serde(default)]
     aliases: Vec<String>,
     latitude: Option<f64>,
     longitude: Option<f64>,
@@ -71,12 +77,86 @@ struct GeneratedAirportEntry {
     coordinate_precision: Option<String>,
 }
 
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GeneratedRailStationEntry {
+    code: Option<String>,
+    name_zh: Option<String>,
+    name_en: Option<String>,
+    #[serde(default)]
+    aliases: Vec<String>,
+    place_name_zh: Option<String>,
+    place_name_en: Option<String>,
+    place_key: Option<String>,
+    pinyin: Option<String>,
+    short_pinyin: Option<String>,
+}
+
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaceCatalogEntry {
+    place_key: String,
+    name_zh: Option<String>,
+    name_en: Option<String>,
+    ascii_name: Option<String>,
+    #[serde(default)]
+    aliases: Vec<String>,
+    country_code: Option<String>,
+    latitude: f64,
+    longitude: f64,
+    coordinate_precision: String,
+}
+
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TransportPlaceRailEntry {
+    default_journey_place_key: Option<String>,
+}
+
+#[derive(Clone, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct TransportPlaceData {
+    #[serde(default)]
+    rail_stations: HashMap<String, TransportPlaceRailEntry>,
+}
+
 struct GeneratedAirportLookup {
     by_code: HashMap<String, (f64, f64)>,
     by_term: HashMap<String, (f64, f64)>,
 }
 
+#[derive(Clone)]
+struct RailStationPlaceMetadata {
+    place_key: Option<String>,
+    place_name_zh: Option<String>,
+    place_name_en: Option<String>,
+}
+
+struct GeneratedRailStationLookup {
+    by_code: HashMap<String, RailStationPlaceMetadata>,
+    by_term: HashMap<String, RailStationPlaceMetadata>,
+}
+
+struct PlaceCatalogLookup {
+    by_key: HashMap<String, (f64, f64)>,
+    by_term: HashMap<String, (f64, f64)>,
+}
+
+struct RailTransportPlaceLookup {
+    by_code: HashMap<String, String>,
+}
+
+struct CoordinateResolution {
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+    precision: &'static str,
+    source: &'static str,
+}
+
 static GENERATED_AIRPORT_LOOKUP: OnceLock<GeneratedAirportLookup> = OnceLock::new();
+static GENERATED_RAIL_STATION_LOOKUP: OnceLock<GeneratedRailStationLookup> = OnceLock::new();
+static PLACE_CATALOG_LOOKUP: OnceLock<PlaceCatalogLookup> = OnceLock::new();
+static RAIL_TRANSPORT_PLACE_LOOKUP: OnceLock<RailTransportPlaceLookup> = OnceLock::new();
 
 struct TicketRowData {
     id: String,
@@ -1111,8 +1191,8 @@ fn build_ticket_detail(
         .iter()
         .enumerate()
         .map(|(index, segment)| {
-            let origin = resolve_map_point(conn, &segment.departure);
-            let destination = resolve_map_point(conn, &segment.arrival);
+            let origin = resolve_map_point(conn, &ticket.ticket_type, &segment.departure);
+            let destination = resolve_map_point(conn, &ticket.ticket_type, &segment.arrival);
 
             MapSegmentPayload {
                 segment_index: index,
@@ -1142,19 +1222,23 @@ fn build_ticket_detail(
     let origin = segment_maps
         .first()
         .map(|segment| segment.origin.clone())
-        .unwrap_or_else(|| resolve_map_point(conn, &ticket.departure));
+        .unwrap_or_else(|| resolve_map_point(conn, &ticket.ticket_type, &ticket.departure));
     let destination = segment_maps
         .last()
         .map(|segment| segment.destination.clone())
-        .unwrap_or_else(|| resolve_map_point(conn, &ticket.arrival));
+        .unwrap_or_else(|| resolve_map_point(conn, &ticket.ticket_type, &ticket.arrival));
     let viewport = if segment_maps.is_empty() {
         build_viewport(&origin, &destination)
     } else {
         build_segments_viewport(&segment_maps)
     };
-    let distance_hint_km = segment_maps
-        .iter()
-        .fold(0_u32, |sum, segment| sum.saturating_add(segment.distance_hint_km));
+    let distance_hint_km = if segment_maps.is_empty() {
+        estimate_distance_km(&origin, &destination)
+    } else {
+        segment_maps.iter().try_fold(0_u32, |sum, segment| {
+            segment.distance_hint_km.map(|distance| sum.saturating_add(distance))
+        })
+    };
 
     let map = MapRoutePayload {
         line_label: ticket.route_label.clone(),
@@ -1254,29 +1338,13 @@ fn is_same_ticket_location(left: &TicketLocationPayload, right: &TicketLocationP
 }
 
 fn build_segments_viewport(segments: &[MapSegmentPayload]) -> MapViewportPayload {
-    let min_latitude = segments
+    let coordinates = segments
         .iter()
-        .flat_map(|segment| [segment.origin.latitude, segment.destination.latitude])
-        .fold(f64::INFINITY, f64::min);
-    let max_latitude = segments
-        .iter()
-        .flat_map(|segment| [segment.origin.latitude, segment.destination.latitude])
-        .fold(f64::NEG_INFINITY, f64::max);
-    let min_longitude = segments
-        .iter()
-        .flat_map(|segment| [segment.origin.longitude, segment.destination.longitude])
-        .fold(f64::INFINITY, f64::min);
-    let max_longitude = segments
-        .iter()
-        .flat_map(|segment| [segment.origin.longitude, segment.destination.longitude])
-        .fold(f64::NEG_INFINITY, f64::max);
+        .flat_map(|segment| [usable_coordinates(&segment.origin), usable_coordinates(&segment.destination)])
+        .flatten()
+        .collect::<Vec<_>>();
 
-    MapViewportPayload {
-        min_latitude,
-        max_latitude,
-        min_longitude,
-        max_longitude,
-    }
+    build_viewport_from_coordinates(&coordinates)
 }
 
 fn insert_segments(
@@ -2632,51 +2700,335 @@ fn restore_from_backup_dir(app: &AppHandle, backup_dir: &Path) -> Result<(), Str
     Ok(())
 }
 
-fn resolve_map_point(conn: &Connection, location: &TicketLocationPayload) -> MapPointPayload {
-    let (latitude, longitude) = resolve_coordinates(conn, location);
+fn resolve_map_point(conn: &Connection, transport_type: &str, location: &TicketLocationPayload) -> MapPointPayload {
+    let resolution = resolve_coordinates(conn, transport_type, location);
 
     MapPointPayload {
         label: location.name.clone(),
         code: location.code.clone(),
         timezone: location.timezone.clone(),
-        latitude,
-        longitude,
+        latitude: resolution.latitude,
+        longitude: resolution.longitude,
+        coordinate_precision: Some(resolution.precision.to_string()),
+        coordinate_source: Some(resolution.source.to_string()),
     }
 }
 
-fn resolve_coordinates(conn: &Connection, location: &TicketLocationPayload) -> (f64, f64) {
+fn resolve_coordinates(conn: &Connection, transport_type: &str, location: &TicketLocationPayload) -> CoordinateResolution {
     if let Some((latitude, longitude)) = lookup_coordinates(conn, location) {
-        return (latitude, longitude);
+        return CoordinateResolution {
+            latitude: Some(latitude),
+            longitude: Some(longitude),
+            precision: "exact",
+            source: "location_directory",
+        };
     }
 
-    if let Some((latitude, longitude)) = lookup_generated_airport_coordinates(location) {
-        return (latitude, longitude);
+    if transport_type.eq_ignore_ascii_case("flight") {
+        if let Some((latitude, longitude)) = lookup_generated_airport_coordinates(location) {
+            return CoordinateResolution {
+                latitude: Some(latitude),
+                longitude: Some(longitude),
+                precision: "exact",
+                source: "airport_seed",
+            };
+        }
+    }
+
+    if let Some(resolution) = resolve_rail_station_coordinates(location) {
+        return resolution;
     }
 
     let code = location.code.as_deref().unwrap_or("").to_uppercase();
     let name = location.name.to_lowercase();
 
     if code == "PVG" || name.contains("pudong") {
-        return (31.1443, 121.8083);
+        return CoordinateResolution {
+            latitude: Some(31.1443),
+            longitude: Some(121.8083),
+            precision: "fallback",
+            source: "hardcoded",
+        };
     }
     if code == "SHA" || name.contains("hongqiao airport") {
-        return (31.1979, 121.3363);
+        return CoordinateResolution {
+            latitude: Some(31.1979),
+            longitude: Some(121.3363),
+            precision: "fallback",
+            source: "hardcoded",
+        };
     }
     if code == "SYD" || name.contains("sydney") {
-        return (-33.9399, 151.1753);
+        return CoordinateResolution {
+            latitude: Some(-33.9399),
+            longitude: Some(151.1753),
+            precision: "fallback",
+            source: "hardcoded",
+        };
     }
     if code == "SHH" || name.contains("hongqiao") {
-        return (31.1971, 121.3270);
+        return CoordinateResolution {
+            latitude: Some(31.1971),
+            longitude: Some(121.3270),
+            precision: "fallback",
+            source: "hardcoded",
+        };
     }
     if code == "NKH" || name.contains("nanjing south") {
-        return (31.9680, 118.8060);
+        return CoordinateResolution {
+            latitude: Some(31.9680),
+            longitude: Some(118.8060),
+            precision: "fallback",
+            source: "hardcoded",
+        };
     }
     if name.contains("shanghai") {
-        return (31.2304, 121.4737);
+        return CoordinateResolution {
+            latitude: Some(31.2304),
+            longitude: Some(121.4737),
+            precision: "fallback",
+            source: "hardcoded",
+        };
     }
 
     let seed_source = if code.is_empty() { location.name.as_str() } else { code.as_str() };
-    fallback_coordinates(seed_source)
+    let (latitude, longitude) = fallback_coordinates(seed_source);
+    CoordinateResolution {
+        latitude: Some(latitude),
+        longitude: Some(longitude),
+        precision: "pseudo",
+        source: "pseudo",
+    }
+}
+
+fn resolve_rail_station_coordinates(location: &TicketLocationPayload) -> Option<CoordinateResolution> {
+    let station = lookup_generated_rail_station_metadata(location)?;
+    let place_lookup = place_catalog_lookup();
+
+    let normalized_code = normalize_lookup_value(location.code.as_deref());
+    if !normalized_code.is_empty() {
+        if let Some(place_key) = rail_transport_place_lookup().by_code.get(&normalized_code) {
+            if let Some((latitude, longitude)) = place_lookup.by_key.get(place_key) {
+                return Some(CoordinateResolution {
+                    latitude: Some(*latitude),
+                    longitude: Some(*longitude),
+                    precision: "city",
+                    source: "place_catalog",
+                });
+            }
+        }
+    }
+
+    if let Some(place_key) = station.place_key.as_deref() {
+        let normalized_key = normalize_lookup_value(Some(place_key));
+        if let Some((latitude, longitude)) = place_lookup.by_key.get(&normalized_key) {
+            return Some(CoordinateResolution {
+                latitude: Some(*latitude),
+                longitude: Some(*longitude),
+                precision: "city",
+                source: "place_catalog",
+            });
+        }
+    }
+
+    for term in [
+        station.place_name_zh.as_deref().unwrap_or(""),
+        station.place_name_en.as_deref().unwrap_or(""),
+    ] {
+        let normalized_term = normalize_lookup_value(Some(term));
+        if normalized_term.is_empty() {
+            continue;
+        }
+
+        if let Some((latitude, longitude)) = place_lookup.by_term.get(&normalized_term) {
+            return Some(CoordinateResolution {
+                latitude: Some(*latitude),
+                longitude: Some(*longitude),
+                precision: "city",
+                source: "place_catalog",
+            });
+        }
+    }
+
+    Some(CoordinateResolution {
+        latitude: None,
+        longitude: None,
+        precision: "unknown",
+        source: "unresolved_rail_place",
+    })
+}
+
+#[cfg(test)]
+fn lookup_rail_station_city_coordinates(location: &TicketLocationPayload) -> Option<(f64, f64)> {
+    let resolution = resolve_rail_station_coordinates(location)?;
+    match (resolution.latitude, resolution.longitude) {
+        (Some(latitude), Some(longitude)) if resolution.source == "place_catalog" => Some((latitude, longitude)),
+        _ => None,
+    }
+}
+
+fn lookup_generated_rail_station_metadata(
+    location: &TicketLocationPayload,
+) -> Option<RailStationPlaceMetadata> {
+    let lookup = generated_rail_station_lookup();
+    let normalized_code = normalize_lookup_value(location.code.as_deref());
+    if !normalized_code.is_empty() {
+        if let Some(metadata) = lookup.by_code.get(&normalized_code) {
+            return Some(metadata.clone());
+        }
+    }
+
+    for term in [location.name.as_str(), location.code.as_deref().unwrap_or("")] {
+        let normalized_term = normalize_lookup_value(Some(term));
+        if normalized_term.is_empty() {
+            continue;
+        }
+
+        if let Some(metadata) = lookup.by_term.get(&normalized_term) {
+            return Some(metadata.clone());
+        }
+    }
+
+    None
+}
+
+fn generated_rail_station_lookup() -> &'static GeneratedRailStationLookup {
+    GENERATED_RAIL_STATION_LOOKUP.get_or_init(build_generated_rail_station_lookup)
+}
+
+fn build_generated_rail_station_lookup() -> GeneratedRailStationLookup {
+    let stations: Vec<GeneratedRailStationEntry> =
+        serde_json::from_str(GENERATED_RAIL_STATIONS_JSON).unwrap_or_default();
+    let mut by_code = HashMap::new();
+    let mut by_term = HashMap::new();
+
+    for station in stations {
+        let metadata = RailStationPlaceMetadata {
+            place_key: station.place_key.clone(),
+            place_name_zh: station.place_name_zh.clone(),
+            place_name_en: station.place_name_en.clone(),
+        };
+
+        if metadata.place_key.is_none()
+            && metadata.place_name_zh.is_none()
+            && metadata.place_name_en.is_none()
+        {
+            continue;
+        }
+
+        if let Some(code) = station.code.as_deref() {
+            let normalized_code = normalize_lookup_value(Some(code));
+            if !normalized_code.is_empty() {
+                by_code.entry(normalized_code).or_insert_with(|| metadata.clone());
+            }
+        }
+
+        for term in rail_station_lookup_terms(&station) {
+            let normalized_term = normalize_lookup_value(Some(term.as_str()));
+            if !normalized_term.is_empty() {
+                by_term.entry(normalized_term).or_insert_with(|| metadata.clone());
+            }
+        }
+    }
+
+    GeneratedRailStationLookup { by_code, by_term }
+}
+
+fn rail_station_lookup_terms(station: &GeneratedRailStationEntry) -> Vec<String> {
+    let mut terms = Vec::new();
+
+    if let Some(code) = station.code.as_ref() {
+        terms.push(code.clone());
+    }
+    if let Some(name_en) = station.name_en.as_ref() {
+        terms.push(name_en.clone());
+    }
+    if let Some(name_zh) = station.name_zh.as_ref() {
+        terms.push(name_zh.clone());
+    }
+    if let Some(pinyin) = station.pinyin.as_ref() {
+        terms.push(pinyin.clone());
+    }
+    if let Some(short_pinyin) = station.short_pinyin.as_ref() {
+        terms.push(short_pinyin.clone());
+    }
+
+    terms.extend(station.aliases.iter().cloned());
+    terms
+}
+
+fn rail_transport_place_lookup() -> &'static RailTransportPlaceLookup {
+    RAIL_TRANSPORT_PLACE_LOOKUP.get_or_init(build_rail_transport_place_lookup)
+}
+
+fn build_rail_transport_place_lookup() -> RailTransportPlaceLookup {
+    let transport_place_data: TransportPlaceData =
+        serde_json::from_str(TRANSPORT_PLACE_JSON).unwrap_or_default();
+    let mut by_code = HashMap::new();
+
+    for (code, entry) in transport_place_data.rail_stations {
+        let normalized_code = normalize_lookup_value(Some(code.as_str()));
+        let normalized_place_key = normalize_lookup_value(entry.default_journey_place_key.as_deref());
+        if !normalized_code.is_empty() && !normalized_place_key.is_empty() {
+            by_code.insert(normalized_code, normalized_place_key);
+        }
+    }
+
+    RailTransportPlaceLookup { by_code }
+}
+
+fn place_catalog_lookup() -> &'static PlaceCatalogLookup {
+    PLACE_CATALOG_LOOKUP.get_or_init(build_place_catalog_lookup)
+}
+
+fn build_place_catalog_lookup() -> PlaceCatalogLookup {
+    let places: Vec<PlaceCatalogEntry> = serde_json::from_str(PLACE_CATALOG_JSON).unwrap_or_default();
+    let mut by_key = HashMap::new();
+    let mut by_term = HashMap::new();
+
+    for place in places {
+        if normalize_lookup_value(place.country_code.as_deref()) != "cn" {
+            continue;
+        }
+        if !place.latitude.is_finite() || !place.longitude.is_finite() {
+            continue;
+        }
+        if place.coordinate_precision != "city" {
+            continue;
+        }
+
+        let coordinates = (place.latitude, place.longitude);
+        let normalized_key = normalize_lookup_value(Some(place.place_key.as_str()));
+        if !normalized_key.is_empty() {
+            by_key.entry(normalized_key).or_insert(coordinates);
+        }
+
+        for term in place_catalog_lookup_terms(&place) {
+            let normalized_term = normalize_lookup_value(Some(term.as_str()));
+            if !normalized_term.is_empty() {
+                by_term.entry(normalized_term).or_insert(coordinates);
+            }
+        }
+    }
+
+    PlaceCatalogLookup { by_key, by_term }
+}
+
+fn place_catalog_lookup_terms(place: &PlaceCatalogEntry) -> Vec<String> {
+    let mut terms = Vec::new();
+
+    if let Some(name_zh) = place.name_zh.as_ref() {
+        terms.push(name_zh.clone());
+    }
+    if let Some(name_en) = place.name_en.as_ref() {
+        terms.push(name_en.clone());
+    }
+    if let Some(ascii_name) = place.ascii_name.as_ref() {
+        terms.push(ascii_name.clone());
+    }
+
+    terms.extend(place.aliases.iter().cloned());
+    terms
 }
 
 fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
@@ -2791,14 +3143,16 @@ fn normalize_lookup_value(value: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_effective_segments, compare_optional_date, derive_journey_date_range_from_linked_tickets,
-        clear_journey_stop_ticket_references, delete_journey_related_rows, ensure_journey_schema_columns,
-        load_journey_stops, lookup_generated_airport_coordinates, migrate_legacy_ticket_journey_tables,
-        normalize_journey_stop_mutations, normalize_lookup_value, normalize_companion_names,
-        normalize_journey_cost_exchange_rate, normalize_to_utc, replace_journey_stop_rows, sanitize_file_name,
-        sort_linked_journey_ticket_records, table_exists, table_has_column, validate_draft,
-        JourneyStopMutationPayload, LinkedJourneyTicketRecord, SCHEMA_SQL, TicketDraftPayload,
-        TicketLocationPayload, TicketSegmentPayload,
+        build_effective_segments, build_ticket_detail, clear_journey_stop_ticket_references, compare_optional_date,
+        delete_journey_related_rows, derive_journey_date_range_from_linked_tickets,
+        ensure_journey_schema_columns, fallback_coordinates, load_journey_stops,
+        lookup_generated_airport_coordinates, lookup_rail_station_city_coordinates,
+        migrate_legacy_ticket_journey_tables, normalize_companion_names,
+        normalize_journey_cost_exchange_rate, normalize_journey_stop_mutations, normalize_lookup_value,
+        normalize_to_utc, replace_journey_stop_rows, resolve_map_point, sanitize_file_name,
+        seed_location_directory, sort_linked_journey_ticket_records, table_exists, table_has_column,
+        validate_draft, JourneyStopMutationPayload, LinkedJourneyTicketRecord, SCHEMA_SQL,
+        TicketDraftPayload, TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
     };
     use rusqlite::{params, Connection};
 
@@ -2892,6 +3246,12 @@ mod tests {
         conn
     }
 
+    fn create_seeded_location_test_connection() -> Connection {
+        let conn = create_journey_stop_test_connection();
+        seed_location_directory(&conn).expect("should seed location directory");
+        conn
+    }
+
     fn insert_test_journey(conn: &Connection, journey_id: &str) {
         conn.execute(
             "INSERT INTO journeys (
@@ -2918,6 +3278,35 @@ mod tests {
             ],
         )
         .expect("should insert test ticket");
+    }
+
+    fn sample_train_ticket_record(
+        departure_name: &str,
+        departure_code: &str,
+        arrival_name: &str,
+        arrival_code: &str,
+    ) -> TicketRecordPayload {
+        TicketRecordPayload {
+            id: "ticket-train-1".to_string(),
+            ticket_type: "train".to_string(),
+            carrier_name: "China Railway".to_string(),
+            code: "D8526".to_string(),
+            departure: sample_location(departure_name, Some(departure_code), "Asia/Shanghai"),
+            arrival: sample_location(arrival_name, Some(arrival_code), "Asia/Shanghai"),
+            departure_terminal: None,
+            arrival_terminal: None,
+            departure_time_local: "2026-02-01T18:43".to_string(),
+            arrival_time_local: "2026-02-01T20:22".to_string(),
+            class_info: "Second class".to_string(),
+            seat_info: "05F".to_string(),
+            notes: "".to_string(),
+            route_label: format!("{} -> {}", departure_name, arrival_name),
+            status: "saved".to_string(),
+            created_at: "2026-02-01T00:00:00Z".to_string(),
+            updated_at: "2026-02-01T00:00:00Z".to_string(),
+            segments: None,
+            segment_count: 1,
+        }
     }
 
     #[test]
@@ -3010,6 +3399,148 @@ mod tests {
         assert!((coordinates.0 - 35.7719).abs() < 0.01);
         assert!((coordinates.1 - 140.3929).abs() < 0.01);
     }
+
+    #[test]
+    fn rail_station_city_fallback_uses_place_catalog_coordinates() {
+        let location = sample_location("\u{9752}\u{5c9b}\u{5317}", Some("QHK"), "Asia/Shanghai");
+        let coordinates =
+            lookup_rail_station_city_coordinates(&location).expect("rail city fallback should resolve");
+
+        assert!(coordinates.0 > 35.0 && coordinates.0 < 37.0);
+        assert!(coordinates.1 > 119.0 && coordinates.1 < 121.0);
+    }
+
+    #[test]
+    fn rail_station_city_fallback_uses_transport_place_canonical_mapping() {
+        let location = sample_location("\u{54c8}\u{5c14}\u{6ee8}\u{897f}", Some("VAB"), "Asia/Shanghai");
+        let coordinates =
+            lookup_rail_station_city_coordinates(&location).expect("rail transport-place fallback should resolve");
+
+        assert!(coordinates.0 > 45.0 && coordinates.0 < 46.5);
+        assert!(coordinates.1 > 126.0 && coordinates.1 < 127.5);
+    }
+
+    #[test]
+    fn unresolved_rail_station_city_fallback_returns_none_when_place_is_missing() {
+        let location = sample_location("\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}", Some("KUX"), "Asia/Shanghai");
+
+        assert!(lookup_rail_station_city_coordinates(&location).is_none());
+    }
+
+    #[test]
+    fn unresolved_rail_station_resolves_to_unknown_without_pseudo_coordinates() {
+        let conn = create_journey_stop_test_connection();
+        let location = sample_location("\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}", Some("KUX"), "Asia/Shanghai");
+        let point = resolve_map_point(&conn, "train", &location);
+
+        assert_eq!(point.coordinate_precision.as_deref(), Some("unknown"));
+        assert_eq!(point.coordinate_source.as_deref(), Some("unresolved_rail_place"));
+        assert_eq!(point.latitude, None);
+        assert_eq!(point.longitude, None);
+    }
+
+    #[test]
+    fn resolve_map_point_preserves_station_label_for_city_fallback() {
+        let conn = create_journey_stop_test_connection();
+        let location = sample_location("\u{9752}\u{5c9b}\u{5317}", Some("QHK"), "Asia/Shanghai");
+        let pseudo = fallback_coordinates("QHK");
+        let point = resolve_map_point(&conn, "train", &location);
+
+        assert_eq!(point.label, "\u{9752}\u{5c9b}\u{5317}");
+        assert_eq!(point.coordinate_precision.as_deref(), Some("city"));
+        assert_eq!(point.coordinate_source.as_deref(), Some("place_catalog"));
+        assert!((point.latitude.expect("city fallback latitude should exist") - pseudo.0).abs() > 0.01
+            || (point.longitude.expect("city fallback longitude should exist") - pseudo.1).abs() > 0.01);
+    }
+
+    #[test]
+    fn exact_seeded_coordinates_win_over_city_fallback() {
+        let conn = create_seeded_location_test_connection();
+        let location = sample_location("Nanjing South Railway Station", Some("NKH"), "Asia/Shanghai");
+        let point = resolve_map_point(&conn, "train", &location);
+
+        assert!((point.latitude.expect("exact latitude should exist") - 31.968).abs() < 0.01);
+        assert!((point.longitude.expect("exact longitude should exist") - 118.806).abs() < 0.01);
+        assert_eq!(point.coordinate_precision.as_deref(), Some("exact"));
+        assert_eq!(point.coordinate_source.as_deref(), Some("location_directory"));
+    }
+
+    #[test]
+    fn resolve_map_point_keeps_flight_airport_behavior() {
+        let conn = create_journey_stop_test_connection();
+        let location = sample_location("Ayers Rock Airport", Some("AYQ"), "Australia/Darwin");
+        let point = resolve_map_point(&conn, "flight", &location);
+
+        assert!((point.latitude.expect("flight latitude should exist") + 25.1861).abs() < 0.01);
+        assert!((point.longitude.expect("flight longitude should exist") - 130.9756).abs() < 0.01);
+        assert_eq!(point.coordinate_precision.as_deref(), Some("exact"));
+        assert_eq!(point.coordinate_source.as_deref(), Some("airport_seed"));
+    }
+
+    #[test]
+    fn resolve_map_point_uses_pseudo_fallback_for_unknown_locations() {
+        let conn = create_journey_stop_test_connection();
+        let location = sample_location("Mystery Stop", Some("ZZZ"), "UTC");
+        let point = resolve_map_point(&conn, "train", &location);
+        let pseudo = fallback_coordinates("ZZZ");
+
+        assert!((point.latitude.expect("pseudo latitude should exist") - pseudo.0).abs() < 0.0001);
+        assert!((point.longitude.expect("pseudo longitude should exist") - pseudo.1).abs() < 0.0001);
+        assert_eq!(point.coordinate_precision.as_deref(), Some("pseudo"));
+        assert_eq!(point.coordinate_source.as_deref(), Some("pseudo"));
+    }
+
+    #[test]
+    fn build_ticket_detail_uses_city_fallback_for_vab_to_txp_train_route() {
+        let conn = create_journey_stop_test_connection();
+        let ticket = sample_train_ticket_record("\u{54c8}\u{5c14}\u{6ee8}\u{897f}", "VAB", "\u{5929}\u{6d25}\u{897f}", "TXP");
+        let detail = build_ticket_detail(&conn, ticket, Vec::new());
+
+        assert_eq!(detail.map.origin.label, "\u{54c8}\u{5c14}\u{6ee8}\u{897f}");
+        assert_eq!(detail.map.origin.code.as_deref(), Some("VAB"));
+        assert_eq!(detail.map.origin.coordinate_precision.as_deref(), Some("city"));
+        assert_eq!(detail.map.origin.coordinate_source.as_deref(), Some("place_catalog"));
+        assert!(detail.map.origin.latitude.expect("Harbin latitude should exist") > 45.0
+            && detail.map.origin.latitude.expect("Harbin latitude should exist") < 46.5);
+        assert!(detail.map.origin.longitude.expect("Harbin longitude should exist") > 126.0
+            && detail.map.origin.longitude.expect("Harbin longitude should exist") < 127.5);
+
+        assert_eq!(detail.map.destination.label, "\u{5929}\u{6d25}\u{897f}");
+        assert_eq!(detail.map.destination.code.as_deref(), Some("TXP"));
+        assert_eq!(detail.map.destination.coordinate_precision.as_deref(), Some("city"));
+        assert_eq!(detail.map.destination.coordinate_source.as_deref(), Some("place_catalog"));
+        assert!(detail.map.destination.latitude.expect("Tianjin latitude should exist") > 38.0
+            && detail.map.destination.latitude.expect("Tianjin latitude should exist") < 40.5);
+        assert!(detail.map.destination.longitude.expect("Tianjin longitude should exist") > 116.0
+            && detail.map.destination.longitude.expect("Tianjin longitude should exist") < 118.5);
+
+        let distance = detail.map.distance_hint_km.expect("resolved rail distance should exist");
+        assert!(distance > 500 && distance < 2500);
+        assert_eq!(detail.segments.len(), 1);
+        assert_eq!(detail.segments[0].origin.coordinate_source.as_deref(), Some("place_catalog"));
+        assert_eq!(detail.segments[0].destination.coordinate_source.as_deref(), Some("place_catalog"));
+        assert_eq!(detail.segments[0].distance_hint_km, Some(distance));
+    }
+
+    #[test]
+    fn build_ticket_detail_marks_kux_to_vab_route_unavailable_without_fake_distance() {
+        let conn = create_journey_stop_test_connection();
+        let ticket = sample_train_ticket_record("\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}", "KUX", "\u{54c8}\u{5c14}\u{6ee8}\u{897f}", "VAB");
+        let detail = build_ticket_detail(&conn, ticket, Vec::new());
+
+        assert_eq!(detail.map.origin.coordinate_precision.as_deref(), Some("unknown"));
+        assert_eq!(detail.map.origin.coordinate_source.as_deref(), Some("unresolved_rail_place"));
+        assert_eq!(detail.map.origin.latitude, None);
+        assert_eq!(detail.map.origin.longitude, None);
+        assert_eq!(detail.map.destination.coordinate_source.as_deref(), Some("place_catalog"));
+        assert!(detail.map.destination.latitude.is_some());
+        assert_eq!(detail.map.distance_hint_km, None);
+        assert_eq!(detail.segments.len(), 1);
+        assert_eq!(detail.segments[0].origin.coordinate_source.as_deref(), Some("unresolved_rail_place"));
+        assert_eq!(detail.segments[0].destination.coordinate_source.as_deref(), Some("place_catalog"));
+        assert_eq!(detail.segments[0].distance_hint_km, None);
+    }
+
 
     #[test]
     fn migrate_legacy_ticket_journey_tables_renames_old_tables() {
@@ -3445,25 +3976,59 @@ fn parse_location_directory_row(row: &Row<'_>) -> rusqlite::Result<LocationDirec
     })
 }
 
-fn build_viewport(origin: &MapPointPayload, destination: &MapPointPayload) -> MapViewportPayload {
-    MapViewportPayload {
-        min_latitude: origin.latitude.min(destination.latitude),
-        max_latitude: origin.latitude.max(destination.latitude),
-        min_longitude: origin.longitude.min(destination.longitude),
-        max_longitude: origin.longitude.max(destination.longitude),
+fn usable_coordinates(point: &MapPointPayload) -> Option<(f64, f64)> {
+    match (point.latitude, point.longitude) {
+        (Some(latitude), Some(longitude)) if latitude.is_finite() && longitude.is_finite() => {
+            Some((latitude, longitude))
+        }
+        _ => None,
     }
 }
 
-fn estimate_distance_km(origin: &MapPointPayload, destination: &MapPointPayload) -> u32 {
+fn build_viewport(origin: &MapPointPayload, destination: &MapPointPayload) -> MapViewportPayload {
+    let coordinates = [usable_coordinates(origin), usable_coordinates(destination)]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+
+    build_viewport_from_coordinates(&coordinates)
+}
+
+fn build_viewport_from_coordinates(coordinates: &[(f64, f64)]) -> MapViewportPayload {
+    if coordinates.is_empty() {
+        return MapViewportPayload {
+            min_latitude: 0.0,
+            max_latitude: 0.0,
+            min_longitude: 0.0,
+            max_longitude: 0.0,
+        };
+    }
+
+    let min_latitude = coordinates.iter().map(|(latitude, _)| *latitude).fold(f64::INFINITY, f64::min);
+    let max_latitude = coordinates.iter().map(|(latitude, _)| *latitude).fold(f64::NEG_INFINITY, f64::max);
+    let min_longitude = coordinates.iter().map(|(_, longitude)| *longitude).fold(f64::INFINITY, f64::min);
+    let max_longitude = coordinates.iter().map(|(_, longitude)| *longitude).fold(f64::NEG_INFINITY, f64::max);
+
+    MapViewportPayload {
+        min_latitude,
+        max_latitude,
+        min_longitude,
+        max_longitude,
+    }
+}
+
+fn estimate_distance_km(origin: &MapPointPayload, destination: &MapPointPayload) -> Option<u32> {
+    let (origin_latitude, origin_longitude) = usable_coordinates(origin)?;
+    let (destination_latitude, destination_longitude) = usable_coordinates(destination)?;
     let earth_radius_km = 6371.0_f64;
-    let origin_lat = origin.latitude.to_radians();
-    let destination_lat = destination.latitude.to_radians();
-    let delta_lat = (destination.latitude - origin.latitude).to_radians();
-    let delta_lon = (destination.longitude - origin.longitude).to_radians();
+    let origin_lat = origin_latitude.to_radians();
+    let destination_lat = destination_latitude.to_radians();
+    let delta_lat = (destination_latitude - origin_latitude).to_radians();
+    let delta_lon = (destination_longitude - origin_longitude).to_radians();
 
     let haversine = (delta_lat / 2.0).sin().powi(2)
         + origin_lat.cos() * destination_lat.cos() * (delta_lon / 2.0).sin().powi(2);
     let arc = 2.0 * haversine.sqrt().asin();
 
-    (earth_radius_km * arc).round() as u32
+    Some((earth_radius_km * arc).round() as u32)
 }

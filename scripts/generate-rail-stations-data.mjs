@@ -1,10 +1,16 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  buildRailPlaceCatalogResolver,
+  canonicalizeRailStationPlace,
+} from "./lib/rail-station-place-coverage.mjs";
 import { deriveRailPlaceMetadata } from "./lib/derive-rail-place.mjs";
 
 const DEFAULT_SOURCE_URL = "https://kyfw.12306.cn/otn/resources/js/framework/station_name.js";
 const DEFAULT_INPUT = path.resolve("data-sources/12306/station_name.js");
 const DEFAULT_OUTPUT = path.resolve("src/data/rail-stations.generated.json");
+const DEFAULT_PLACE_CATALOG_PATH = path.resolve("src/data/place-catalog.generated.json");
+const DEFAULT_TRANSPORT_PLACE_PATH = path.resolve("src/data/transport-place.generated.json");
 const SUPPORTED_ENCODINGS = ["utf8", "gbk", "gb18030"];
 
 function normalizeText(value) {
@@ -25,6 +31,8 @@ function parseArgs(argv) {
     sourceUrl: DEFAULT_SOURCE_URL,
     sourcePath: DEFAULT_INPUT,
     outputPath: DEFAULT_OUTPUT,
+    placeCatalogPath: DEFAULT_PLACE_CATALOG_PATH,
+    transportPlacePath: DEFAULT_TRANSPORT_PLACE_PATH,
     encoding: "",
   };
 
@@ -56,6 +64,28 @@ function parseArgs(argv) {
 
     if (value.startsWith("--out=")) {
       args.outputPath = path.resolve(value.slice("--out=".length));
+      continue;
+    }
+
+    if (value === "--place-catalog" && argv[index + 1]) {
+      args.placeCatalogPath = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("--place-catalog=")) {
+      args.placeCatalogPath = path.resolve(value.slice("--place-catalog=".length));
+      continue;
+    }
+
+    if (value === "--transport-place" && argv[index + 1]) {
+      args.transportPlacePath = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("--transport-place=")) {
+      args.transportPlacePath = path.resolve(value.slice("--transport-place=".length));
       continue;
     }
 
@@ -135,7 +165,7 @@ function extractStationPayload(content) {
 function buildAliases(nameZh, code, pinyin, shortPinyin) {
   const aliases = [
     nameZh,
-    nameZh.endsWith("站") ? "" : `${nameZh}站`,
+    nameZh.endsWith("\u7ad9") ? "" : `${nameZh}\u7ad9`,
     code,
     pinyin,
     shortPinyin,
@@ -177,10 +207,6 @@ function parseStationEntries(payload) {
         stationIndex: stationIndex || undefined,
         aliases: buildAliases(nameZh, code, pinyin, shortPinyin),
         countryCode: "CN",
-        // Conservative rail place metadata is derived only from the existing 12306
-        // station name and pinyin fields. It does not add coordinates or external
-        // city datasets, and it intentionally falls back to the original station
-        // name when directional stripping would be unsafe or too ambiguous.
         ...placeMetadata,
         _slug: slug,
         _normalizedName: normalizedName,
@@ -238,14 +264,27 @@ async function downloadSourceFile(sourceUrl, sourcePath) {
   return sourcePath;
 }
 
-async function generateStations({ sourcePath, outputPath, encoding }) {
+async function loadJson(filePath) {
+  return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+async function generateStations({ sourcePath, outputPath, placeCatalogPath, transportPlacePath, encoding }) {
   const sourceBuffer = await readFile(sourcePath);
   const payload = extractStationPayload(decodeBuffer(sourceBuffer, encoding || undefined));
-  const stations = dedupeStations(parseStationEntries(payload)).sort(sortStations);
+  const rawStations = dedupeStations(parseStationEntries(payload));
 
-  if (!stations.length) {
+  if (!rawStations.length) {
     throw new Error("No rail station entries were parsed from the provided 12306 source.");
   }
+
+  const [placeCatalog, transportPlaceData] = await Promise.all([
+    loadJson(placeCatalogPath),
+    loadJson(transportPlacePath),
+  ]);
+  const placeResolver = buildRailPlaceCatalogResolver(placeCatalog);
+  const stations = rawStations
+    .map((station) => canonicalizeRailStationPlace(station, placeResolver, { transportPlaceData }))
+    .sort(sortStations);
 
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(stations, null, 2)}\n`, "utf8");

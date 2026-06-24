@@ -461,18 +461,17 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `FLIGHT-CODE-004`.
+Latest completed implementation checkpoint: `MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`.
 
-Recommended next task: `manual verification for FLIGHT-CODE-001..004 or AIRLINE-DATA-001`.
+Recommended next task: `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001, then review pass for RAIL-STATION-PLACE-REVIEW-001`.
 
 The recommended next implementation order is now:
 
-1. `manual verification for FLIGHT-CODE-001..004`
-2. `AIRLINE-DATA-001`
-3. `JOURNEY-STOPS-UI-001`
-4. `MAP-CITY-FALLBACK-001`
-5. `TRAIN-STATION-GEO-001`
-6. `next chosen issue`
+1. `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`
+2. `RAIL-STATION-PLACE-REVIEW-001`
+3. `TRAIN-STATION-GEO-001`
+4. `AIRLINE-DATA-001`
+5. `next chosen issue`
 
 Implementation notes:
 
@@ -492,8 +491,8 @@ Implementation notes:
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.
-- `MAP-CITY-FALLBACK-001` should add explicit city-level map fallback only when exact endpoint coordinates are unavailable, with lower precision kept visible in the data model.
-- `MAP-CITY-FALLBACK-001` is now the best next small follow-up because the endpoint -> place identity layer exists but route-map coordinate fallback still does not use Place Catalog city coordinates.
+- `MAP-CITY-FALLBACK-001` is now implemented: desktop route-map resolution falls back from rail station place metadata to Place Catalog city coordinates before pseudo fallback, while keeping lower precision explicit in the payload.
+- `TRAIN-STATION-GEO-001` remains the next exact-coordinate follow-up for rail endpoints; keep it separate from the new city-level fallback path.
 - `JOURNEY-STOPS-AUTO-001` should stay limited to route-anchor derivation plus persisted auto-stop refresh; full Stop editing/review UI is still a separate task.
 - `TRAIN-STATION-GEO-001` remains the future exact-coordinate task for rail endpoints; do not mix it into the current place-label metadata or Place Catalog work.
 - Train station exact coordinates remain future work; the current place layer does not add or infer rail coordinates.
@@ -519,6 +518,4 @@ Implementation notes:
 - Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.
 - `OVERVIEW-REDESIGN-001` remains a separate docs/design task.
 - UI art-style redesign remains deferred and should not block Journey MVP implementation.
-
-
 

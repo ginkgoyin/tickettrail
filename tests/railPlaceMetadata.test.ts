@@ -94,6 +94,7 @@ describe("rail place metadata derivation", () => {
     const stations = generatedStations as LocationDirectoryEntry[];
     const qingdaobei = stations.find((entry) => entry.code === "QHK");
     const shanghaihongqiao = stations.find((entry) => entry.code === "AOH");
+    const haerbinxi = stations.find((entry) => entry.code === "VAB");
 
     expect(qingdaobei?.placeNameZh).toBe("\u9752\u5c9b");
     expect(qingdaobei?.placeKey).toBe("cn-qingdao");
@@ -102,6 +103,9 @@ describe("rail place metadata derivation", () => {
     expect(shanghaihongqiao?.placeNameZh).toBe("\u4e0a\u6d77");
     expect(shanghaihongqiao?.placeKey).toBe("cn-shanghai");
     expect(shanghaihongqiao?.placeConfidence).toBe("high");
+
+    expect(haerbinxi?.placeNameZh).toBe("\u54c8\u5c14\u6ee8");
+    expect(haerbinxi?.placeKey).toBe("cn-harbin");
   });
 
   it("keeps rail station search working after adding place metadata", async () => {

@@ -754,7 +754,43 @@
 
 - `MAP-CITY-FALLBACK-001`
   - Allow map coordinate resolution to use Place Catalog city-level coordinates when exact endpoint coordinates are unavailable, while keeping the lower precision explicit.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Desktop route-map resolution now checks rail station place metadata and uses Place Catalog city coordinates before hardcoded or pseudo fallback.
+    - Saved endpoint labels remain station names; city fallback affects coordinates only and does not claim exact station precision.
+  - Priority: `High`
+
+- `MAP-UNRESOLVED-RAIL-001`
+  - Prevent recognized-but-unresolved rail stations from rendering misleading pseudo/hash map coordinates.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Recognized unresolved rail stations now return `coordinateSource = unresolved_rail_place` with no coordinates instead of falling through to pseudo map points.
+    - Route distance is withheld when a rail endpoint remains unresolved, so fake long-distance chips such as `16552 km` are no longer shown.
+  - Priority: `High`
+
+- `RAIL-STATION-PLACE-COVERAGE-001`
+  - Audit full generated rail-station placeKey coverage against the Place Catalog instead of only patching a few sample stations.
+  - Status: `Implemented / needs review`
+  - Notes:
+    - The repo now has a reusable full-dataset coverage report for all generated rail stations.
+    - Current review artifact: `docs/reviews/rail-station-place-review.csv`.
+    - Unresolved mappings still remain and should be reviewed explicitly instead of being silently assigned coordinates.
+  - Priority: `High`
+
+- `RAIL-STATION-PLACE-VALIDATION-001`
+  - Add repeatable validation for generated rail stations vs Place Catalog keys plus representative regression tests for resolved and unresolved examples.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Validation now runs through `scripts/validate-rail-station-place-coverage.mjs`.
+    - Representative test coverage now checks TXP, VAB, and unresolved KUX behavior.
+  - Priority: `High`
+
+- `RAIL-STATION-PLACE-REVIEW-001`
+  - Keep an explicit review queue for unresolved or low-confidence rail station -> place mappings after deterministic canonicalization is applied.
+  - Status: `Open / needs human review`
+  - Notes:
+    - Current unresolved/problematic mappings are exported to `docs/reviews/rail-station-place-review.csv`.
+    - Do not treat unresolved stations as exact or reviewed city mappings until the review queue is processed.
   - Priority: `High`
 
 - `JOURNEY-STOPS-DATA-001`
@@ -950,6 +986,4 @@
   - Replaced by the implemented language-switch scaffold above; keep future i18n work under `I18N-005` and later follow-up items instead of re-opening this original placeholder.
   - Status: `Superseded`
   - Priority: `Medium`
-
-
 

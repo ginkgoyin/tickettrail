@@ -252,10 +252,10 @@ function hasUsableDetailMap(detail: TicketDetailPayload | null | undefined) {
 
 function calculateDistanceKm(origin: MapPointPayload, destination: MapPointPayload) {
   const earthRadiusKm = 6371;
-  const latitudeDelta = ((destination.latitude - origin.latitude) * Math.PI) / 180;
-  const longitudeDelta = ((destination.longitude - origin.longitude) * Math.PI) / 180;
-  const originLatitudeRadians = (origin.latitude * Math.PI) / 180;
-  const destinationLatitudeRadians = (destination.latitude * Math.PI) / 180;
+  const latitudeDelta = ((destination.latitude! - origin.latitude!) * Math.PI) / 180;
+  const longitudeDelta = ((destination.longitude! - origin.longitude!) * Math.PI) / 180;
+  const originLatitudeRadians = (origin.latitude! * Math.PI) / 180;
+  const destinationLatitudeRadians = (destination.latitude! * Math.PI) / 180;
   const haversine =
     Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2) +
     Math.cos(originLatitudeRadians) *
@@ -268,10 +268,10 @@ function calculateDistanceKm(origin: MapPointPayload, destination: MapPointPaylo
 
 function buildViewport(points: MapPointPayload[]): MapViewportPayload {
   return {
-    minLatitude: Math.min(...points.map((point) => point.latitude)),
-    maxLatitude: Math.max(...points.map((point) => point.latitude)),
-    minLongitude: Math.min(...points.map((point) => point.longitude)),
-    maxLongitude: Math.max(...points.map((point) => point.longitude)),
+    minLatitude: Math.min(...points.map((point) => point.latitude!)),
+    maxLatitude: Math.max(...points.map((point) => point.latitude!)),
+    minLongitude: Math.min(...points.map((point) => point.longitude!)),
+    maxLongitude: Math.max(...points.map((point) => point.longitude!)),
   };
 }
 
@@ -391,7 +391,7 @@ async function buildResolvedDetailFromAirportData(
   const primaryRoute = {
     lineLabel: ticket.routeLabel,
     directionHint: `${ticket.departure.code || ticket.departure.name} to ${ticket.arrival.code || ticket.arrival.name}`,
-    distanceHintKm: usableSegments.reduce((sum, segment) => sum + segment.distanceHintKm, 0),
+    distanceHintKm: usableSegments.reduce((sum, segment) => sum + (segment.distanceHintKm ?? 0), 0),
     origin: firstSegment.origin,
     destination: lastSegment.destination,
     viewport: buildViewport(allPoints),
