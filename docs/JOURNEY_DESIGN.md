@@ -36,12 +36,12 @@ It does not:
 
 Current repo inspection shows:
 
-- Real Journey schema, CRUD service, List, Create, Detail, Edit, Delete, and Summary runtime are now implemented.
-- The current Summary runtime includes all-time totals, a selected-year Travel calendar, Travel highlights, Top destinations, Top companions, and Cost by currency modules.
-- Summary helper extraction and focused regression tests are now in place for date, destination, route, companion, and cost calculations.
-- Current destination and route inference is still limited because it derives meaning from linked ticket endpoints rather than persisted Journey Stops / Stays.
-- The future Stops / Stays model will replace raw endpoint-based destination logic for better place-level travel meaning, lodging, stay dates, and destination-day summaries.
-- Journey map coloring and yearly filtering remain future work.
+- Real Journey schema, CRUD service, List, Create, Detail, Edit, Delete, and Summary runtime are implemented.
+- The lightweight Create/Edit Stays editor is implemented.
+- Summary includes all-time totals, a selected-year Travel calendar, Travel highlights, Top destinations, Top companions, and Cost by currency modules.
+- Summary Top destinations now prefer persisted Stays when available, while old journeys without Stays still use safe legacy fallback.
+- Journey map coloring and advanced year-scoped map behavior remain future work.
+- Per-stay lodging, per-stay notes, and later review prompts remain future work.
 
 ## 3. Product definition and granularity
 
@@ -133,6 +133,12 @@ Create Journey entry point is only in `Journeys > List`.
 
 ### JOURNEY-DECISION-014
 
+Compatibility note:
+
+- The rules in this early MVP section describe the existing/legacy Journey Create/Edit behavior.
+- Future Create/Edit should move toward a Stays-first model per `JOURNEY-DECISION-084` and later Stay-block decisions.
+- Until that future editor exists, these destination-field notes remain useful for understanding the current persisted/runtime MVP.
+
 Create Journey flow:
 
 1. User fills title / destination / companions / notes / rating / mood / cost / lodging.
@@ -184,6 +190,11 @@ Search should support:
 ## 6. Create/Edit Journey form layout
 
 ### JOURNEY-DECISION-045
+
+Compatibility note:
+
+- This section still describes the current/legacy MVP modal structure that centers `destination` in the basic metadata form.
+- Future Create/Edit should evolve toward a Stays-focused editor while keeping these notes as compatibility guidance for the currently implemented flow.
 
 Create/Edit Journey uses a modal, not a standalone page.
 The modal can be wider than the ticket modal and use multi-column layout where appropriate.
@@ -691,7 +702,7 @@ Journeys [info]
 [Summary] [List]
 
 ALL-TIME SUMMARY
-4 journeys        27 travel days        Total cost ≈ CNY 10,000
+4 journeys        27 travel days        Total cost approx. CNY 10,000
 
 ```
 
@@ -862,26 +873,29 @@ Top destinations display as a list, not tags.
 Sort:
 
 - Primary: journey count descending
-- Tiebreaker: total deduped travel days descending
+- Tiebreaker: known / stay-specific days descending where available
 
 Each row shows:
 
 - destination
 - journey count
-- total days
+- known total days when available
 
 Example:
 
 ```text
-Sydney        2 journeys · 20 days
-Uluru         1 journey  · 4 days
-No destination 1 journey · 2 days
+Yulara        3 journeys / 5 days
+Sydney        1 journey  / 52 days
+Hobart        1 journey  / 19 days
 ```
 
 Rules:
 
-- MVP counts destination text as entered.
-- Future work can add smarter destination/place splitting.
+- Prefer persisted Stays when available.
+- If a Journey has no Stays, fall back to legacy `journeys.destination`.
+- Do not rank `No destination` as a destination row.
+- Journeys without destination / Stays may be tracked separately as a note later, but not as a ranked destination row.
+- Unresolved stay days are not included in confirmed destination day totals.
 - Top destinations are all-time by default and do not follow the Travel calendar year dropdown.
 
 ### JOURNEY-DECISION-066
@@ -1310,7 +1324,224 @@ Recommended future implementation order:
 6. `JOURNEY-STOPS-UI-001`
 7. `JOURNEY-SUMMARY-STOPS-001`
 
-## 19. Acceptance criteria
+## 19. Journey Stay Blocks design checkpoint
+
+### JOURNEY-DECISION-084
+
+Destination summary is no longer the intended long-term primary Create/Edit Journey input.
+
+Rules:
+
+- Future Create/Edit Journey should focus on structured `Stays`, not a single destination summary text field.
+- `journeys.destination` remains a legacy/display fallback for old journeys or journeys without Stays.
+- Journey List and Journey Detail destination display should eventually prefer a value derived from Stays.
+- If no Stays exist, fall back to `journeys.destination`.
+
+### JOURNEY-DECISION-085
+
+UI language direction for the Stays model remains conservative in v1.
+
+Rules:
+
+- Keep the current v1 UI English-first.
+- Do not start Chinese UI localization in this design checkpoint.
+- Place names should come from the existing Place Catalog / transport-place mapping when available.
+- Do not introduce ad-hoc manual translations for place labels.
+- User-entered ticket text and user-entered place text must not be automatically translated.
+
+### JOURNEY-DECISION-086
+
+`Stays` becomes the user-facing structured destination model for Journeys.
+
+Naming rules:
+
+- Product/UI language should prefer `Stays`.
+- Existing implementation/task naming can continue to use `journey_stops` for now.
+- A Stay row represents a visited place inside a Journey.
+- A Stay row is not a raw airport/station endpoint.
+- Raw ticket endpoints remain unchanged and still belong to Ticket Detail and route fidelity.
+
+### JOURNEY-DECISION-087
+
+Future Create/Edit Journey should use a lightweight Stays editor concept.
+
+Target layout concept:
+
+```text
+Stays
+
+Suggested from tickets
+[ Osaka ] [ Tokyo ] [ Narita ] [ Xiamen ]
+
+Stays                                         [ + Add stay ]
+Place                  Departure
+[drag] [ Osaka       ] [ 2026-06-04 ] [-]
+[drag] [ Tokyo       ] [ Unknown    ] [-]
+```
+
+Rules:
+
+- `Suggested from tickets` shows place tags only.
+- Clicking a suggestion tag adds that place to the Stays table.
+- If the suggestion has a known departure date, prefill it.
+- If no departure date is known, use `Unknown`.
+- Users can add stays manually.
+- Users can delete stays.
+- Future delete control should be a compact red circular minus-style control.
+- A compact drag handle may be used for sortable unknown rows.
+
+### JOURNEY-DECISION-088
+
+Auto-derived stay adoption should stay conservative.
+
+Rules:
+
+- Confirmed single-place destination stays may be auto-added to the Stays table.
+- Internal transfer points, low-confidence places, and optional places should appear as suggestion tags only.
+- Transfer places must not automatically become Stays.
+- If the user clicks a transfer tag, it becomes a user-selected/manual Stay.
+
+### JOURNEY-DECISION-089
+
+Multi-segment transfer places remain transfer-only by default.
+
+Example:
+
+- `Changsha -> Xiamen -> Sydney`
+
+Rules:
+
+- The ticket-level destination/stay contribution remains `Changsha -> Sydney`.
+- `Xiamen` is an internal transfer by default.
+- `Xiamen` may still appear as a suggested tag, especially when a Journey contains only one multi-segment ticket.
+- `Xiamen` should not be auto-added to Stays unless the user explicitly chooses it.
+
+### JOURNEY-DECISION-090
+
+The future lightweight Stay row should keep a small field set.
+
+Primary row fields:
+
+- `place`
+- `departure date` or `Unknown`
+- `order`
+
+Rules:
+
+- Do not introduce `durationDays` in this design checkpoint.
+- Stay days should later be derived from arrival/departure where possible.
+
+Arrival inference rules:
+
+- First Stay arrival uses the first linked ticket arrival time when available.
+- If no linked ticket arrival exists, use Journey start date.
+- If neither exists, arrival is unknown.
+- Later Stay arrival comes from the previous Stay row's departure date.
+
+### JOURNEY-DECISION-091
+
+Stay-day calculation uses inclusive calendar days.
+
+Rules:
+
+- Same-day arrival and departure counts as `1` day.
+- Example: arrival `2026-06-01`, departure `2026-06-04` = `4 days`.
+- Do not add night-count support now.
+- Future lodging/night calculations can be a separate task.
+
+### JOURNEY-DECISION-092
+
+Unknown departure rows should follow mixed automatic/manual ordering rules.
+
+Rules:
+
+- Unknown departure rows default to the end when first added, unless inserted from a ticket suggestion with a known order.
+- Users can drag Unknown rows to choose their position.
+- Known departure rows should sort by departure date automatically.
+- If a user changes a known departure date, the Stays table should auto-reorder by date.
+- Known departure rows do not need manual drag sorting.
+- Unknown rows keep their user-chosen relative position.
+
+### JOURNEY-DECISION-093
+
+Consecutive Unknown departure rows should stay separate in normal display but group in statistics/day calculations.
+
+Example rows:
+
+- `B depart 2026-06-04`
+- `C depart Unknown`
+- `D depart 2026-06-06`
+
+Rules:
+
+- Normal Journey Detail/List display keeps `B`, `C`, and `D` as separate rows.
+- Statistics/day calculations should group the consecutive Unknown block with the next known departure row.
+- In the example above, statistics should treat `C + D` as one unresolved grouped block covering `2026-06-04` through `2026-06-06`.
+- Do not split the full grouped block days between `C` and `D`.
+- `C + D` is a statistics/grouping result only, not a persisted merged row.
+
+### JOURNEY-DECISION-094
+
+Auto-generation should add visited destinations, not the Journey origin by default.
+
+Rules:
+
+- `Changsha -> Osaka -> Changsha` should auto-add `Osaka` only.
+- `Changsha -> Osaka -> Tokyo` may auto-add `Osaka` and `Tokyo`.
+- Users may still manually add the origin if they want to record it as a Stay.
+
+### JOURNEY-DECISION-095
+
+Journey List and Journey Detail destination display should eventually derive from ordered Stays.
+
+Rules:
+
+- Preferred display should list Stays in order, for example `Osaka · Nara · Tokyo`.
+- If too long, truncate after the first few places, for example `Osaka · Nara · Tokyo · ...`.
+- Normal display must stay separate from grouped statistics display.
+- Grouped labels such as `Nara + Tokyo` belong only to statistics/day calculations.
+- If no Stays are available, fall back to `journeys.destination`.
+
+### JOURNEY-DECISION-096
+
+Future Summary / Top destinations should aggregate from Stays instead of raw route anchors or legacy destination text.
+
+Rules:
+
+- `JOURNEY-SUMMARY-STOPS-001` has migrated destination aggregation onto Stays when they are available.
+- Confirmed single-place Stays can count normally.
+- Unresolved grouped stays are not shown as individual list rows in Top destinations.
+- When unresolved grouped stay days exist, Top destinations should show a compact note such as `Unresolved stays total 15 days not included.`
+- Do not assign the full grouped days to each individual place inside an unresolved block.
+
+### JOURNEY-DECISION-097
+
+Route summary and Stays must remain separate concepts even after Stays become the main destination model.
+
+Rules:
+
+- Route summary keeps the movement chain.
+- Stays represent visited places.
+- `JOURNEY-ROUTE-001` remains transitional movement logic and should not become the Stays model.
+- `JOURNEY-DESTINATION-001` is transitional and should later yield to Stays-based destination display/aggregation.
+
+### JOURNEY-DECISION-098
+
+Recommended follow-up tasks after this design checkpoint:
+
+1. `JOURNEY-STAYS-EDIT-001`
+2. `JOURNEY-STOPS-UI-001`
+3. `JOURNEY-SUMMARY-STOPS-001`
+4. `JOURNEY-STAY-DETAILS-001`
+
+Task notes:
+
+- `JOURNEY-STAYS-EDIT-001` = implemented. This checkpoint delivered the lightweight Create/Edit Journey Stays editor with suggested tags, Place/Departure rows, add/delete controls, and limited ordering.
+- `JOURNEY-STOPS-UI-001` = the broader future review/edit UI if it is still needed beyond the lightweight Stays editor, or an umbrella/superseding task that absorbs the wider stale-stop review flow.
+- `JOURNEY-SUMMARY-STOPS-001` = implemented. Summary Top destinations now prefer persisted Stays and keep a compact unresolved-days note instead of unresolved list rows.
+- `JOURNEY-STAY-DETAILS-001` = the later enhancement for per-stay lodging, per-stay notes, and review prompts when linked tickets change after user-edited stays exist.
+
+## 20. Acceptance criteria
 
 This docs-only task is complete when:
 
