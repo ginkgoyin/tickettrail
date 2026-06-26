@@ -461,17 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `RAIL-STATION-PLACE-REVIEW-001A`.
+Latest completed implementation checkpoint: `PLACE-CATALOG-GEONAMES-CN-RAIL-001`.
 
-Recommended next task: `PLACE-CATALOG-GEONAMES-CN-RAIL-001`.
+Recommended next task: `RAIL-STATION-PLACE-OVERRIDE-001`.
 
 The recommended next implementation order is now:
 
-1. `PLACE-CATALOG-GEONAMES-CN-RAIL-001`
-2. `RAIL-STATION-PLACE-OVERRIDE-001`
-3. `RAIL-STATION-PLACE-COVERAGE-002`
-4. `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`
-5. `next chosen issue`
+1. `RAIL-STATION-PLACE-OVERRIDE-001`
+2. `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`
+3. `next chosen issue`
 
 Implementation notes:
 
@@ -479,7 +477,7 @@ Implementation notes:
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
 - `JOURNEY-SUMMARY-001` now owns the real Summary dashboard, including all-time totals, the Monday-first yearly travel calendar, and the 2x2 stats modules.
 - `LOCATION-DIRECTORY-DESIGN-001` is now the docs-only architecture checkpoint that ties together the earlier airport/rail investigations and records the unified source-of-truth direction.
-- Current evidence shows that nationwide rail suggestions exist, and the generated rail dataset now includes conservative place metadata but still lacks exact coordinates.
+- Current evidence shows that nationwide rail suggestions exist, the generated rail dataset now includes conservative place metadata plus a safe rail-needed China GeoNames supplement, and exact rail station coordinates still remain future work.
 - Current evidence also shows that desktop map resolution still relies on the small `locations.seed.json` database seed plus hardcoded coordinate fallbacks rather than the full generated airport/rail datasets.
 - `LOCATION-DIRECTORY-001` now covers the airport-first implementation step: generated airport records preserve municipality/place metadata, and desktop coordinate resolution can fall back to the full generated airport dataset before hardcoded or pseudo coordinates.
 - `RAIL-STATION-PLACE-001` now covers the rail metadata preparation step: generated rail station records preserve conservative `placeNameZh` / `placeNameEn` / `placeKey` / confidence metadata without adding coordinates.

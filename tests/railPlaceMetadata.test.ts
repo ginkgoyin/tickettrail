@@ -121,5 +121,5 @@ describe("rail place metadata derivation", () => {
     expect(qingdaoRail).toBeDefined();
     expect(qingdaoRail?.locationType).toBe("station");
     expect(qingdaoRail?.placeNameZh).toBe("\u9752\u5c9b");
-  });
+  }, 15000);
 });

@@ -804,10 +804,11 @@
 
 - `PLACE-CATALOG-GEONAMES-CN-RAIL-001`
   - Add a rail-needed China GeoNames extraction pipeline on top of the existing global `cities5000` Place Catalog baseline.
-  - Status: `Open / next implementation step`
+  - Status: `Implemented / needs manual verification`
   - Notes:
-    - Prefer unique Chinese exact matches from local `cities1000` + filtered `alternateNamesV2`.
-    - Do not replace the global catalog with China-only data or blindly add every China `cities1000` record.
+    - The generator now merges only the safe first review batch: `can_auto_add_place` and `can_canonicalize_to_existing_catalog`.
+    - The global `cities5000` baseline remains in place; the project does not blindly add every China `cities1000` record.
+    - Ambiguous, slug-only, and no-candidate rows remain out of runtime data until later review work.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-OVERRIDE-001`
@@ -817,7 +818,10 @@
 
 - `RAIL-STATION-PLACE-COVERAGE-002`
   - Re-run rail station place coverage after China rail-needed Place Catalog additions and reviewed overrides are applied.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Coverage has now been regenerated after the safe GeoNames China additions and reviewed canonicalization batch.
+    - Remaining unresolved groups still require review or future override work.
   - Priority: `High`
 
 - `JOURNEY-STOPS-DATA-001`

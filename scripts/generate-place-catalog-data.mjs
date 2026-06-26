@@ -3,6 +3,7 @@ import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { spawnSync } from "node:child_process";
+import { readSafeRailGeonamesReviewRows } from "./lib/rail-geonames-review.mjs";
 
 const GEONAMES_BASE_URL = "https://download.geonames.org/export/dump";
 const DEFAULT_CITY_SOURCE = "cities5000";
@@ -10,6 +11,7 @@ const SUPPORTED_CITY_SOURCES = new Set(["cities500", "cities1000", "cities5000"]
 const DEFAULT_CACHE_DIR = path.resolve("data-sources/geonames");
 const DEFAULT_OUTPUT = path.resolve("src/data/place-catalog.generated.json");
 const DEFAULT_ALIAS_LIMIT = 4;
+const DEFAULT_RAIL_REVIEW_CSV = path.resolve("docs/reviews/rail-geonames-candidate-review.csv");
 const ZH_LANGUAGE_PRIORITY = ["zh-cn", "zh-hans", "zh"];
 const EN_LANGUAGE_PRIORITY = ["en"];
 
@@ -37,6 +39,7 @@ function parseArgs(argv) {
     outputPath: DEFAULT_OUTPUT,
     aliasLimit: DEFAULT_ALIAS_LIMIT,
     forceDownload: false,
+    railReviewCsvPath: DEFAULT_RAIL_REVIEW_CSV,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -88,6 +91,18 @@ function parseArgs(argv) {
 
     if (value.startsWith("--alias-limit=")) {
       options.aliasLimit = Number.parseInt(value.slice("--alias-limit=".length), 10);
+      continue;
+    }
+
+    if (value === "--rail-review-csv" && argv[index + 1]) {
+      options.railReviewCsvPath = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("--rail-review-csv=")) {
+      options.railReviewCsvPath = path.resolve(value.slice("--rail-review-csv=".length));
+      continue;
     }
   }
 
@@ -549,6 +564,83 @@ function stripIntermediateFields(place) {
   return finalPlace;
 }
 
+function parseCandidateGeonameIds(reviewRows) {
+  return new Set(
+    reviewRows
+      .filter((row) => row.recommendedAction === "can_auto_add_place")
+      .flatMap((row) => row.candidateGeonameIdList ?? [])
+      .map((value) => Number.parseInt(value, 10))
+      .filter((value) => Number.isFinite(value)),
+  );
+}
+
+async function loadRailNeededChinaPlaces(options, alternateNamesTxtPath) {
+  if (!(await fileExists(options.railReviewCsvPath))) {
+    return [];
+  }
+
+  const reviewRows = await readSafeRailGeonamesReviewRows(options.railReviewCsvPath);
+  const candidateGeonameIds = parseCandidateGeonameIds(reviewRows);
+  if (candidateGeonameIds.size === 0) {
+    return [];
+  }
+
+  const cities1000ZipPath = path.join(options.cacheDir, "cities1000.zip");
+  const cities1000TxtPath = path.join(options.cacheDir, "cities1000.txt");
+  await ensureDownloadedFile(`${GEONAMES_BASE_URL}/cities1000.zip`, cities1000ZipPath, options);
+  await ensureExtractedFile(cities1000ZipPath, cities1000TxtPath);
+
+  const { places: rawPlaces } = await parseCityRows(cities1000TxtPath);
+  const filteredPlaces = rawPlaces.filter((place) => candidateGeonameIds.has(place.geonameId));
+  const filteredGeonameIds = new Set(filteredPlaces.map((place) => place.geonameId));
+  const alternateNamesByGeonameId = await parseAlternateNames(alternateNamesTxtPath, filteredGeonameIds);
+
+  return filteredPlaces.map((place) =>
+    toIntermediatePlace(
+      place,
+      alternateNamesByGeonameId.get(place.geonameId) ?? createAlternateNameAccumulator(),
+      options.aliasLimit,
+    ),
+  );
+}
+
+function mergeRailNeededChinaPlaces(basePlaces, railNeededPlaces) {
+  const mergedPlaces = [...basePlaces];
+  const geonameIds = new Set(basePlaces.map((place) => place.geonameId));
+  const placeKeys = new Map(basePlaces.map((place) => [place.placeKey, place.geonameId]));
+  const addedPlaces = [];
+  const skippedConflicts = [];
+
+  for (const place of railNeededPlaces) {
+    if (geonameIds.has(place.geonameId)) {
+      continue;
+    }
+
+    const resolvedPlaceKey = buildBasePlaceKey(place);
+    if (!resolvedPlaceKey) {
+      skippedConflicts.push({ geonameId: place.geonameId, reason: "missing_place_key" });
+      continue;
+    }
+
+    const conflictingGeonameId = placeKeys.get(resolvedPlaceKey);
+    if (conflictingGeonameId && conflictingGeonameId !== place.geonameId) {
+      skippedConflicts.push({ geonameId: place.geonameId, placeKey: resolvedPlaceKey, conflictingGeonameId });
+      continue;
+    }
+
+    place.placeKey = resolvedPlaceKey;
+    geonameIds.add(place.geonameId);
+    placeKeys.set(place.placeKey, place.geonameId);
+    addedPlaces.push(place);
+    mergedPlaces.push(stripIntermediateFields(place));
+  }
+
+  return {
+    mergedPlaces: mergedPlaces.sort(sortPlaces),
+    addedCount: addedPlaces.length,
+    skippedConflicts,
+  };
+}
 async function generatePlaceCatalog(options) {
   const cityZipPath = path.join(options.cacheDir, `${options.citySource}.zip`);
   const cityTxtPath = path.join(options.cacheDir, `${options.citySource}.txt`);
@@ -573,25 +665,34 @@ async function generatePlaceCatalog(options) {
 
   assignPlaceKeys(intermediatePlaces);
 
-  const finalPlaces = intermediatePlaces
+  const basePlaces = intermediatePlaces
     .map(stripIntermediateFields)
     .sort(sortPlaces);
 
-  validatePlaces(finalPlaces);
-  return finalPlaces;
+  const railNeededPlaces = await loadRailNeededChinaPlaces(options, alternateNamesTxtPath);
+  const { mergedPlaces, addedCount, skippedConflicts } = mergeRailNeededChinaPlaces(basePlaces, railNeededPlaces);
+
+  validatePlaces(mergedPlaces);
+  return {
+    places: mergedPlaces,
+    railNeededChinaAddedCount: addedCount,
+    railNeededChinaSkippedConflicts: skippedConflicts,
+  };
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const places = await generatePlaceCatalog(options);
+  const result = await generatePlaceCatalog(options);
 
   await mkdir(path.dirname(options.outputPath), { recursive: true });
-  await writeFile(options.outputPath, `${JSON.stringify(places)}\n`, "utf8");
+  await writeFile(options.outputPath, `${JSON.stringify(result.places)}\n`, "utf8");
 
   const outputStat = await stat(options.outputPath);
-  console.log(`Generated ${places.length} place catalog records -> ${options.outputPath}`);
+  console.log(`Generated ${result.places.length} place catalog records -> ${options.outputPath}`);
   console.log(`Output size: ${outputStat.size} bytes`);
   console.log(`City source: ${options.citySource}`);
+  console.log(`Rail-needed China additions applied: ${result.railNeededChinaAddedCount}`);
+  console.log(`Rail-needed China additions skipped for conflicts: ${result.railNeededChinaSkippedConflicts.length}`);
 }
 
 await main();

@@ -297,16 +297,20 @@ The first real provider path is now implemented for AeroDataBox behind the deskt
 
 Current default source choice:
 
-- `cities5000.zip`
+- global baseline: `cities5000.zip`
+- targeted China rail supplement: reviewed safe matches from local `cities1000.zip` + filtered `alternateNamesV2.zip`
 
 Reason:
 
-- `cities1000.zip` was evaluated first, but the generated catalog was too large for the current repository/runtime foundation.
-- The current implementation therefore uses `cities5000.zip` as the practical default after measuring the real generated size.
+- `cities1000.zip` was evaluated first as a full runtime catalog source, but the generated catalog was too large for the current repository/runtime foundation.
+- The project therefore keeps `cities5000.zip` as the practical global baseline after measuring the real generated size.
+- Additional China detail is now merged only for rail-needed places that were pre-reviewed through `docs/reviews/rail-geonames-candidate-review.csv` and fall into safe actions such as `can_auto_add_place` or `can_canonicalize_to_existing_catalog`.
+- Ambiguous, slug-only, and no-candidate rows remain outside runtime data until later review / override work.
 
 GeoNames files used:
 
 - `cities5000.zip`
+- `cities1000.zip` for the reviewed rail-needed China subset only
 - `alternateNamesV2.zip`
 
 GeoNames files currently not required in the first runtime foundation:
@@ -421,10 +425,11 @@ Important rules:
 Current rail mapping uses the conservative rail-place layer from `RAIL-STATION-PLACE-001` plus the Place Catalog:
 
 1. explicit override if one is later added
-2. medium/high-confidence generated rail `placeKey` if that exact key exists in the Place Catalog
-3. medium/high-confidence `countryCode + placeNameZh`
-4. medium/high-confidence `countryCode + placeNameEn / pinyin`
-5. low-confidence rail entries stay unmapped
+2. reviewed canonicalization to an existing Place Catalog key when a safe review row says `can_canonicalize_to_existing_catalog`
+3. medium/high-confidence generated rail `placeKey` if that exact key exists in the Place Catalog
+4. medium/high-confidence `countryCode + placeNameZh`
+5. medium/high-confidence `countryCode + placeNameEn / pinyin`
+6. low-confidence rail entries stay unmapped
 
 Important rules:
 
