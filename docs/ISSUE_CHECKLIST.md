@@ -830,7 +830,12 @@
 
 - `RAIL-STATION-PLACE-OVERRIDE-001`
   - Add a reviewed override layer for unresolved or ambiguous rail station -> place mappings after grouped candidate review output exists.
-  - Status: `Open / future implementation`
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Reviewed overrides now live in `data-sources/rail/rail-station-place-overrides.json` and apply only when `enabled = true` and `reviewStatus = approved`.
+    - Generator-side validation now rejects duplicate/conflicting overrides, missing Place Catalog targets, and approved overrides that do not match any generated rail station.
+    - Remaining hard cases are now prioritized in `docs/reviews/rail-place-override-priority.csv` for manual review.
+    - KUX and `cn-qianan / 迁安` remain explicit human-review cases and are not auto-resolved by this override layer.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-COVERAGE-002`
@@ -1034,4 +1039,3 @@
   - Replaced by the implemented language-switch scaffold above; keep future i18n work under `I18N-005` and later follow-up items instead of re-opening this original placeholder.
   - Status: `Superseded`
   - Priority: `Medium`
-

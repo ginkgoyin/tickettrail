@@ -80,7 +80,7 @@ node scripts/generate-airports-data.mjs path\to\airports.csv src\data\airports.g
 - Expected source file location:
   - [C:\yx\00app\ticket\data-sources\12306\station_name.js](C:/yx/00app/ticket/data-sources/12306/station_name.js)
 - This source may be either:
-  - a full JS assignment such as `var station_names ='@bjb|北京北|VAP|beijingbei|bjb|0@...'`
+  - a full JS assignment such as `var station_names ='@bjb|闂佸憡鐗楅妵鐐哄触椤愶箑绀屾慨濠勎汚P|beijingbei|bjb|0@...'`
   - or the raw station payload string that starts with `@`
 
 The parser reads each `@...` station entry and maps:
@@ -154,8 +154,7 @@ The generated records are normalized to the app's `LocationDirectoryEntry`-compa
 
 The derived rail place metadata stage is intentionally conservative:
 
-- exact curated hub rules can map station names such as `上海虹桥` to the city/place label `上海`
-- directional suffix stripping can map names such as `青岛北` / `长沙南` / `北京南` to the city/place label
+- exact curated hub rules can map station names such as `婵炴垶鎸搁敃銉╁箲閿濆鎯為悷娆忓婵?to the city/place label `婵炴垶鎸搁敃銉╁箲椤?- directional suffix stripping can map names such as `闂傚倸鐗婄敮鎺楁儗濠靛绀屾慨?/ `闂傚倵鍋撻柟绋挎捣閻撴捇鏌涘Δ渚囨殺 / `闂佸憡鐗楅妵鐐哄触椤愶箑纭€婵?to the city/place label
 - uncertain cases fall back to the original station name instead of over-normalizing
 - no coordinates are added in this stage
 - no external city dataset is used in this stage
@@ -306,6 +305,8 @@ Reason:
 - The project therefore keeps `cities5000.zip` as the practical global baseline after measuring the real generated size.
 - Additional China detail is now merged only for rail-needed places that were pre-reviewed and copied into `data-sources/rail/rail-geonames-reviewed-safe-matches.json` under safe actions such as `can_auto_add_place` or `can_canonicalize_to_existing_catalog`.
 - Ambiguous, slug-only, and no-candidate rows remain outside runtime data until later review / override work.
+- Reviewed manual overrides now live in `data-sources/rail/rail-station-place-overrides.json` and are applied only for explicitly approved rows.
+- The remaining human-review queue is prioritized in `docs/reviews/rail-place-override-priority.csv`.
 
 GeoNames files used:
 
@@ -424,7 +425,7 @@ Important rules:
 
 Current rail mapping uses the conservative rail-place layer from `RAIL-STATION-PLACE-001` plus the Place Catalog:
 
-1. explicit override if one is later added
+1. explicit reviewed override from `data-sources/rail/rail-station-place-overrides.json` when present
 2. reviewed canonicalization to an existing Place Catalog key when a safe review row says `can_canonicalize_to_existing_catalog`
 3. medium/high-confidence generated rail `placeKey` if that exact key exists in the Place Catalog
 4. medium/high-confidence `countryCode + placeNameZh`
@@ -456,5 +457,4 @@ The repository now treats these as distinct layers:
 This means:
 
 - `Qingdao Jiaodong International Airport` can still appear as the raw ticket endpoint
-- Journey destination / route normalization can now display the Place Catalog label `Qingdao` / `青岛市`
-- `Qingdao North` and `TAO` can share the same stable place identity without pretending the station and airport are the same endpoint
+- Journey destination / route normalization can now display the Place Catalog label `Qingdao` / `闂傚倸鐗婄敮鎺楁儗濠靛牊鏆滃ǎ?- `Qingdao North` and `TAO` can share the same stable place identity without pretending the station and airport are the same endpoint

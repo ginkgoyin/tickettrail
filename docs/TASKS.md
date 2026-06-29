@@ -461,13 +461,13 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `PLACE-CATALOG-GEONAMES-CN-RAIL-001B`.
+Latest completed implementation checkpoint: `RAIL-STATION-PLACE-OVERRIDE-001`.
 
-Recommended next task: `RAIL-STATION-PLACE-OVERRIDE-001`.
+Recommended next task: reviewed override data entry from `docs/reviews/rail-place-override-priority.csv`.
 
 The recommended next implementation order is now:
 
-1. `RAIL-STATION-PLACE-OVERRIDE-001`
+1. reviewed override decisions from `docs/reviews/rail-place-override-priority.csv`
 2. `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`
 3. `next chosen issue`
 
@@ -516,4 +516,3 @@ Implementation notes:
 - Journey implementation should stay small and phased; do not mix it with Overview redesign, map redesign, or airline/operator data work.
 - `OVERVIEW-REDESIGN-001` remains a separate docs/design task.
 - UI art-style redesign remains deferred and should not block Journey MVP implementation.
-

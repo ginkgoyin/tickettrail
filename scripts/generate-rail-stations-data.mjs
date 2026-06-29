@@ -5,6 +5,7 @@ import {
   canonicalizeRailStationPlace,
 } from "./lib/rail-station-place-coverage.mjs";
 import { deriveRailPlaceMetadata } from "./lib/derive-rail-place.mjs";
+import { applyRailStationPlaceOverrides, readRailStationPlaceOverrides } from "./lib/rail-station-place-overrides.mjs";
 import { readSafeRailGeonamesReviewRows } from "./lib/rail-geonames-review.mjs";
 
 const DEFAULT_SOURCE_URL = "https://kyfw.12306.cn/otn/resources/js/framework/station_name.js";
@@ -13,6 +14,7 @@ const DEFAULT_OUTPUT = path.resolve("src/data/rail-stations.generated.json");
 const DEFAULT_PLACE_CATALOG_PATH = path.resolve("src/data/place-catalog.generated.json");
 const DEFAULT_TRANSPORT_PLACE_PATH = path.resolve("src/data/transport-place.generated.json");
 const DEFAULT_RAIL_REVIEW_SOURCE = path.resolve("data-sources/rail/rail-geonames-reviewed-safe-matches.json");
+const DEFAULT_PLACE_OVERRIDES_PATH = path.resolve("data-sources/rail/rail-station-place-overrides.json");
 const SUPPORTED_ENCODINGS = ["utf8", "gbk", "gb18030"];
 
 function normalizeText(value) {
@@ -36,6 +38,7 @@ function parseArgs(argv) {
     placeCatalogPath: DEFAULT_PLACE_CATALOG_PATH,
     transportPlacePath: DEFAULT_TRANSPORT_PLACE_PATH,
     reviewCsvPath: DEFAULT_RAIL_REVIEW_SOURCE,
+    placeOverridesPath: DEFAULT_PLACE_OVERRIDES_PATH,
     encoding: "",
   };
 
@@ -100,6 +103,17 @@ function parseArgs(argv) {
 
     if (value.startsWith("--review-csv=")) {
       args.reviewCsvPath = path.resolve(value.slice("--review-csv=".length));
+      continue;
+    }
+
+    if (value === "--place-overrides" && argv[index + 1]) {
+      args.placeOverridesPath = path.resolve(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("--place-overrides=")) {
+      args.placeOverridesPath = path.resolve(value.slice("--place-overrides=".length));
       continue;
     }
 
@@ -351,7 +365,16 @@ function applyReviewedCanonicalization(station, reviewedCanonicalizationMap) {
     placeRule: `${normalizeText(station.placeRule) || "derived"}+reviewed-canonicalize`,
   };
 }
-async function generateStations({ sourcePath, outputPath, placeCatalogPath, transportPlacePath, reviewCsvPath, encoding }) {
+
+async function generateStations({
+  sourcePath,
+  outputPath,
+  placeCatalogPath,
+  transportPlacePath,
+  reviewCsvPath,
+  placeOverridesPath,
+  encoding,
+}) {
   const sourceBuffer = await readFile(sourcePath);
   const payload = extractStationPayload(decodeBuffer(sourceBuffer, encoding || undefined));
   const rawStations = dedupeStations(parseStationEntries(payload));
@@ -365,16 +388,29 @@ async function generateStations({ sourcePath, outputPath, placeCatalogPath, tran
     loadJson(transportPlacePath),
   ]);
   const placeResolver = buildRailPlaceCatalogResolver(placeCatalog);
-  const reviewedCanonicalizationMap = await loadReviewedCanonicalizationMap(reviewCsvPath, placeCatalog, placeResolver);
-  const stations = rawStations
+  const [reviewedCanonicalizationMap, placeOverrides] = await Promise.all([
+    loadReviewedCanonicalizationMap(reviewCsvPath, placeCatalog, placeResolver),
+    readRailStationPlaceOverrides(placeOverridesPath),
+  ]);
+
+  const canonicalStations = rawStations
     .map((station) => applyReviewedCanonicalization(station, reviewedCanonicalizationMap))
     .map((station) => canonicalizeRailStationPlace(station, placeResolver, { transportPlaceData }))
     .sort(sortStations);
 
-  await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(stations, null, 2)}\n`, "utf8");
+  const { stations, appliedCount: overrideAppliedCount } = applyRailStationPlaceOverrides(
+    canonicalStations,
+    placeOverrides,
+    placeCatalog,
+  );
 
-  return stations.length;
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(stations.sort(sortStations), null, 2)}\n`, "utf8");
+
+  return {
+    count: stations.length,
+    overrideAppliedCount,
+  };
 }
 
 async function main() {
@@ -386,8 +422,9 @@ async function main() {
     console.log(`Saved 12306 station source -> ${args.sourcePath}`);
   }
 
-  const count = await generateStations(args);
-  console.log(`Generated ${count} rail station records -> ${args.outputPath}`);
+  const result = await generateStations(args);
+  console.log(`Generated ${result.count} rail station records -> ${args.outputPath}`);
+  console.log(`Reviewed overrides applied: ${result.overrideAppliedCount}`);
 }
 
 await main();

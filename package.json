@@ -17,10 +17,12 @@
     "data:generate:transport-place": "node scripts/generate-transport-place-data.mjs",
     "data:generate:rail-stations": "node scripts/generate-rail-stations-data.mjs",
     "data:review:rail-geonames-candidates": "node scripts/generate-rail-geonames-candidate-review.mjs",
+    "data:review:rail-place-override-priority": "node scripts/generate-rail-place-override-priority.mjs",
     "generate:rail-stations": "node scripts/generate-rail-stations-data.mjs --download",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/check-release-version.mjs",
-    "data:validate:rail-station-place": "node scripts/validate-rail-station-place-coverage.mjs"
+    "data:validate:rail-station-place": "node scripts/validate-rail-station-place-coverage.mjs",
+    "data:validate:rail-station-place-overrides": "node scripts/validate-rail-station-place-overrides.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
