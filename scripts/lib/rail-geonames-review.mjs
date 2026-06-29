@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 function normalizeText(value) {
   return `${value ?? ""}`.trim();
@@ -35,6 +36,16 @@ function parseCsvLine(line) {
   return values;
 }
 
+function decorateReviewRow(row) {
+  row.affectedStationCount = Number.parseInt(row.affectedStationCount, 10) || 0;
+  row.candidateCount = Number.parseInt(row.candidateCount, 10) || 0;
+  row.sampleTelecodeList = splitPipeField(row.sampleTelecodes);
+  row.sampleStationNameZhList = splitPipeField(row.sampleStationNamesZh);
+  row.candidateGeonameIdList = splitPipeField(row.candidateGeonameIds);
+  row.candidateExistingPlaceKeyList = splitPipeField(row.candidateExistingPlaceKey);
+  return row;
+}
+
 function splitPipeField(value) {
   return normalizeText(value)
     .split("|")
@@ -44,6 +55,11 @@ function splitPipeField(value) {
 
 export async function readRailGeonamesCandidateReviewCsv(filePath) {
   const source = await readFile(filePath, "utf8");
+
+  if (path.extname(filePath).toLowerCase() === ".json") {
+    return JSON.parse(source).map((row) => decorateReviewRow({ ...row }));
+  }
+
   const lines = source.trim().split(/\r?\n/);
   if (lines.length === 0) {
     return [];
@@ -61,13 +77,7 @@ export async function readRailGeonamesCandidateReviewCsv(filePath) {
     const row = Object.fromEntries(
       header.map((column, index) => [column, values[index] ?? ""]),
     );
-    row.affectedStationCount = Number.parseInt(row.affectedStationCount, 10) || 0;
-    row.candidateCount = Number.parseInt(row.candidateCount, 10) || 0;
-    row.sampleTelecodeList = splitPipeField(row.sampleTelecodes);
-    row.sampleStationNameZhList = splitPipeField(row.sampleStationNamesZh);
-    row.candidateGeonameIdList = splitPipeField(row.candidateGeonameIds);
-    row.candidateExistingPlaceKeyList = splitPipeField(row.candidateExistingPlaceKey);
-    rows.push(row);
+    rows.push(decorateReviewRow(row));
   }
 
   return rows;

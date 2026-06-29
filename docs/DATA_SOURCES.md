@@ -304,7 +304,7 @@ Reason:
 
 - `cities1000.zip` was evaluated first as a full runtime catalog source, but the generated catalog was too large for the current repository/runtime foundation.
 - The project therefore keeps `cities5000.zip` as the practical global baseline after measuring the real generated size.
-- Additional China detail is now merged only for rail-needed places that were pre-reviewed through `docs/reviews/rail-geonames-candidate-review.csv` and fall into safe actions such as `can_auto_add_place` or `can_canonicalize_to_existing_catalog`.
+- Additional China detail is now merged only for rail-needed places that were pre-reviewed and copied into `data-sources/rail/rail-geonames-reviewed-safe-matches.json` under safe actions such as `can_auto_add_place` or `can_canonicalize_to_existing_catalog`.
 - Ambiguous, slug-only, and no-candidate rows remain outside runtime data until later review / override work.
 
 GeoNames files used:

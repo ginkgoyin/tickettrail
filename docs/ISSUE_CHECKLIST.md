@@ -807,8 +807,25 @@
   - Status: `Implemented / needs manual verification`
   - Notes:
     - The generator now merges only the safe first review batch: `can_auto_add_place` and `can_canonicalize_to_existing_catalog`.
+    - Reviewed safe matches now live in `data-sources/rail/rail-geonames-reviewed-safe-matches.json` so regeneration does not depend on the unresolved candidate review CSV.
     - The global `cities5000` baseline remains in place; the project does not blindly add every China `cities1000` record.
     - Ambiguous, slug-only, and no-candidate rows remain out of runtime data until later review work.
+  - Priority: `High`
+
+- `PLACE-CATALOG-GEONAMES-CN-RAIL-001A`
+  - Final validation pass for the completed safe China rail Place Catalog expansion, including review-artifact refresh and regeneration stability checks.
+  - Status: `Implemented / final validation`
+  - Notes:
+    - The unresolved candidate review CSV now reflects remaining review work instead of acting as generator input.
+    - Safe reviewed matches were moved into a stable source file for reproducible regeneration.
+  - Priority: `High`
+
+- `PLACE-CATALOG-GEONAMES-CN-RAIL-001B`
+  - Clean up the remaining candidate review artifact so key-collision rows no longer appear as safe auto-add work.
+  - Status: `Implemented / conflict review cleanup`
+  - Notes:
+    - `cn-qianan / ??` is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
+    - The reviewed-safe source file excludes skipped conflict rows and keeps only the safe matches actually applied by regeneration.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-OVERRIDE-001`

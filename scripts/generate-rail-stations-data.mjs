@@ -12,7 +12,7 @@ const DEFAULT_INPUT = path.resolve("data-sources/12306/station_name.js");
 const DEFAULT_OUTPUT = path.resolve("src/data/rail-stations.generated.json");
 const DEFAULT_PLACE_CATALOG_PATH = path.resolve("src/data/place-catalog.generated.json");
 const DEFAULT_TRANSPORT_PLACE_PATH = path.resolve("src/data/transport-place.generated.json");
-const DEFAULT_RAIL_REVIEW_CSV = path.resolve("docs/reviews/rail-geonames-candidate-review.csv");
+const DEFAULT_RAIL_REVIEW_SOURCE = path.resolve("data-sources/rail/rail-geonames-reviewed-safe-matches.json");
 const SUPPORTED_ENCODINGS = ["utf8", "gbk", "gb18030"];
 
 function normalizeText(value) {
@@ -35,7 +35,7 @@ function parseArgs(argv) {
     outputPath: DEFAULT_OUTPUT,
     placeCatalogPath: DEFAULT_PLACE_CATALOG_PATH,
     transportPlacePath: DEFAULT_TRANSPORT_PLACE_PATH,
-    reviewCsvPath: DEFAULT_RAIL_REVIEW_CSV,
+    reviewCsvPath: DEFAULT_RAIL_REVIEW_SOURCE,
     encoding: "",
   };
 
@@ -286,23 +286,32 @@ function buildReviewedGroupKey(placeKey, placeNameZh, placeNameEn) {
   return [normalizeText(placeKey), normalizeText(placeNameZh), normalizeText(placeNameEn)].join("||");
 }
 
-async function loadReviewedCanonicalizationMap(reviewCsvPath, placeResolver) {
+async function loadReviewedCanonicalizationMap(reviewCsvPath, placeCatalog, placeResolver) {
   try {
     const reviewRows = await readSafeRailGeonamesReviewRows(reviewCsvPath);
+    const placeByGeonameId = new Map(
+      placeCatalog
+        .filter((place) => place.geonameId != null)
+        .map((place) => [String(place.geonameId), place]),
+    );
     const mappings = new Map();
 
     for (const row of reviewRows) {
-      if (row.recommendedAction !== "can_canonicalize_to_existing_catalog") {
+      let canonicalPlace = null;
+      let canonicalPlaceKey = "";
+
+      if (row.recommendedAction === "can_canonicalize_to_existing_catalog") {
+        canonicalPlaceKey = row.candidateExistingPlaceKeyList?.[0] || normalizeText(row.candidateExistingPlaceKey);
+        canonicalPlace = canonicalPlaceKey ? placeResolver.byKey.get(canonicalPlaceKey) : null;
+      } else if (row.recommendedAction === "can_auto_add_place") {
+        const geonameId = row.candidateGeonameIdList?.[0] || normalizeText(row.candidateGeonameIds);
+        canonicalPlace = geonameId ? placeByGeonameId.get(String(geonameId)) : null;
+        canonicalPlaceKey = canonicalPlace?.placeKey || "";
+      } else {
         continue;
       }
 
-      const canonicalPlaceKey = row.candidateExistingPlaceKeyList?.[0] || normalizeText(row.candidateExistingPlaceKey);
-      if (!canonicalPlaceKey) {
-        continue;
-      }
-
-      const canonicalPlace = placeResolver.byKey.get(canonicalPlaceKey);
-      if (!canonicalPlace) {
+      if (!canonicalPlace || !canonicalPlaceKey) {
         continue;
       }
 
@@ -356,7 +365,7 @@ async function generateStations({ sourcePath, outputPath, placeCatalogPath, tran
     loadJson(transportPlacePath),
   ]);
   const placeResolver = buildRailPlaceCatalogResolver(placeCatalog);
-  const reviewedCanonicalizationMap = await loadReviewedCanonicalizationMap(reviewCsvPath, placeResolver);
+  const reviewedCanonicalizationMap = await loadReviewedCanonicalizationMap(reviewCsvPath, placeCatalog, placeResolver);
   const stations = rawStations
     .map((station) => applyReviewedCanonicalization(station, reviewedCanonicalizationMap))
     .map((station) => canonicalizeRailStationPlace(station, placeResolver, { transportPlaceData }))

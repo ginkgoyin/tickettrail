@@ -10,7 +10,7 @@ const stations = railStations as LocationDirectoryEntry[];
 
 describe("rail-needed China GeoNames expansion", () => {
   it("represents nearly all safe auto-add review candidates in the generated Place Catalog", async () => {
-    const rows = await readRailGeonamesCandidateReviewCsv("docs/reviews/rail-geonames-candidate-review.csv");
+    const rows = await readRailGeonamesCandidateReviewCsv("data-sources/rail/rail-geonames-reviewed-safe-matches.json");
     const autoAddRows = rows.filter((row) => row.recommendedAction === "can_auto_add_place");
     const placesByGeonameId = new Map(places.map((place) => [String(place.geonameId), place]));
 
@@ -31,7 +31,7 @@ describe("rail-needed China GeoNames expansion", () => {
   });
 
   it("applies every safe existing-catalog canonicalization review row to the generated rail stations", async () => {
-    const rows = await readRailGeonamesCandidateReviewCsv("docs/reviews/rail-geonames-candidate-review.csv");
+    const rows = await readRailGeonamesCandidateReviewCsv("data-sources/rail/rail-geonames-reviewed-safe-matches.json");
     const canonicalizeRows = rows.filter(
       (row) => row.recommendedAction === "can_canonicalize_to_existing_catalog",
     );

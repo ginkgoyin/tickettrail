@@ -461,7 +461,7 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `PLACE-CATALOG-GEONAMES-CN-RAIL-001`.
+Latest completed implementation checkpoint: `PLACE-CATALOG-GEONAMES-CN-RAIL-001B`.
 
 Recommended next task: `RAIL-STATION-PLACE-OVERRIDE-001`.
 

@@ -11,7 +11,7 @@ const SUPPORTED_CITY_SOURCES = new Set(["cities500", "cities1000", "cities5000"]
 const DEFAULT_CACHE_DIR = path.resolve("data-sources/geonames");
 const DEFAULT_OUTPUT = path.resolve("src/data/place-catalog.generated.json");
 const DEFAULT_ALIAS_LIMIT = 4;
-const DEFAULT_RAIL_REVIEW_CSV = path.resolve("docs/reviews/rail-geonames-candidate-review.csv");
+const DEFAULT_RAIL_REVIEW_SOURCE = path.resolve("data-sources/rail/rail-geonames-reviewed-safe-matches.json");
 const ZH_LANGUAGE_PRIORITY = ["zh-cn", "zh-hans", "zh"];
 const EN_LANGUAGE_PRIORITY = ["en"];
 
@@ -39,7 +39,7 @@ function parseArgs(argv) {
     outputPath: DEFAULT_OUTPUT,
     aliasLimit: DEFAULT_ALIAS_LIMIT,
     forceDownload: false,
-    railReviewCsvPath: DEFAULT_RAIL_REVIEW_CSV,
+    railReviewCsvPath: DEFAULT_RAIL_REVIEW_SOURCE,
   };
 
   for (let index = 0; index < argv.length; index += 1) {

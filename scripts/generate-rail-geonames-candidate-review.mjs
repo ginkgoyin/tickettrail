@@ -323,14 +323,41 @@ function buildGeoNamesIndexes(cityEntries) {
   return { byZh, byEn, bySlug };
 }
 
-function classifyGroup(group, currentCatalogKeys, indexes) {
+function classifyGroup(group, currentCatalogByKey, indexes) {
   const zhCandidates = uniqueBy(indexes.byZh.get(group.currentPlaceNameZh) ?? [], (entry) => entry.geonameId);
   const enCandidates = uniqueBy(indexes.byEn.get(normalizeToken(group.currentPlaceNameEn)) ?? [], (entry) => entry.geonameId);
   const slugCandidates = uniqueBy(indexes.bySlug.get(group.currentPlaceKey) ?? [], (entry) => entry.geonameId);
 
-  const existingCatalogCandidates = zhCandidates.filter(
-    (candidate) => currentCatalogKeys.has(candidate.placeKey) && candidate.placeKey !== group.currentPlaceKey,
-  );
+  const existingCatalogCandidates = zhCandidates.filter((candidate) => {
+    if (candidate.placeKey === group.currentPlaceKey) {
+      return false;
+    }
+
+    const existing = currentCatalogByKey.get(candidate.placeKey);
+    if (!existing) {
+      return false;
+    }
+
+    return String(existing.geonameId ?? "") === String(candidate.geonameId ?? "");
+  });
+
+  const conflictingCatalogCandidates = zhCandidates.filter((candidate) => {
+    const existing = currentCatalogByKey.get(candidate.placeKey);
+    if (!existing) {
+      return false;
+    }
+
+    return String(existing.geonameId ?? "") !== String(candidate.geonameId ?? "");
+  });
+
+  if (conflictingCatalogCandidates.length === 1 && zhCandidates.length === 1) {
+    return {
+      matchStatus: "unique_zh_exact_key_conflict",
+      recommendedAction: "needs_human_review",
+      confidenceReason: `Exactly one Chinese-name GeoNames candidate exists, but its derived placeKey conflicts with an existing different Place Catalog entry (candidate geonameId ${conflictingCatalogCandidates[0].geonameId}, existing geonameId ${currentCatalogByKey.get(conflictingCatalogCandidates[0].placeKey)?.geonameId ?? "unknown"}).`,
+      candidates: conflictingCatalogCandidates,
+    };
+  }
 
   if (existingCatalogCandidates.length === 1 && zhCandidates.length === 1) {
     return {
@@ -478,9 +505,9 @@ function serializeCandidateReviewCsv(rows) {
   return `${lines.join("\n")}\n`;
 }
 
-function createOutputRows(groupedUnresolvedRows, currentCatalogKeys, indexes) {
+function createOutputRows(groupedUnresolvedRows, currentCatalogByKey, indexes) {
   return groupedUnresolvedRows.map((group) => {
-    const classification = classifyGroup(group, currentCatalogKeys, indexes);
+    const classification = classifyGroup(group, currentCatalogByKey, indexes);
     const candidates = classification.candidates;
 
     return {
@@ -515,11 +542,11 @@ function createOutputRows(groupedUnresolvedRows, currentCatalogKeys, indexes) {
       candidateTimezone: joinCandidateField(candidates, (candidate) => candidate.timezone),
       candidateAlreadyInPlaceCatalog: joinCandidateField(
         candidates,
-        (candidate) => (currentCatalogKeys.has(candidate.placeKey) ? "yes" : "no"),
+        (candidate) => (currentCatalogByKey.has(candidate.placeKey) ? "yes" : "no"),
       ),
       candidateExistingPlaceKey: joinCandidateField(
         candidates,
-        (candidate) => (currentCatalogKeys.has(candidate.placeKey) ? candidate.placeKey : ""),
+        (candidate) => (currentCatalogByKey.has(candidate.placeKey) ? candidate.placeKey : ""),
       ),
       confidenceReason: classification.confidenceReason,
       reviewStatus:
@@ -528,7 +555,10 @@ function createOutputRows(groupedUnresolvedRows, currentCatalogKeys, indexes) {
           : classification.recommendedAction === "can_canonicalize_to_existing_catalog"
             ? "candidate-canonicalize"
             : "needs-review",
-      reviewerNotes: "",
+      reviewerNotes:
+        classification.matchStatus === "unique_zh_exact_key_conflict"
+          ? "Place key collision with an existing different Place Catalog entry; requires human review."
+          : "",
     };
   });
 }
@@ -573,13 +603,13 @@ async function main() {
   const { entries: chinaCities1000, geonameIds } = await parseChinaCities1000(args.cities1000Path);
   await applyAlternateNames(args.alternateNamesPath, chinaCities1000, geonameIds);
   const indexes = buildGeoNamesIndexes(chinaCities1000);
-  const currentCatalogKeys = new Set(
+  const currentCatalogByKey = new Map(
     placeCatalog
       .filter((entry) => normalizeToken(entry.countryCode) === "cn")
-      .map((entry) => entry.placeKey),
+      .map((entry) => [entry.placeKey, entry]),
   );
 
-  const outputRows = createOutputRows(groupedUnresolvedRows, currentCatalogKeys, indexes);
+  const outputRows = createOutputRows(groupedUnresolvedRows, currentCatalogByKey, indexes);
   await mkdir(path.dirname(args.outputPath), { recursive: true });
   await writeFile(args.outputPath, serializeCandidateReviewCsv(outputRows), "utf8");
 
