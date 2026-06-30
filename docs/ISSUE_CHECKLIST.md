@@ -838,6 +838,22 @@
     - KUX and `cn-qianan / 迁安` remain explicit human-review cases and are not auto-resolved by this override layer.
   - Priority: `High`
 
+- `RAIL-STATION-PLACE-OVERRIDE-001A`
+  - Prepare the first small human-review worksheet for remaining override candidates without applying any reviewed overrides yet.
+  - Status: `Implemented / first human review batch prepared`
+  - Notes:
+    - The first worksheet now lives at `docs/reviews/rail-place-override-batch-001.csv`.
+    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / ??` key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
+    - `data-sources/rail/rail-station-place-overrides.json` remains empty, so no reviewed override is applied by runtime generation yet.
+  - Priority: `High`
+
+- `RAIL-STATION-PLACE-OVERRIDE-001B`
+  - Apply the first approved override batch only after explicit human review decisions are captured from the batch worksheet.
+  - Status: `Open / awaiting reviewed override decisions`
+  - Notes:
+    - Do not approve KUX, `cn-qianan / ??`, or any risky slug-only mapping without explicit evidence and a reviewed decision.
+  - Priority: `High`
+
 - `RAIL-STATION-PLACE-COVERAGE-002`
   - Re-run rail station place coverage after China rail-needed Place Catalog additions and reviewed overrides are applied.
   - Status: `Implemented / needs manual verification`
