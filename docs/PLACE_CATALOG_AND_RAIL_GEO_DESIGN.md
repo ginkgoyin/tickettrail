@@ -309,6 +309,34 @@ Rules:
 - do not invent exact rail coordinates
 - if exact rail coordinates are missing, city coordinates are a separate fallback
 
+### 5.2A Rail place granularity policy
+
+Current problem:
+
+- the current rail `placeKey` is overloaded
+- it is used for rail station metadata
+- it can feed backend route-map city fallback
+- it can feed Journey place normalization
+- it can be persisted into Journey Stops
+- it can therefore influence Journey Summary aggregation
+
+Accepted policy:
+
+1. map / coordinate fallback should use the most specific reviewed place that is safe and supported by the Place Catalog
+2. Journey / Summary grouping should use a separate city-level or prefecture-level grouping layer later
+3. grouping needs should not force map fallback to become less accurate
+
+This means a reviewed rail place may legitimately be:
+
+- a district
+- a county
+- a county-level city
+- a town
+- a scenic/local place
+- a prefecture-level city
+
+if that is the safest reviewed place for map fallback.
+
 ## 5.3 Layer 3: Journey Stops / Destinations
 
 Journey-level meaning should use `placeKey`.
@@ -319,6 +347,31 @@ Rules:
 - `placeName` may remain denormalized display/cache text
 - Summary destination aggregation should eventually aggregate by `placeKey`
 - raw ticket detail can still show exact endpoint names
+
+Important refinement:
+
+- current `placeKey` should be treated as the reviewed place meaning for Stops/map fallback
+- future Journey/Summary cleanliness should come from a separate grouping layer, not by collapsing every rail mapping to city-level now
+- direct-admin municipalities should group to the municipality
+- prefecture-level cities, autonomous prefectures, leagues, and equivalent regional units are the preferred future grouping level
+
+Examples:
+
+- `横道河子东`
+  - map place may later be a more specific reviewed local place
+  - Journey/Summary grouping should eventually roll up to a Mudanjiang-level grouping
+- `宝坻`
+  - map place may remain `Baodi`
+  - Journey/Summary grouping should eventually roll up to `Tianjin`
+- `怀柔`
+  - map place may remain `Huairou`
+  - Journey/Summary grouping should eventually roll up to `Beijing`
+- `太谷`
+  - map place may remain `Taigu`
+  - Journey/Summary grouping should eventually roll up to `Jinzhong`
+- `丹阳`
+  - map place may remain `Danyang`
+  - Journey/Summary grouping should eventually roll up to `Zhenjiang`
 
 ## 6. Transport Endpoint -> Place Mapping Design
 
@@ -336,6 +389,7 @@ Recommended implementation boundary:
 
 - endpoint catalogs are responsible for search + endpoint facts + default place mapping
 - Place Catalog is responsible for standard labels + place-level coordinates + timezone/country/admin metadata
+- future grouping logic should be responsible for city-level Journey/Summary rollups
 
 ## 7. Map Coordinate Fallback Design
 
@@ -363,6 +417,18 @@ Why city fallback is acceptable:
 - city-level fallback is honest enough for Journey meaning
 - it is often good enough for MVP route context when exact rail geometry is missing
 - it must not pretend to be exact station geography
+
+Important non-goal:
+
+- city-level grouping needs must not be solved by mass-changing reviewed rail map places to city-level
+- do not remove existing district/county/town Place Catalog entries just to make Summary grouping look cleaner
+- do not apply reviewed rail station overrides until the grouping policy is documented and accepted
+
+Override policy:
+
+- a reviewed rail override should represent the reviewed map/coordinate place
+- it must not be treated as the final Journey/Summary grouping key by default
+- future city-level or prefecture-level grouping belongs in a separate Journey/Summary grouping layer
 
 Future UI implication:
 

@@ -1501,6 +1501,7 @@ Rules:
 - Normal display must stay separate from grouped statistics display.
 - Grouped labels such as `Nara + Tokyo` belong only to statistics/day calculations.
 - If no Stays are available, fall back to `journeys.destination`.
+- A future rail-aware grouping layer may roll more specific reviewed places up to city-level or prefecture-level reporting identities without rewriting the underlying reviewed map place.
 
 ### JOURNEY-DECISION-096
 
@@ -1513,6 +1514,9 @@ Rules:
 - Unresolved grouped stays are not shown as individual list rows in Top destinations.
 - When unresolved grouped stay days exist, Top destinations should show a compact note such as `Unresolved stays total 15 days not included.`
 - Do not assign the full grouped days to each individual place inside an unresolved block.
+- Direct-admin municipalities should group to the municipality itself.
+- Prefecture-level cities, autonomous prefectures, leagues, and equivalent regional units are the preferred future reporting level for cleaner Journey/Summary destination statistics.
+- That grouping layer should stay separate from reviewed map fallback places so rail map accuracy does not have to collapse to the same coarser identity.
 
 ### JOURNEY-DECISION-097
 

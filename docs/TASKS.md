@@ -461,14 +461,14 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `RAIL-STATION-PLACE-OVERRIDE-001A`.
+Latest completed design checkpoint: `RAIL-PLACE-GRANULARITY-DESIGN-001`.
 
-Recommended next task: `RAIL-STATION-PLACE-OVERRIDE-001B` after human review of `docs/reviews/rail-place-override-batch-001.csv`.
+Recommended next task: `JOURNEY-PLACE-GROUPING-001` before applying `RAIL-STATION-PLACE-OVERRIDE-001B`.
 
 The recommended next implementation order is now:
 
-1. reviewed override decisions from `docs/reviews/rail-place-override-batch-001.csv`
-2. `manual verification for MAP-CITY-FALLBACK-001 + MAP-UNRESOLVED-RAIL-001`
+1. `JOURNEY-PLACE-GROUPING-001`
+2. reviewed override decisions from `docs/reviews/rail-place-override-batch-001.csv`
 3. `next chosen issue`
 
 Implementation notes:

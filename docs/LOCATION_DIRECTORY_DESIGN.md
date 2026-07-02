@@ -341,6 +341,25 @@ That means:
 
 This reduces the risk that airport names, rail station names, and mixed-language labels all fragment into different pseudo-destinations.
 
+## 13A. Rail Granularity Policy
+
+Current issue:
+
+- the current rail `placeKey` can leak across map fallback, Journey normalization, persisted Stops, and Summary aggregation
+- that creates pressure to collapse reviewed rail places to coarse city labels even when a more specific reviewed place would be safer for map fallback
+
+Accepted policy:
+
+- route-map fallback should keep the most specific reviewed place that is safely supported by the Place Catalog
+- future Journey/Summary cleanup should come from a separate city-level or prefecture-level grouping layer
+- direct-admin municipalities should group to the municipality, while prefecture-level cities, autonomous prefectures, leagues, and equivalent regional units are the preferred future grouping level
+
+What not to do:
+
+- do not mass-change existing resolved rail station `placeKey` values to city-level
+- do not remove existing district/county/town Place Catalog entries just to simplify Summary output
+- do not use grouping needs as a reason to degrade route-map fallback accuracy
+
 ## 14. Recommended Future Task Sequence
 
 Smallest safe sequence:

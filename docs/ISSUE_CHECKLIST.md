@@ -824,7 +824,7 @@
   - Clean up the remaining candidate review artifact so key-collision rows no longer appear as safe auto-add work.
   - Status: `Implemented / conflict review cleanup`
   - Notes:
-    - `cn-qianan / ??` is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
+    - `cn-qianan / 迁安` is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
     - The reviewed-safe source file excludes skipped conflict rows and keeps only the safe matches actually applied by regeneration.
   - Priority: `High`
 
@@ -843,15 +843,16 @@
   - Status: `Implemented / first human review batch prepared`
   - Notes:
     - The first worksheet now lives at `docs/reviews/rail-place-override-batch-001.csv`.
-    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / ??` key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
+    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 迁安` key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
     - `data-sources/rail/rail-station-place-overrides.json` remains empty, so no reviewed override is applied by runtime generation yet.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-OVERRIDE-001B`
   - Apply the first approved override batch only after explicit human review decisions are captured from the batch worksheet.
-  - Status: `Open / awaiting reviewed override decisions`
+  - Status: `Open / paused pending documented granularity policy and reviewed override decisions`
   - Notes:
-    - Do not approve KUX, `cn-qianan / ??`, or any risky slug-only mapping without explicit evidence and a reviewed decision.
+    - Do not approve KUX, `cn-qianan / 迁安`, or any risky slug-only mapping without explicit evidence and a reviewed decision.
+    - Any future reviewed override should represent the reviewed map/coordinate place, not a forced Journey/Summary grouping key.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-COVERAGE-002`
@@ -860,6 +861,20 @@
   - Notes:
     - Coverage has now been regenerated after the safe GeoNames China additions and reviewed canonicalization batch.
     - Remaining unresolved groups still require review or future override work.
+  - Priority: `High`
+
+- `RAIL-PLACE-GRANULARITY-DESIGN-001`
+  - Record the accepted policy that reviewed rail map places may stay more specific, while Journey/Summary should later use a separate city-level or prefecture-level grouping layer.
+  - Status: `Documented / accepted policy`
+  - Notes:
+    - Do not collapse all reviewed rail station places to city-level just to simplify Summary.
+    - Do not remove smaller Place Catalog entries.
+    - Do not apply reviewed rail station overrides until this policy is documented.
+  - Priority: `High`
+
+- `JOURNEY-PLACE-GROUPING-001`
+  - Design and later implement a separate city-level or prefecture-level grouping layer for Journey destination display and Summary aggregation without degrading route-map fallback accuracy.
+  - Status: `Open / next design or implementation task`
   - Priority: `High`
 
 - `JOURNEY-STOPS-DATA-001`
