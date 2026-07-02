@@ -352,6 +352,7 @@ Important refinement:
 
 - current `placeKey` should be treated as the reviewed place meaning for Stops/map fallback
 - future Journey/Summary cleanliness should come from a separate grouping layer, not by collapsing every rail mapping to city-level now
+- `JOURNEY-PLACE-GROUPING-001A` now provides the first reviewed/generated grouping-map data layer without changing current runtime aggregation
 - direct-admin municipalities should group to the municipality
 - prefecture-level cities, autonomous prefectures, leagues, and equivalent regional units are the preferred future grouping level
 
@@ -429,6 +430,7 @@ Override policy:
 - a reviewed rail override should represent the reviewed map/coordinate place
 - it must not be treated as the final Journey/Summary grouping key by default
 - future city-level or prefecture-level grouping belongs in a separate Journey/Summary grouping layer
+- that grouping layer now has a standalone reviewed/generated data foundation, but Summary and Journey labels should not switch to it until a later runtime task
 
 Future UI implication:
 

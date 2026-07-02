@@ -40,6 +40,7 @@ Current repo inspection shows:
 - The lightweight Create/Edit Stays editor is implemented.
 - Summary includes all-time totals, a selected-year Travel calendar, Travel highlights, Top destinations, Top companions, and Cost by currency modules.
 - Summary Top destinations now prefer persisted Stays when available, while old journeys without Stays still use safe legacy fallback.
+- A separate reviewed/generated place-grouping data layer now exists for future city-level or prefecture-level Journey/Summary rollups, but runtime aggregation still remains unchanged until `JOURNEY-PLACE-GROUPING-001B`.
 - Journey map coloring and advanced year-scoped map behavior remain future work.
 - Per-stay lodging, per-stay notes, and later review prompts remain future work.
 
@@ -1502,6 +1503,7 @@ Rules:
 - Grouped labels such as `Nara + Tokyo` belong only to statistics/day calculations.
 - If no Stays are available, fall back to `journeys.destination`.
 - A future rail-aware grouping layer may roll more specific reviewed places up to city-level or prefecture-level reporting identities without rewriting the underlying reviewed map place.
+- `JOURNEY-PLACE-GROUPING-001A` adds the reviewed/generated grouping data layer only; it does not change Journey List, Journey Detail, or Summary runtime behavior yet.
 
 ### JOURNEY-DECISION-096
 

@@ -872,9 +872,18 @@
     - Do not apply reviewed rail station overrides until this policy is documented.
   - Priority: `High`
 
-- `JOURNEY-PLACE-GROUPING-001`
-  - Design and later implement a separate city-level or prefecture-level grouping layer for Journey destination display and Summary aggregation without degrading route-map fallback accuracy.
-  - Status: `Open / next design or implementation task`
+- `JOURNEY-PLACE-GROUPING-001A`
+  - Add the first safe reviewed/generated place-grouping data layer so Journey and Summary can later roll specific places up to city-level or prefecture-level identities without degrading route-map fallback accuracy.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - This checkpoint adds source data, generated data, a loader/helper, and validation only.
+    - `journey_stops.placeKey` remains the specific reviewed place identity.
+    - Summary Top destinations do not use the grouping map yet.
+  - Priority: `High`
+
+- `JOURNEY-PLACE-GROUPING-001B`
+  - Wire the grouping layer into Journey/Summary aggregation and, if accepted later, destination display without changing RouteMap fallback accuracy.
+  - Status: `Open / next implementation task`
   - Priority: `High`
 
 - `JOURNEY-STOPS-DATA-001`

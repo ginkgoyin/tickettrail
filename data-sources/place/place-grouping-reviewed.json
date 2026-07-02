@@ -1,0 +1,14 @@
+[
+  {
+    "placeKey": "cn-danyang",
+    "summaryPlaceKey": "cn-zhenjiang",
+    "groupingLevel": "prefecture",
+    "notes": "Reviewed safe city-level roll-up for Journey/Summary grouping."
+  },
+  {
+    "placeKey": "cn-hailin",
+    "summaryPlaceKey": "cn-mudanjiang",
+    "groupingLevel": "prefecture",
+    "notes": "Reviewed safe city-level roll-up for Journey/Summary grouping."
+  }
+]

@@ -15,6 +15,7 @@
     "data:generate:airports": "node scripts/generate-airports-data.mjs",
     "data:generate:place-catalog": "node scripts/generate-place-catalog-data.mjs --download",
     "data:generate:transport-place": "node scripts/generate-transport-place-data.mjs",
+    "data:generate:place-grouping": "node scripts/generate-place-grouping-data.mjs",
     "data:generate:rail-stations": "node scripts/generate-rail-stations-data.mjs",
     "data:review:rail-geonames-candidates": "node scripts/generate-rail-geonames-candidate-review.mjs",
     "data:review:rail-place-override-priority": "node scripts/generate-rail-place-override-priority.mjs",
