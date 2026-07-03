@@ -883,11 +883,21 @@
 
 - `JOURNEY-PLACE-GROUPING-001B`
   - Wire the grouping layer into Summary Top destinations aggregation without changing RouteMap fallback accuracy, Journey List labels, or Journey Detail labels.
-  - Status: `Implemented / needs manual verification`
+  - Status: `Implemented / manually verified`
   - Notes:
     - Summary now aggregates persisted `journey_stops.placeKey` through `summaryPlaceKey` when a reviewed grouping exists.
     - Grouping is limited to Summary Top destinations only in this checkpoint.
+    - Manual verification passed for the accepted `Danyang -> Zhenjiang` example: Journey Detail still showed the specific place while Summary grouped it under Zhenjiang.
     - Persisted `journey_stops.placeKey` storage remains unchanged.
+  - Priority: `High`
+
+- `JOURNEY-PLACE-GROUPING-001C`
+  - Prepare a reviewed candidate expansion worksheet for future Journey/Summary place grouping coverage without changing runtime aggregation behavior.
+  - Status: `Implemented / needs human review`
+  - Notes:
+    - Candidate review output now lives at `docs/reviews/place-grouping-candidate-review.csv`.
+    - The worksheet keeps the current two applied seed entries as reference rows and adds a small rail-prioritized review batch only.
+    - Missing or unresolved examples such as `KUX / ?????` remain outside the applied grouping map.
   - Priority: `High`
 
 - `JOURNEY-STOPS-DATA-001`

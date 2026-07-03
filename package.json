@@ -23,7 +23,8 @@
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/check-release-version.mjs",
     "data:validate:rail-station-place": "node scripts/validate-rail-station-place-coverage.mjs",
-    "data:validate:rail-station-place-overrides": "node scripts/validate-rail-station-place-overrides.mjs"
+    "data:validate:rail-station-place-overrides": "node scripts/validate-rail-station-place-overrides.mjs",
+    "data:review:place-grouping-candidates": "node scripts/generate-place-grouping-candidate-review.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
