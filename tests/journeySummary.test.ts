@@ -352,6 +352,110 @@ describe("journeySummary helpers", () => {
     expect(summary.unresolvedStays).toEqual([]);
   });
 
+  it("groups grouped stays under the summary place key when a reviewed grouping exists", () => {
+    const ticket = makeTicket({
+      id: "t-danyang",
+      departure: makeLocation("Shanghai", "PVG"),
+      arrival: makeLocation("Danyang", "DYH"),
+      arrivalTimeLocal: "2026-05-01T10:00",
+    });
+    const journey = makeJourney({
+      id: "j-danyang",
+      title: "Danyang stay",
+      startDate: "2026-05-01",
+      endDate: "2026-05-03",
+      ticketIds: ["t-danyang"],
+    });
+    const stopsByJourneyId = {
+      "j-danyang": [
+        makeStop({
+          id: "s-danyang",
+          journeyId: "j-danyang",
+          placeName: "Danyang",
+          placeKey: "cn-danyang",
+          departureDateTime: "2026-05-03T00:00:00",
+          source: "manual",
+          sortOrder: 0,
+          userEdited: true,
+        }),
+      ],
+    };
+
+    const summary = buildJourneySummaryBase([journey], [ticket], "2026", { stopsByJourneyId });
+
+    expect(summary.topDestinations).toEqual([
+      { label: "Zhenjiang", journeyCount: 1, dedupedTravelDays: 3 },
+    ]);
+    expect(stopsByJourneyId["j-danyang"][0].placeKey).toBe("cn-danyang");
+  });
+
+  it("combines grouped and already-group-level stays under the same summary destination", () => {
+    const tickets = [
+      makeTicket({
+        id: "t-hailin",
+        departure: makeLocation("Harbin", "VAB"),
+        arrival: makeLocation("Hailin", "HLN"),
+        arrivalTimeLocal: "2026-02-01T10:00",
+      }),
+      makeTicket({
+        id: "t-mudanjiang",
+        departure: makeLocation("Harbin", "VAB"),
+        arrival: makeLocation("Mudanjiang", "MDG"),
+        arrivalTimeLocal: "2026-03-01T10:00",
+      }),
+    ];
+
+    const journeys = [
+      makeJourney({
+        id: "j-hailin",
+        title: "Hailin stay",
+        startDate: "2026-02-01",
+        endDate: "2026-02-03",
+        ticketIds: ["t-hailin"],
+      }),
+      makeJourney({
+        id: "j-mudanjiang",
+        title: "Mudanjiang stay",
+        startDate: "2026-03-01",
+        endDate: "2026-03-02",
+        ticketIds: ["t-mudanjiang"],
+      }),
+    ];
+
+    const stopsByJourneyId = {
+      "j-hailin": [
+        makeStop({
+          id: "s-hailin",
+          journeyId: "j-hailin",
+          placeName: "Hailin",
+          placeKey: "cn-hailin",
+          departureDateTime: "2026-02-03T00:00:00",
+          source: "manual",
+          sortOrder: 0,
+          userEdited: true,
+        }),
+      ],
+      "j-mudanjiang": [
+        makeStop({
+          id: "s-mudanjiang",
+          journeyId: "j-mudanjiang",
+          placeName: "Mudanjiang",
+          placeKey: "cn-mudanjiang",
+          departureDateTime: "2026-03-02T00:00:00",
+          source: "manual",
+          sortOrder: 0,
+          userEdited: true,
+        }),
+      ],
+    };
+
+    const summary = buildJourneySummaryBase(journeys, tickets, "2026", { stopsByJourneyId });
+
+    expect(summary.topDestinations).toEqual([
+      { label: "Mudanjiang", journeyCount: 2, dedupedTravelDays: 5 },
+    ]);
+  });
+
   it("counts a repeated stay place only once per journey while combining its stay-specific days", () => {
     const ticket = makeTicket({
       id: "t-repeat",

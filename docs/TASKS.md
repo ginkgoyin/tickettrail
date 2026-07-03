@@ -461,15 +461,14 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed design checkpoint: `JOURNEY-PLACE-GROUPING-001A`.
+Latest completed design checkpoint: `JOURNEY-PLACE-GROUPING-001B`.
 
-Recommended next task: `JOURNEY-PLACE-GROUPING-001B` before applying `RAIL-STATION-PLACE-OVERRIDE-001B`.
+Recommended next task: `RAIL-STATION-PLACE-OVERRIDE-001B` or another next chosen issue after Summary grouping manual verification.
 
 The recommended next implementation order is now:
 
-1. `JOURNEY-PLACE-GROUPING-001B`
-2. reviewed override decisions from `docs/reviews/rail-place-override-batch-001.csv`
-3. `next chosen issue`
+1. reviewed override decisions from `docs/reviews/rail-place-override-batch-001.csv`
+2. `next chosen issue`
 
 Implementation notes:
 
@@ -486,7 +485,8 @@ Implementation notes:
 - `PLACE-CATALOG-001` now provides the first real GeoNames-backed city/place source of truth.
 - Current size findings showed `cities1000.zip` was too large for the current repository/runtime foundation, so the practical default is now `cities5000.zip`.
 - `TRANSPORT-PLACE-MAPPING-001` is now implemented as a separate generated mapping file so runtime does not need to eagerly import the full 26 MB Place Catalog just to normalize Journey labels.
-- `JOURNEY-PLACE-GROUPING-001A` now adds a separate reviewed/generated grouping map for future city-level or prefecture-level Journey/Summary rollups without changing current runtime aggregation.
+- `JOURNEY-PLACE-GROUPING-001A` now adds a separate reviewed/generated grouping map for future city-level or prefecture-level Journey/Summary rollups.
+- `JOURNEY-PLACE-GROUPING-001B` now uses that grouping map in Summary Top destinations only, while Journey List/Detail labels and RouteMap behavior remain unchanged.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.

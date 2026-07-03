@@ -3,6 +3,7 @@ import type { TicketLocation, TicketRecord } from "../types/ticket";
 import { normalizeJourneyDisplayText } from "./journeyDisplay";
 import type { Language } from "./i18n";
 import { getTicketEndpointPlaces } from "./journeyPlace";
+import { getSummaryGroupingForPlaceKey } from "./placeGrouping";
 
 export interface JourneySummaryTravelDayEntry {
   journeyId: string;
@@ -619,20 +620,45 @@ function normalizeStopLabel(stop: Pick<JourneyStop, "placeName">) {
   return normalizeJourneyDisplayText(stop.placeName);
 }
 
-function buildSummaryPlaceIdentity(stop: Pick<JourneyStop, "placeKey" | "placeName">) {
-  const label = normalizeJourneyDisplayText(stop.placeName);
-  if (!label) {
+function getSummaryGroupingLabel(
+  groupedPlace: ReturnType<typeof getSummaryGroupingForPlaceKey>,
+  preferredLanguage: Language,
+) {
+  if (!groupedPlace) {
+    return undefined;
+  }
+
+  const preferredLabel = preferredLanguage === "zh"
+    ? groupedPlace.summaryPlaceNameZh || groupedPlace.summaryPlaceNameEn
+    : groupedPlace.summaryPlaceNameEn || groupedPlace.summaryPlaceNameZh;
+
+  return normalizeJourneyDisplayText(preferredLabel);
+}
+
+function buildSummaryPlaceIdentity(
+  stop: Pick<JourneyStop, "placeKey" | "placeName">,
+  options: JourneyPlaceDisplayOptions = {},
+) {
+  const fallbackLabel = normalizeJourneyDisplayText(stop.placeName);
+  if (!fallbackLabel) {
     return null;
   }
 
-  const key = stop.placeKey?.trim().toLowerCase() || label.toLowerCase();
-  return { key, label };
+  const normalizedPlaceKey = stop.placeKey?.trim().toLowerCase();
+  const groupedPlace = normalizedPlaceKey ? getSummaryGroupingForPlaceKey(normalizedPlaceKey) : null;
+  const groupedLabel = getSummaryGroupingLabel(groupedPlace, options.preferredLanguage ?? "en");
+
+  return {
+    key: groupedPlace?.summaryPlaceKey?.trim().toLowerCase() || normalizedPlaceKey || fallbackLabel.toLowerCase(),
+    label: groupedLabel || fallbackLabel,
+  };
 }
 
 function resolveJourneyStopsForSummary(
   journey: Journey,
   linkedTickets: TicketRecord[],
   stops: JourneyStop[],
+  options: JourneyPlaceDisplayOptions = {},
 ): JourneySummaryResolvedStops {
   const orderedStops = [...stops]
     .filter((stop) => normalizeStopLabel(stop))
@@ -648,7 +674,7 @@ function resolveJourneyStopsForSummary(
 
   for (let index = 0; index < orderedStops.length; index += 1) {
     const stop = orderedStops[index];
-    const placeIdentity = buildSummaryPlaceIdentity(stop);
+    const placeIdentity = buildSummaryPlaceIdentity(stop, options);
     if (!placeIdentity) {
       continue;
     }
@@ -777,7 +803,7 @@ export function buildJourneySummaryBase(
       travelDaysByMonth.set(monthKey, monthDays);
     });
 
-    const resolvedStops = resolveJourneyStopsForSummary(journey, linkedTickets, journeyStops);
+    const resolvedStops = resolveJourneyStopsForSummary(journey, linkedTickets, journeyStops, options);
 
     if (resolvedStops.confirmed.length > 0 || resolvedStops.unresolved.length > 0) {
       resolvedStops.confirmed.forEach((entry) => {

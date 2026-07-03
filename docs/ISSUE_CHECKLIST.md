@@ -882,8 +882,12 @@
   - Priority: `High`
 
 - `JOURNEY-PLACE-GROUPING-001B`
-  - Wire the grouping layer into Journey/Summary aggregation and, if accepted later, destination display without changing RouteMap fallback accuracy.
-  - Status: `Open / next implementation task`
+  - Wire the grouping layer into Summary Top destinations aggregation without changing RouteMap fallback accuracy, Journey List labels, or Journey Detail labels.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Summary now aggregates persisted `journey_stops.placeKey` through `summaryPlaceKey` when a reviewed grouping exists.
+    - Grouping is limited to Summary Top destinations only in this checkpoint.
+    - Persisted `journey_stops.placeKey` storage remains unchanged.
   - Priority: `High`
 
 - `JOURNEY-STOPS-DATA-001`

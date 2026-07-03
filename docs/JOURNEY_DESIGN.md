@@ -1503,7 +1503,8 @@ Rules:
 - Grouped labels such as `Nara + Tokyo` belong only to statistics/day calculations.
 - If no Stays are available, fall back to `journeys.destination`.
 - A future rail-aware grouping layer may roll more specific reviewed places up to city-level or prefecture-level reporting identities without rewriting the underlying reviewed map place.
-- `JOURNEY-PLACE-GROUPING-001A` adds the reviewed/generated grouping data layer only; it does not change Journey List, Journey Detail, or Summary runtime behavior yet.
+- `JOURNEY-PLACE-GROUPING-001A` adds the reviewed/generated grouping data layer only; it does not change Journey List, Journey Detail, or RouteMap behavior.
+- `JOURNEY-PLACE-GROUPING-001B` now uses that grouping map in Summary Top destinations only when persisted Stays/Stops are available.
 
 ### JOURNEY-DECISION-096
 
@@ -1519,6 +1520,7 @@ Rules:
 - Direct-admin municipalities should group to the municipality itself.
 - Prefecture-level cities, autonomous prefectures, leagues, and equivalent regional units are the preferred future reporting level for cleaner Journey/Summary destination statistics.
 - That grouping layer should stay separate from reviewed map fallback places so rail map accuracy does not have to collapse to the same coarser identity.
+- `JOURNEY-PLACE-GROUPING-001B` currently applies grouping in Summary Top destinations only; Journey List and Journey Detail labels still keep their existing specific-place behavior.
 
 ### JOURNEY-DECISION-097
 
