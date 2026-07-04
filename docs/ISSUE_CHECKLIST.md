@@ -919,6 +919,16 @@
     - Current blocked rows are now explicitly documented with blockers such as `blocked_ambiguous_station_match` instead of being left as generic follow-up noise.
   - Priority: `High`
 
+- `PLACE-GROUPING-MIXED-REPAIR-002`
+  - Re-check the remaining 5 blocked mixed rows, apply only newly safe exact telecode repairs, and then pause the current rail/place/grouping cleanup line.
+  - Status: `Implemented / paused after verification-only re-check`
+  - Notes:
+    - The 5 blocked rows were re-checked against current generated rail data, current reviewed overrides, and existing Place Catalog keys.
+    - No additional safe exact telecode repair was found without lowering current map specificity or guessing unresolved station identity.
+    - The remaining blocked rows are: `cn-dongsheng`, `cn-changge`, `cn-huarong`, `cn-jiashan`, and `cn-linhai`.
+    - This rail/place/grouping cleanup line is now intentionally paused so the next design/implementation track can move to the complete Overview redesign.
+  - Priority: `High`
+
 - `JOURNEY-STOPS-DATA-001`
   - Add the future `journey_stops` persistence model and migration path after Stop semantics and place normalization are accepted.
   - Status: `Implemented / needs manual verification`

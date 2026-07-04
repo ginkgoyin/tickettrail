@@ -461,15 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `PLACE-GROUPING-MIXED-REPAIR-001`.
+Latest completed implementation checkpoint: `PLACE-GROUPING-MIXED-REPAIR-002`.
 
-Recommended next task: `PLACE-GROUPING-MIXED-REPAIR-002`, `RAIL-STATION-PLACE-OVERRIDE-001B`, or another next chosen issue after this first mixed-row repair batch is manually verified.
+Recommended next task: `OVERVIEW-REDESIGN-001` after the current rail/place/grouping cleanup line is intentionally paused.
 
 The recommended next implementation order is now:
 
-1. manually verify repaired mixed rows in `docs/reviews/place-grouping-mixed-placekey-repair.csv`
-2. process the remaining blocked rows in a focused follow-up such as `PLACE-GROUPING-MIXED-REPAIR-002`
-3. resume the next chosen issue
+1. move to the complete `OVERVIEW-REDESIGN-001` design / implementation track
+2. keep the current rail/place/grouping cleanup line paused unless a future task explicitly reopens it
+3. resume another next chosen issue only after the Overview direction is accepted
 
 Implementation notes:
 
@@ -491,6 +491,8 @@ Implementation notes:
 - `JOURNEY-PLACE-GROUPING-001C` now generates a candidate review worksheet for future grouping expansion without applying new grouping entries beyond the current two seeds.
 - `JOURNEY-PLACE-GROUPING-001D` now applies only the 4 explicitly approved grouping rows and records the other 23 mixed candidates in a separate repair worksheet instead of guessing them.
 - `PLACE-GROUPING-MIXED-REPAIR-001` now inspects all 23 mixed rows in one pass, applies only safe exact `telecode` repairs, and records the remaining blocked rows as station-identity or place-catalog follow-up work instead of vague grouping debt.
+- `PLACE-GROUPING-MIXED-REPAIR-002` re-checks those 5 blocked rows and leaves them blocked intentionally because no additional safe exact repair is available from current local data without lowering current map specificity or guessing station identity.
+- After `PLACE-GROUPING-MIXED-REPAIR-002`, the current rail/place/grouping cleanup line is intentionally paused so the next major track can move to a complete Overview redesign.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.

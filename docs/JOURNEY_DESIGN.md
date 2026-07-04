@@ -1507,6 +1507,7 @@ Rules:
 - `JOURNEY-PLACE-GROUPING-001B` now uses that grouping map in Summary Top destinations only when persisted Stays/Stops are available, and manual verification passed for the accepted `Danyang -> Zhenjiang` grouping example.
 - `JOURNEY-PLACE-GROUPING-001D` applies only the four explicitly approved grouping rows, while the remaining mixed placeKey candidates stay in a separate repair worksheet instead of being guessed or auto-applied.
 - `PLACE-GROUPING-MIXED-REPAIR-001` then processes that worksheet in one reviewed pass: safe exact `telecode` repairs are applied through the rail override layer, while unresolved station-identity cases remain blocked explicitly instead of being hidden behind broader grouping changes.
+- `PLACE-GROUPING-MIXED-REPAIR-002` re-checks those blocked rows and intentionally keeps them blocked when no additional safe exact repair is available from current local data; this cleanup line is then paused so the next focus can move to Overview redesign rather than continuing speculative rail-place cleanup.
 
 ### JOURNEY-DECISION-096
 
