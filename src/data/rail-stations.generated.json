@@ -5605,11 +5605,11 @@
       "cl"
     ],
     "countryCode": "CN",
-    "placeNameZh": "长乐",
-    "placeNameEn": "Changle",
-    "placeKey": "cn-changle",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "福州市",
+    "placeNameEn": "Fuzhou",
+    "placeKey": "cn-fuzhou",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-cis",
@@ -5628,11 +5628,11 @@
       "cld"
     ],
     "countryCode": "CN",
-    "placeNameZh": "长乐",
-    "placeNameEn": "Changle",
-    "placeKey": "cn-changle",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "福州市",
+    "placeNameEn": "Fuzhou",
+    "placeKey": "cn-fuzhou",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-cvs",
@@ -5651,11 +5651,11 @@
       "cln"
     ],
     "countryCode": "CN",
-    "placeNameZh": "长乐",
-    "placeNameEn": "Changle",
-    "placeKey": "cn-changle",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "福州市",
+    "placeNameEn": "Fuzhou",
+    "placeKey": "cn-fuzhou",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-clp",
@@ -5835,11 +5835,11 @@
       "cp"
     ],
     "countryCode": "CN",
-    "placeNameZh": "常平",
-    "placeNameEn": "Changping",
-    "placeKey": "cn-changping",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "东莞市",
+    "placeNameEn": "Dongguan",
+    "placeKey": "cn-dongguan",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-vbp",
@@ -5881,11 +5881,11 @@
       "cpd"
     ],
     "countryCode": "CN",
-    "placeNameZh": "常平",
-    "placeNameEn": "Changping",
-    "placeKey": "cn-changping",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "东莞市",
+    "placeNameEn": "Dongguan",
+    "placeKey": "cn-dongguan",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fpq",
@@ -13793,11 +13793,11 @@
       "fc"
     ],
     "countryCode": "CN",
-    "placeNameZh": "丰城",
-    "placeNameEn": "Fengcheng",
-    "placeKey": "cn-fengcheng",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "宜春",
+    "placeNameEn": "Yichun",
+    "placeKey": "cn-yichun",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fig",
@@ -13816,11 +13816,11 @@
       "fcd"
     ],
     "countryCode": "CN",
-    "placeNameZh": "丰城",
-    "placeNameEn": "Fengcheng",
-    "placeKey": "cn-fengcheng",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "宜春",
+    "placeNameEn": "Yichun",
+    "placeKey": "cn-yichun",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fdt",
@@ -13841,9 +13841,9 @@
     "countryCode": "CN",
     "placeNameZh": "凤城",
     "placeNameEn": "Fengcheng",
-    "placeKey": "cn-fengcheng",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeKey": "cn-fengcheng-19",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fng",
@@ -13862,11 +13862,11 @@
       "fcn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "丰城",
-    "placeNameEn": "Fengcheng",
-    "placeKey": "cn-fengcheng",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "宜春",
+    "placeNameEn": "Yichun",
+    "placeKey": "cn-yichun",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fuw",
@@ -14782,11 +14782,11 @@
       "fn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "抚宁",
-    "placeNameEn": "Songcheng",
-    "placeKey": "cn-songcheng",
-    "placeConfidence": "medium",
-    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact"
+    "placeNameZh": "秦皇岛",
+    "placeNameEn": "Qinhuangdao",
+    "placeKey": "cn-qinhuangdao",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact+reviewed-override:telecode"
   },
   {
     "id": "loc-station-akh",
@@ -14805,11 +14805,11 @@
       "fn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "阜宁",
-    "placeNameEn": "Songcheng",
-    "placeKey": "cn-songcheng",
-    "placeConfidence": "medium",
-    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact"
+    "placeNameZh": "盐城",
+    "placeNameEn": "Yancheng",
+    "placeKey": "cn-yancheng",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fnm",
@@ -14828,11 +14828,11 @@
       "fn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "富宁",
-    "placeNameEn": "Songcheng",
-    "placeKey": "cn-songcheng",
-    "placeConfidence": "medium",
-    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact"
+    "placeNameZh": "文山",
+    "placeNameEn": "Wenshan City",
+    "placeKey": "cn-wenshan-city",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fdu",
@@ -15288,11 +15288,11 @@
       "fx"
     ],
     "countryCode": "CN",
-    "placeNameZh": "富县",
-    "placeNameEn": "Wafangdian",
-    "placeKey": "cn-wafangdian",
-    "placeConfidence": "medium",
-    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact"
+    "placeNameZh": "延安",
+    "placeNameEn": "Yan’an",
+    "placeKey": "cn-yan-an",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fdy",
@@ -15541,11 +15541,11 @@
       "fy"
     ],
     "countryCode": "CN",
-    "placeNameZh": "富源",
-    "placeNameEn": "Fuyuan",
-    "placeKey": "cn-fuyuan",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "曲靖市",
+    "placeNameEn": "Qujing",
+    "placeKey": "cn-qujing",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fbm",
@@ -15564,11 +15564,11 @@
       "fyb"
     ],
     "countryCode": "CN",
-    "placeNameZh": "富源",
-    "placeNameEn": "Fuyuan",
-    "placeKey": "cn-fuyuan",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "曲靖市",
+    "placeNameEn": "Qujing",
+    "placeKey": "cn-qujing",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-fbt",
@@ -16484,11 +16484,11 @@
       "gp"
     ],
     "countryCode": "CN",
-    "placeNameZh": "高平",
-    "placeNameEn": "Gaoping",
-    "placeKey": "cn-gaoping",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "晋城",
+    "placeNameEn": "Jincheng",
+    "placeKey": "cn-jincheng",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-ggn",
@@ -16530,11 +16530,11 @@
       "gpd"
     ],
     "countryCode": "CN",
-    "placeNameZh": "高平",
-    "placeNameEn": "Gaoping",
-    "placeKey": "cn-gaoping",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "晋城",
+    "placeNameEn": "Jincheng",
+    "placeKey": "cn-jincheng",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-gzd",
@@ -18255,11 +18255,11 @@
       "gc"
     ],
     "countryCode": "CN",
-    "placeNameZh": "谷城",
-    "placeNameEn": "Gucheng",
-    "placeKey": "cn-gucheng",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "襄阳",
+    "placeNameEn": "Xiangyang",
+    "placeKey": "cn-xiangyang",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-gbn",
@@ -18278,11 +18278,11 @@
       "gcb"
     ],
     "countryCode": "CN",
-    "placeNameZh": "谷城",
-    "placeNameEn": "Gucheng",
-    "placeKey": "cn-gucheng",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "襄阳",
+    "placeNameEn": "Xiangyang",
+    "placeKey": "cn-xiangyang",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-guu",
@@ -20348,11 +20348,11 @@
       "hy"
     ],
     "countryCode": "CN",
-    "placeNameZh": "汉源",
-    "placeNameEn": "Hanyuan",
-    "placeKey": "cn-hanyuan",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "雅安市",
+    "placeNameEn": "Ya'an",
+    "placeKey": "cn-ya-an",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-hoy",
@@ -24097,11 +24097,11 @@
       "hs"
     ],
     "countryCode": "CN",
-    "placeNameZh": "华山",
-    "placeNameEn": "Huashan",
-    "placeKey": "cn-huashan",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "渭南",
+    "placeNameEn": "Weinan",
+    "placeKey": "cn-weinan",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-hdy",
@@ -24120,11 +24120,11 @@
       "hsb"
     ],
     "countryCode": "CN",
-    "placeNameZh": "华山",
-    "placeNameEn": "Huashan",
-    "placeKey": "cn-huashan",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "渭南",
+    "placeNameEn": "Weinan",
+    "placeKey": "cn-weinan",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-knn",
@@ -28559,11 +28559,11 @@
       "jx"
     ],
     "countryCode": "CN",
-    "placeNameZh": "进贤",
-    "placeNameEn": "Linghai",
-    "placeKey": "cn-linghai",
-    "placeConfidence": "medium",
-    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact"
+    "placeNameZh": "南昌",
+    "placeNameEn": "Nanchang",
+    "placeKey": "cn-nanchang",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact+reviewed-override:telecode"
   },
   {
     "id": "loc-station-jhg",
@@ -29941,9 +29941,9 @@
     "countryCode": "CN",
     "placeNameZh": "开原",
     "placeNameEn": "Kaiyuan",
-    "placeKey": "cn-kaiyuan",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeKey": "cn-kaiyuan-19",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-kum",
@@ -29987,9 +29987,9 @@
     "countryCode": "CN",
     "placeNameZh": "开原",
     "placeNameEn": "Kaiyuan",
-    "placeKey": "cn-kaiyuan",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeKey": "cn-kaiyuan-19",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-kqx",
@@ -35896,11 +35896,11 @@
       "lf"
     ],
     "countryCode": "CN",
-    "placeNameZh": "侣俸",
-    "placeNameEn": "Lüfeng",
-    "placeKey": "cn-luefeng",
-    "placeConfidence": "medium",
-    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact"
+    "placeNameZh": "汕尾",
+    "placeNameEn": "Shanwei",
+    "placeKey": "cn-shanwei",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact+reviewed-override:telecode"
   },
   {
     "id": "loc-station-lda",
@@ -35919,11 +35919,11 @@
       "lfd"
     ],
     "countryCode": "CN",
-    "placeNameZh": "侣俸",
-    "placeNameEn": "Lüfeng",
-    "placeKey": "cn-luefeng",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix+canonical:transport_mapping"
+    "placeNameZh": "汕尾",
+    "placeNameEn": "Shanwei",
+    "placeKey": "cn-shanwei",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+canonical:transport_mapping+reviewed-override:telecode"
   },
   {
     "id": "loc-station-laa",
@@ -35942,11 +35942,11 @@
       "lfn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "侣俸",
-    "placeNameEn": "Lüfeng",
-    "placeKey": "cn-luefeng",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix+canonical:transport_mapping"
+    "placeNameZh": "汕尾",
+    "placeNameEn": "Shanwei",
+    "placeKey": "cn-shanwei",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+canonical:transport_mapping+reviewed-override:telecode"
   },
   {
     "id": "loc-station-lqm",
@@ -35965,11 +35965,11 @@
       "lfn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "侣俸",
-    "placeNameEn": "Lüfeng",
-    "placeKey": "cn-luefeng",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix+canonical:transport_mapping"
+    "placeNameZh": "楚雄",
+    "placeNameEn": "Chuxiong",
+    "placeKey": "cn-chuxiong",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+canonical:transport_mapping+reviewed-override:telecode"
   },
   {
     "id": "loc-station-lom",
@@ -41623,11 +41623,11 @@
       "nq"
     ],
     "countryCode": "CN",
-    "placeNameZh": "宁强",
-    "placeNameEn": "Hanyuan",
-    "placeKey": "cn-hanyuan",
+    "placeNameZh": "汉中市",
+    "placeNameEn": "Hanzhong",
+    "placeKey": "cn-hanzhong",
     "placeConfidence": "high",
-    "placeRule": "fallback:original-station-name+reviewed-canonicalize"
+    "placeRule": "fallback:original-station-name+reviewed-canonicalize+reviewed-override:telecode"
   },
   {
     "id": "loc-station-noy",
@@ -41646,11 +41646,11 @@
       "nqn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "宁强",
-    "placeNameEn": "Hanyuan",
-    "placeKey": "cn-hanyuan",
+    "placeNameZh": "汉中市",
+    "placeNameEn": "Hanzhong",
+    "placeKey": "cn-hanzhong",
     "placeConfidence": "high",
-    "placeRule": "derived:strip-directional-suffix+reviewed-canonicalize"
+    "placeRule": "derived:strip-directional-suffix+reviewed-canonicalize+reviewed-override:telecode"
   },
   {
     "id": "loc-station-nwv",
@@ -42290,11 +42290,11 @@
       "pa"
     ],
     "countryCode": "CN",
-    "placeNameZh": "霸州",
-    "placeNameEn": "Bazhou",
-    "placeKey": "cn-bazhou",
-    "placeConfidence": "medium",
-    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact"
+    "placeNameZh": "南充",
+    "placeNameEn": "Nanchong",
+    "placeKey": "cn-nanchong",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+canonical:place_name_en_exact+reviewed-override:telecode"
   },
   {
     "id": "loc-station-pxe",
@@ -42336,11 +42336,11 @@
       "pls"
     ],
     "countryCode": "CN",
-    "placeNameZh": "花洲",
-    "placeNameEn": "Dengzhou",
-    "placeKey": "cn-dengzhou",
+    "placeNameZh": "烟台市",
+    "placeNameEn": "Yantai",
+    "placeKey": "cn-yantai",
     "placeConfidence": "high",
-    "placeRule": "fallback:original-station-name+reviewed-canonicalize"
+    "placeRule": "fallback:original-station-name+reviewed-canonicalize+reviewed-override:telecode"
   },
   {
     "id": "loc-station-prm",
@@ -64761,11 +64761,11 @@
       "xh"
     ],
     "countryCode": "CN",
-    "placeNameZh": "新化",
-    "placeNameEn": "Xinhua",
-    "placeKey": "cn-xinhua",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "娄底市",
+    "placeNameEn": "Loudi",
+    "placeKey": "cn-loudi",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-ejq",
@@ -64784,11 +64784,11 @@
       "xhn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "新化",
-    "placeNameEn": "Xinhua",
-    "placeKey": "cn-xinhua",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "娄底市",
+    "placeNameEn": "Loudi",
+    "placeKey": "cn-loudi",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-xlq",
@@ -65566,11 +65566,11 @@
       "xy"
     ],
     "countryCode": "CN",
-    "placeNameZh": "新沂",
-    "placeNameEn": "Xinyi",
-    "placeKey": "cn-xinyi",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "徐州市",
+    "placeNameEn": "Xuzhou",
+    "placeKey": "cn-xuzhou",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-eeq",
@@ -65591,9 +65591,9 @@
     "countryCode": "CN",
     "placeNameZh": "信宜",
     "placeNameEn": "Xinyi",
-    "placeKey": "cn-xinyi",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeKey": "cn-xinyi-30",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-xyu",
@@ -65612,11 +65612,11 @@
       "xyn"
     ],
     "countryCode": "CN",
-    "placeNameZh": "新沂",
-    "placeNameEn": "Xinyi",
-    "placeKey": "cn-xinyi",
-    "placeConfidence": "medium",
-    "placeRule": "derived:strip-directional-suffix"
+    "placeNameZh": "徐州市",
+    "placeNameEn": "Xuzhou",
+    "placeKey": "cn-xuzhou",
+    "placeConfidence": "high",
+    "placeRule": "derived:strip-directional-suffix+reviewed-override:telecode"
   },
   {
     "id": "loc-station-eyb",
@@ -74950,11 +74950,11 @@
       "zj"
     ],
     "countryCode": "CN",
-    "placeNameZh": "芷江",
-    "placeNameEn": "Zhijiang",
-    "placeKey": "cn-zhijiang",
-    "placeConfidence": "low",
-    "placeRule": "fallback:original-station-name"
+    "placeNameZh": "怀化市",
+    "placeNameEn": "Huaihua",
+    "placeKey": "cn-huaihua",
+    "placeConfidence": "high",
+    "placeRule": "fallback:original-station-name+reviewed-override:telecode"
   },
   {
     "id": "loc-station-ziy",

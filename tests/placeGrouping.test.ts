@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { buildPlaceGroupingEntries } from "../scripts/lib/place-grouping-data.mjs";
 import { getSummaryGroupingForPlaceKey, resolveSummaryPlaceKey } from "../src/lib/placeGrouping";
 
@@ -15,6 +15,17 @@ describe("place grouping data layer", () => {
     expect(resolveSummaryPlaceKey("cn-yanping")).toBe("cn-nanping");
     expect(resolveSummaryPlaceKey("cn-humen")).toBe("cn-dongguan");
     expect(resolveSummaryPlaceKey("cn-jian-ou")).toBe("cn-nanping");
+    expect(resolveSummaryPlaceKey("cn-bazhou")).toBe("cn-langfang");
+    expect(resolveSummaryPlaceKey("cn-changping")).toBe("cn-beijing");
+    expect(resolveSummaryPlaceKey("cn-changle")).toBe("cn-weifang");
+    expect(resolveSummaryPlaceKey("cn-fengcheng-19")).toBe("cn-dandong");
+    expect(resolveSummaryPlaceKey("cn-xinyi-30")).toBe("cn-maoming");
+    expect(resolveSummaryPlaceKey("cn-linghai")).toBe("cn-jinzhou");
+    expect(resolveSummaryPlaceKey("cn-wafangdian")).toBe("cn-dalian");
+    expect(resolveSummaryPlaceKey("cn-dengzhou")).toBe("cn-nanyang");
+    expect(resolveSummaryPlaceKey("cn-fuyuan")).toBe("cn-jiamusi");
+    expect(resolveSummaryPlaceKey("cn-gaoping")).toBe("cn-nanchong");
+    expect(resolveSummaryPlaceKey("cn-kaiyuan-19")).toBe("cn-tieling");
   });
 
   it("returns null safely when no summary grouping exists", () => {

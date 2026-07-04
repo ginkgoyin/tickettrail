@@ -911,9 +911,12 @@
 
 - `PLACE-GROUPING-MIXED-REPAIR-001`
   - Repair mixed rail/place candidate keys in small reviewed batches before any additional Journey/Summary grouping rows are approved from those mixed candidates.
-  - Status: `Open / future repair task`
+  - Status: `Implemented / needs manual verification`
   - Notes:
-    - Do not repair or apply these mixed rows blindly; use `docs/reviews/place-grouping-mixed-placekey-repair.csv` as the follow-up queue.
+    - All 23 mixed rows from `docs/reviews/place-grouping-mixed-placekey-repair.csv` were inspected in one pass.
+    - Safe exact `telecode` overrides now repair 13 rows completely and 5 rows partially without using broad place-group overrides.
+    - 5 rows remain blocked on unresolved station identity rather than missing Summary grouping.
+    - Current blocked rows are now explicitly documented with blockers such as `blocked_ambiguous_station_match` instead of being left as generic follow-up noise.
   - Priority: `High`
 
 - `JOURNEY-STOPS-DATA-001`

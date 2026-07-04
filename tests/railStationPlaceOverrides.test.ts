@@ -178,4 +178,16 @@ describe("rail station place overrides", () => {
     expect(resolveRailStationPlace(vab, resolver, { transportPlaceData }).canonicalPlaceKey).toBe("cn-harbin");
     expect(resolveRailStationPlace(txp, resolver, { transportPlaceData }).canonicalPlaceKey).toBe("cn-tianjin");
   });
+
+  it("applies reviewed mixed-row repairs to exact telecodes only", () => {
+    const paW = stations.find((entry) => entry.code === "PAW");
+    const fdt = stations.find((entry) => entry.code === "FDT");
+    const fey = stations.find((entry) => entry.code === "FEY");
+    const kyt = stations.find((entry) => entry.code === "KYT");
+
+    expect(paW?.placeKey).toBe("cn-nanchong");
+    expect(fdt?.placeKey).toBe("cn-fengcheng-19");
+    expect(fey?.placeKey).toBe("cn-yan-an");
+    expect(kyt?.placeKey).toBe("cn-kaiyuan-19");
+  });
 });

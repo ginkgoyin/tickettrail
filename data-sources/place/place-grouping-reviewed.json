@@ -34,5 +34,71 @@
     "summaryPlaceKey": "cn-nanping",
     "groupingLevel": "prefecture",
     "notes": "Approved by user. Sample station names are clean and the roll-up is appropriate for Summary grouping."
+  },
+  {
+    "placeKey": "cn-bazhou",
+    "summaryPlaceKey": "cn-langfang",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair removed Peng'an from the Bazhou rail place bucket."
+  },
+  {
+    "placeKey": "cn-changping",
+    "summaryPlaceKey": "cn-beijing",
+    "groupingLevel": "municipality",
+    "notes": "Safe after reviewed telecode repair removed Dongguan Changping stations from the Beijing Changping rail place bucket."
+  },
+  {
+    "placeKey": "cn-changle",
+    "summaryPlaceKey": "cn-weifang",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair removed Fuzhou Changle stations from the Weifang-side Changle rail place bucket."
+  },
+  {
+    "placeKey": "cn-fengcheng-19",
+    "summaryPlaceKey": "cn-dandong",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair isolated the Liaoning Fengcheng station under the existing Dandong-side place key."
+  },
+  {
+    "placeKey": "cn-xinyi-30",
+    "summaryPlaceKey": "cn-maoming",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair isolated the Maoming-side Xinyi station under the existing specific place key."
+  },
+  {
+    "placeKey": "cn-linghai",
+    "summaryPlaceKey": "cn-jinzhou",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair removed Jinxian from the Linghai rail place bucket."
+  },
+  {
+    "placeKey": "cn-wafangdian",
+    "summaryPlaceKey": "cn-dalian",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair removed Fuxian from the Wafangdian rail place bucket."
+  },
+  {
+    "placeKey": "cn-dengzhou",
+    "summaryPlaceKey": "cn-nanyang",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair removed Penglaishi from the Dengzhou rail place bucket."
+  },
+  {
+    "placeKey": "cn-fuyuan",
+    "summaryPlaceKey": "cn-jiamusi",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair removed Qujing-side Fuyuan stations from the Fuyuan rail place bucket."
+  },
+  {
+    "placeKey": "cn-gaoping",
+    "summaryPlaceKey": "cn-nanchong",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair removed Jincheng-side Gaoping stations from the Nanchong Gaoping rail place bucket."
+  },
+  {
+    "placeKey": "cn-kaiyuan-19",
+    "summaryPlaceKey": "cn-tieling",
+    "groupingLevel": "prefecture",
+    "notes": "Safe after reviewed telecode repair isolated the Liaoning Kaiyuan stations under the existing Tieling-side place key."
   }
 ]
