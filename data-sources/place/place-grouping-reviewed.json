@@ -10,5 +10,29 @@
     "summaryPlaceKey": "cn-mudanjiang",
     "groupingLevel": "prefecture",
     "notes": "Reviewed safe city-level roll-up for Journey/Summary grouping."
+  },
+  {
+    "placeKey": "cn-pingzhuang",
+    "summaryPlaceKey": "cn-chifeng",
+    "groupingLevel": "prefecture",
+    "notes": "Approved by user. Sample station names are clean enough and the roll-up is appropriate for Summary grouping."
+  },
+  {
+    "placeKey": "cn-yanping",
+    "summaryPlaceKey": "cn-nanping",
+    "groupingLevel": "prefecture",
+    "notes": "Approved by user. Sample station names are clean and the roll-up is appropriate for Summary grouping."
+  },
+  {
+    "placeKey": "cn-humen",
+    "summaryPlaceKey": "cn-dongguan",
+    "groupingLevel": "prefecture",
+    "notes": "Approved by user. Sample station names are clean and the roll-up is appropriate for Summary grouping."
+  },
+  {
+    "placeKey": "cn-jian-ou",
+    "summaryPlaceKey": "cn-nanping",
+    "groupingLevel": "prefecture",
+    "notes": "Approved by user. Sample station names are clean and the roll-up is appropriate for Summary grouping."
   }
 ]

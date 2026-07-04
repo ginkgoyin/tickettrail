@@ -1505,6 +1505,7 @@ Rules:
 - A future rail-aware grouping layer may roll more specific reviewed places up to city-level or prefecture-level reporting identities without rewriting the underlying reviewed map place.
 - `JOURNEY-PLACE-GROUPING-001A` adds the reviewed/generated grouping data layer only; it does not change Journey List, Journey Detail, or RouteMap behavior.
 - `JOURNEY-PLACE-GROUPING-001B` now uses that grouping map in Summary Top destinations only when persisted Stays/Stops are available, and manual verification passed for the accepted `Danyang -> Zhenjiang` grouping example.
+- `JOURNEY-PLACE-GROUPING-001D` applies only the four explicitly approved grouping rows, while the remaining mixed placeKey candidates stay in a separate repair worksheet instead of being guessed or auto-applied.
 
 ### JOURNEY-DECISION-096
 
@@ -1521,6 +1522,7 @@ Rules:
 - Prefecture-level cities, autonomous prefectures, leagues, and equivalent regional units are the preferred future reporting level for cleaner Journey/Summary destination statistics.
 - That grouping layer should stay separate from reviewed map fallback places so rail map accuracy does not have to collapse to the same coarser identity.
 - `JOURNEY-PLACE-GROUPING-001B` currently applies grouping in Summary Top destinations only; Journey List and Journey Detail labels still keep their existing specific-place behavior.
+- `JOURNEY-PLACE-GROUPING-001D` does not change Summary logic; it only expands the reviewed grouping data and records the remaining mixed placeKey repairs for future follow-up.
 
 ### JOURNEY-DECISION-097
 

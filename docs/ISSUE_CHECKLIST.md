@@ -893,11 +893,27 @@
 
 - `JOURNEY-PLACE-GROUPING-001C`
   - Prepare a reviewed candidate expansion worksheet for future Journey/Summary place grouping coverage without changing runtime aggregation behavior.
-  - Status: `Implemented / needs human review`
+  - Status: `Implemented / human review captured in follow-up`
   - Notes:
     - Candidate review output now lives at `docs/reviews/place-grouping-candidate-review.csv`.
     - The worksheet keeps the current two applied seed entries as reference rows and adds a small rail-prioritized review batch only.
-    - Missing or unresolved examples such as `KUX / ?????` remain outside the applied grouping map.
+    - The full 30-row human review result is now preserved in the candidate worksheet and applied selectively by `JOURNEY-PLACE-GROUPING-001D`.
+  - Priority: `High`
+
+- `JOURNEY-PLACE-GROUPING-001D`
+  - Apply only the explicitly approved Journey/Summary grouping rows, preserve the full human review decisions, and create a mixed placeKey repair worksheet without repairing rail placeKeys yet.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - The reviewed grouping source now contains 6 entries: the original 2 seeds plus 4 newly approved rows.
+    - The candidate review CSV now preserves all 30 human review decisions: 2 `already_applied`, 4 `approved`, 1 `rejected_no_grouping_needed`, and 23 `needs_placekey_repair`.
+    - Mixed rows are now tracked in `docs/reviews/place-grouping-mixed-placekey-repair.csv` instead of being auto-applied.
+  - Priority: `High`
+
+- `PLACE-GROUPING-MIXED-REPAIR-001`
+  - Repair mixed rail/place candidate keys in small reviewed batches before any additional Journey/Summary grouping rows are approved from those mixed candidates.
+  - Status: `Open / future repair task`
+  - Notes:
+    - Do not repair or apply these mixed rows blindly; use `docs/reviews/place-grouping-mixed-placekey-repair.csv` as the follow-up queue.
   - Priority: `High`
 
 - `JOURNEY-STOPS-DATA-001`

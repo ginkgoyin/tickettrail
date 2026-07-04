@@ -3,7 +3,7 @@ import { buildPlaceGroupingEntries } from "../scripts/lib/place-grouping-data.mj
 import { getSummaryGroupingForPlaceKey, resolveSummaryPlaceKey } from "../src/lib/placeGrouping";
 
 describe("place grouping data layer", () => {
-  it("returns reviewed summary grouping for a seeded place key", () => {
+  it("returns reviewed summary grouping for approved and seeded place keys", () => {
     expect(getSummaryGroupingForPlaceKey("cn-danyang")).toMatchObject({
       placeKey: "cn-danyang",
       summaryPlaceKey: "cn-zhenjiang",
@@ -11,6 +11,10 @@ describe("place grouping data layer", () => {
       groupingSource: "reviewed",
     });
     expect(resolveSummaryPlaceKey("cn-hailin")).toBe("cn-mudanjiang");
+    expect(resolveSummaryPlaceKey("cn-pingzhuang")).toBe("cn-chifeng");
+    expect(resolveSummaryPlaceKey("cn-yanping")).toBe("cn-nanping");
+    expect(resolveSummaryPlaceKey("cn-humen")).toBe("cn-dongguan");
+    expect(resolveSummaryPlaceKey("cn-jian-ou")).toBe("cn-nanping");
   });
 
   it("returns null safely when no summary grouping exists", () => {

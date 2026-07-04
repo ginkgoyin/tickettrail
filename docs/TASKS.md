@@ -461,14 +461,14 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed design checkpoint: `JOURNEY-PLACE-GROUPING-001C`.
+Latest completed design checkpoint: `JOURNEY-PLACE-GROUPING-001D`.
 
-Recommended next task: `JOURNEY-PLACE-GROUPING-001D` or another next chosen issue after the candidate grouping worksheet is reviewed.
+Recommended next task: `PLACE-GROUPING-MIXED-REPAIR-001` or another next chosen issue after the approved grouping batch is manually verified.
 
 The recommended next implementation order is now:
 
-1. reviewed grouping decisions from `docs/reviews/place-grouping-candidate-review.csv`
-2. `JOURNEY-PLACE-GROUPING-001D` for a small approved grouping batch
+1. reviewed mixed-row repair decisions from `docs/reviews/place-grouping-mixed-placekey-repair.csv`
+2. `PLACE-GROUPING-MIXED-REPAIR-001` for a small reviewed placeKey repair batch
 3. `next chosen issue`
 
 Implementation notes:
@@ -489,6 +489,7 @@ Implementation notes:
 - `JOURNEY-PLACE-GROUPING-001A` now adds a separate reviewed/generated grouping map for future city-level or prefecture-level Journey/Summary rollups.
 - `JOURNEY-PLACE-GROUPING-001B` now uses that grouping map in Summary Top destinations only, while Journey List/Detail labels and RouteMap behavior remain unchanged; manual verification passed for the accepted `Danyang -> Zhenjiang` example.
 - `JOURNEY-PLACE-GROUPING-001C` now generates a candidate review worksheet for future grouping expansion without applying new grouping entries beyond the current two seeds.
+- `JOURNEY-PLACE-GROUPING-001D` now applies only the 4 explicitly approved grouping rows and records the other 23 mixed candidates in a separate repair worksheet instead of guessing them.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.
