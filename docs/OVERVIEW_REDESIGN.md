@@ -1,10 +1,10 @@
-# OVERVIEW_REDESIGN
+﻿# OVERVIEW_REDESIGN
 
 ## 1. Purpose
 
 This document records the audit and redesign direction for the `Overview` page.
 
-It is a design-only checkpoint for `OVERVIEW-REDESIGN-001`.
+It is a design-only checkpoint for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`.
 
 It does not:
 
@@ -100,42 +100,63 @@ The new Overview should not try to be:
 - a route export workspace
 - a dense filter-debug surface
 
-## 4. Proposed Information Architecture
+## 4. Approved V1 Information Architecture
 
-### Recommended structure
+`OVERVIEW-REDESIGN-001A` records the user-approved V1 direction.
 
-1. Snapshot header
-   - concise archive totals
-   - one-sentence archive state
-2. Upcoming focus
-   - next journey if available
-   - otherwise next upcoming ticket
-3. Recent journeys
-   - a compact list of recent or recently updated journeys
-4. Map section
-   - a compact archive travel map teaser, not a full route-analysis workbench
-5. Stats strip
-   - a small number of high-value metrics
-6. Quick actions
-   - create ticket
-   - create journey
-   - open tickets
-   - open journeys
-7. Optional subtle health panel
-   - only if it helps, e.g. unresolved rail map locations or archive items needing review
+Accepted V1 product direction:
 
-### What should move out or shrink
+- Overview should feel like a clean personal travel archive home.
+- It should not feel like an analytics workbench.
+- It should not feel like a route-debug page.
+- The page should start with total/archive overview, then map, then focus trip.
+- Quick actions are not needed in Overview V1.
+- Data health or pending-item reminders should not live on Overview V1.
+  - Those can become future filters or reminder surfaces inside Tickets/Journeys list pages.
+- Future customization is acceptable as a later idea.
+  - For example, users may later choose which Overview modules to show from Settings.
+  - This is recorded only as a future idea and should not affect V1 implementation.
 
-- Current ranked carrier/city/region blocks should not dominate Overview.
-  - They can move into a future dedicated analytics/statistics area or become much smaller.
-- Current route collection details should shrink.
+### Approved V1 section order
+
+1. Archive Snapshot / Total overview
+   - total journeys
+   - total tickets
+   - travel days
+   - total cost if available
+   - destinations / places if available
+2. Full-width Travel Map
+   - one full-width row
+   - show the whole travel footprint as much as possible
+   - stay visual and clean, not a route-analysis workbench
+3. Focus Trip
+   - show next journey if available
+   - if no upcoming journey, show latest completed or recent journey
+   - if no journey, fall back to next upcoming ticket
+   - if no ticket, show a clean empty archive state
+   - cost should be subtle when available, not dominant
+4. Recent Journeys + Upcoming/Recent Tickets
+   - Journey is more important
+   - Tickets are secondary or fallback
+   - ticket module should prefer upcoming tickets, otherwise show recently added tickets
+5. This year + Favorite places
+   - lightweight memory/highlight row
+   - not dense analytics
+
+### What should move out or stay out of V1
+
+- Current ranked carrier/city/region blocks should not dominate Overview V1.
+  - They can move into a future dedicated analytics/statistics area or return later in a lighter form.
+- Current route collection details should shrink sharply.
   - Top routes and export actions should not remain a primary Overview focus.
 - Repeated filter chips and repeated "current scope" framing should be removed from the main Overview experience.
 - Generic "Route overview" empty cards should be replaced by cleaner section-level empty states.
+- Quick actions should not appear in Overview V1.
+- Data-health or pending-review reminders should not appear in Overview V1.
 
-## 5. Proposed Section Details
+## 5. Approved V1 Section Details
 
-### Snapshot header
+### Archive Snapshot / Total overview
 
 Purpose:
 - establish archive scale and current state fast
@@ -143,8 +164,9 @@ Purpose:
 Likely data:
 - total tickets
 - total journeys
-- upcoming journeys or upcoming tickets count
-- completed journeys or travel days
+- travel days
+- total cost if available
+- destinations / places if available
 
 Existing sources:
 - `tickets` in `src/App.tsx`
@@ -153,40 +175,11 @@ Existing sources:
 Notes:
 - should replace the current long hero + duplicated stat cards
 
-### Upcoming focus
+### Full-width Travel Map
 
 Purpose:
-- make Overview feel alive and useful immediately
-
-Likely data:
-- nearest upcoming journey by date
-- fallback to nearest upcoming ticket if no journey exists
-
-Existing sources:
-- tickets already loaded
-- journey data/service already exists
-
-Possible new helper:
-- a small Overview-focused selector for "next upcoming item"
-
-### Recent journeys
-
-Purpose:
-- give quick access to actual trip records instead of only ticket fragments
-
-Likely data:
-- latest updated or latest dated journeys
-
-Existing sources:
-- current Journey service/runtime data
-
-Possible new helper:
-- a compact "recent journeys" selector
-
-### Map section
-
-Purpose:
-- show archive travel footprint without turning Overview into a route-debug page
+- show archive travel footprint early in the page
+- support the emotional/archive value of the product rather than route debugging
 
 Likely data:
 - existing summary/overview map payload
@@ -196,41 +189,66 @@ Existing sources:
 - current `RouteMap`
 
 Notes:
-- keep this compact
-- remove export-first framing
-- avoid overloading it with extra scope chips and route lists
+- full-width row
+- should show the whole travel footprint as much as possible
+- should stay visual and clean
+- should not inherit route-analysis framing, export-first framing, or dense scope chips
 
-### Stats strip
+### Focus Trip
 
 Purpose:
-- keep only the most valuable numbers on Overview
+- make Overview feel alive and useful immediately
 
 Likely data:
-- tickets
-- journeys
-- countries/regions visited
-- travel days or segments
+- next journey if available
+- otherwise latest completed/recent journey
+- otherwise next upcoming ticket
+- otherwise empty archive state
 
 Existing sources:
-- `StatisticsPanel`
-- journey summary helpers
+- tickets already loaded
+- current Journey service/runtime data
+
+Possible new helper:
+- a small Overview-focused selector for the focus trip fallback chain
 
 Notes:
-- likely a much smaller replacement for the current analytics panel
+- cost should be subtle when available
 
-### Quick actions
+### Recent Journeys + Upcoming/Recent Tickets
 
 Purpose:
-- make the page actionable, not just informational
+- give quick access to real trip records first, then secondary ticket-level activity
 
-Likely actions:
-- Add ticket
-- Create journey
-- Browse tickets
-- Browse journeys
+Likely data:
+- recent journeys
+- upcoming tickets
+- recent tickets fallback
 
 Existing sources:
-- current section navigation and modal flows
+- current Journey service/runtime data
+- ticket list already loaded in `App.tsx`
+
+Notes:
+- Journey should remain the primary module in this row.
+- Tickets should be the secondary/fallback module.
+
+### This year + Favorite places
+
+Purpose:
+- provide memory/highlight modules without returning to dense analytics
+
+Likely data:
+- this-year travel highlights
+- favorite places / most visited places
+
+Existing sources:
+- journey summary helpers
+- existing summary helpers where useful
+
+Notes:
+- should stay lightweight and memory-oriented
+- should not become a ranked analytics wall
 
 ## 6. Data Requirements and Loading Behavior
 
@@ -243,10 +261,11 @@ Existing sources:
 
 ### Likely new Overview-specific helpers
 
-- derive next upcoming journey
-- derive next upcoming ticket fallback
+- derive archive snapshot totals for Overview V1
+- derive focus trip fallback chain
 - derive recent journeys list
-- derive compact overview metrics from tickets + journeys
+- derive upcoming tickets with recent-ticket fallback
+- derive lightweight "this year" and favorite-place highlights
 - derive a compact overview map payload instead of reusing the current route-analysis framing directly
 
 ### Empty/loading/error expectations
@@ -283,17 +302,44 @@ Manual testing will be especially important for:
 
 - `OVERVIEW-REDESIGN-001`
   - audit and design only
+- `OVERVIEW-REDESIGN-001A`
+  - record the user-approved V1 layout decisions and shared map styling requirements
 - `OVERVIEW-REDESIGN-002`
-  - build a new Overview layout shell with static placeholders and section structure
+  - build a new Overview layout shell with static placeholders and section structure after explicit implementation approval
 - `OVERVIEW-REDESIGN-003`
-  - connect real ticket/journey data to the new sections
+  - connect real ticket/journey data to the approved V1 sections
+- `MAP-ROUTE-STYLING-001`
+  - shared map route-line styling follow-up for color/thickness/repeated-route behavior
 - `OVERVIEW-REDESIGN-004`
   - responsive polish, empty states, loading states, and visual cleanup
-- `OVERVIEW-REDESIGN-005`
-  - optional follow-up for analytics extraction or a dedicated statistics surface if still needed
 
-## 9. Immediate Direction
+## 9. Shared Map Styling Follow-up
+
+These requirements are approved for future implementation but are not part of this docs-only task.
+
+Follow-up task:
+
+- `MAP-ROUTE-STYLING-001`
+
+Approved requirements:
+
+- rail and flight route lines should use different colors
+- all route lines should be thinner than the current map line style
+- repeated routes should be visibly thicker than one-off routes
+- use a simple binary thickness rule:
+  - one occurrence = thin line
+  - two or more occurrences = thicker line
+  - do not keep increasing thickness for 3, 5, 10+ occurrences
+
+Scope note:
+
+- this is a shared map behavior follow-up, not an Overview-only styling tweak
+- it should be implemented separately from the first Overview layout rebuild
+
+## 10. Immediate Direction
 
 - The current Overview should be rebuilt from a new layout rather than patched section by section.
 - The current rail/place/grouping cleanup line is intentionally paused.
 - The active product/design line is now Overview redesign.
+- `OVERVIEW-REDESIGN-001A` records approved V1 design decisions only.
+- Runtime implementation should not start until the user explicitly approves moving into the implementation phase.

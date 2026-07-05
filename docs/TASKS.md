@@ -461,15 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed design checkpoint: `OVERVIEW-REDESIGN-001`.
+Latest completed design checkpoint: `OVERVIEW-REDESIGN-001A`.
 
-Recommended next task: `OVERVIEW-REDESIGN-002`.
+Recommended next task after explicit implementation approval: `OVERVIEW-REDESIGN-002`.
 
 The recommended next implementation order is now:
 
-1. build the new `OVERVIEW-REDESIGN-002` layout shell from the accepted Overview redesign document
-2. keep the current rail/place/grouping cleanup line paused unless a future task explicitly reopens it
-3. resume another next chosen issue only after the new Overview structure is in place
+1. keep `OVERVIEW-REDESIGN-001A` as the current approved design checkpoint until the user explicitly approves implementation
+2. build the new `OVERVIEW-REDESIGN-002` layout shell only after that approval
+3. connect real data in `OVERVIEW-REDESIGN-003`, keep `MAP-ROUTE-STYLING-001` separate as a shared map follow-up, then polish in `OVERVIEW-REDESIGN-004`
 
 Implementation notes:
 
@@ -496,6 +496,10 @@ Implementation notes:
 - `OVERVIEW-REDESIGN-001` is now the accepted audit/design checkpoint: the current Overview is split across the App hero, `StatisticsPanel`, and `Dashboard(mode="overview")`, so the next pass should rebuild the page from a new information architecture instead of patching those modules in place.
 - The new Overview purpose is now documented as a clean archive dashboard focused on snapshot status, upcoming focus, recent journeys, compact map context, concise stats, and quick actions rather than route-analysis clutter.
 - `OVERVIEW-REDESIGN-002` is now the next implementation task: build the new static layout shell first, then connect data in later phases.
+- `OVERVIEW-REDESIGN-001A` now records the user-approved V1 Overview section order: Archive Snapshot, full-width Travel Map, Focus Trip, Recent Journeys plus Upcoming/Recent Tickets, then This year plus Favorite places.
+- Overview V1 should feel like a clean personal travel archive home rather than an analytics workbench or a route-debug page; quick actions and data-health reminders are intentionally out of scope for V1.
+- `MAP-ROUTE-STYLING-001` is now the separate shared follow-up for route-line color and repeated-route thickness behavior; do not mix it into the first Overview shell rebuild.
+- Even though the V1 direction is now documented, runtime implementation should not start until the user explicitly approves moving from design into implementation.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.
