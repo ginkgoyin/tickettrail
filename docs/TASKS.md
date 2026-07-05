@@ -461,15 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed implementation checkpoint: `PLACE-GROUPING-MIXED-REPAIR-002`.
+Latest completed design checkpoint: `OVERVIEW-REDESIGN-001`.
 
-Recommended next task: `OVERVIEW-REDESIGN-001` after the current rail/place/grouping cleanup line is intentionally paused.
+Recommended next task: `OVERVIEW-REDESIGN-002`.
 
 The recommended next implementation order is now:
 
-1. move to the complete `OVERVIEW-REDESIGN-001` design / implementation track
+1. build the new `OVERVIEW-REDESIGN-002` layout shell from the accepted Overview redesign document
 2. keep the current rail/place/grouping cleanup line paused unless a future task explicitly reopens it
-3. resume another next chosen issue only after the Overview direction is accepted
+3. resume another next chosen issue only after the new Overview structure is in place
 
 Implementation notes:
 
@@ -493,6 +493,9 @@ Implementation notes:
 - `PLACE-GROUPING-MIXED-REPAIR-001` now inspects all 23 mixed rows in one pass, applies only safe exact `telecode` repairs, and records the remaining blocked rows as station-identity or place-catalog follow-up work instead of vague grouping debt.
 - `PLACE-GROUPING-MIXED-REPAIR-002` re-checks those 5 blocked rows and leaves them blocked intentionally because no additional safe exact repair is available from current local data without lowering current map specificity or guessing station identity.
 - After `PLACE-GROUPING-MIXED-REPAIR-002`, the current rail/place/grouping cleanup line is intentionally paused so the next major track can move to a complete Overview redesign.
+- `OVERVIEW-REDESIGN-001` is now the accepted audit/design checkpoint: the current Overview is split across the App hero, `StatisticsPanel`, and `Dashboard(mode="overview")`, so the next pass should rebuild the page from a new information architecture instead of patching those modules in place.
+- The new Overview purpose is now documented as a clean archive dashboard focused on snapshot status, upcoming focus, recent journeys, compact map context, concise stats, and quick actions rather than route-analysis clutter.
+- `OVERVIEW-REDESIGN-002` is now the next implementation task: build the new static layout shell first, then connect data in later phases.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.
