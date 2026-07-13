@@ -6,6 +6,7 @@
 - `DOC-001`: `PROJECT_STATUS.md` created
 - `DOC-002`: `TASKS.md` created
 - `DOC-003`: `TEST_PLAN.md` created
+- `DOC-AI-LOG-001`: `AI_COLLABORATION_PROJECT_LOG.md` created as the major-checkpoint story log for resume/interview prep and AI-collaboration transparency
 - `BL-003`: blank workspace after adding ticket fixed and manually verified
 - `NAV-001`: sidebar is sticky/persistently visible
 - `NAV-002`: sidebar buttons switch local sections
@@ -872,7 +873,7 @@
   - Clean up the remaining candidate review artifact so key-collision rows no longer appear as safe auto-add work.
   - Status: `Implemented / conflict review cleanup`
   - Notes:
-    - `cn-qianan / 閺夆晙绀侀悾鈺?is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
+    - `cn-qianan / 闂備礁鎼ˇ顐﹀疾濞嗘垹鐭嗗〒姘ｅ亾闁诡噣绠栭崺?is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
     - The reviewed-safe source file excludes skipped conflict rows and keeps only the safe matches actually applied by regeneration.
   - Priority: `High`
 
@@ -883,7 +884,7 @@
     - Reviewed overrides now live in `data-sources/rail/rail-station-place-overrides.json` and apply only when `enabled = true` and `reviewStatus = approved`.
     - Generator-side validation now rejects duplicate/conflicting overrides, missing Place Catalog targets, and approved overrides that do not match any generated rail station.
     - Remaining hard cases are now prioritized in `docs/reviews/rail-place-override-priority.csv` for manual review.
-    - KUX and `cn-qianan / 閺夆晙绀侀悾鈺?remain explicit human-review cases and are not auto-resolved by this override layer.
+    - KUX and `cn-qianan / 闂備礁鎼ˇ顐﹀疾濞嗘垹鐭嗗〒姘ｅ亾闁诡噣绠栭崺?remain explicit human-review cases and are not auto-resolved by this override layer.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-OVERRIDE-001A`
@@ -891,7 +892,7 @@
   - Status: `Implemented / first human review batch prepared`
   - Notes:
     - The first worksheet now lives at `docs/reviews/rail-place-override-batch-001.csv`.
-    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 閺夆晙绀侀悾鈺?key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
+    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 闂備礁鎼ˇ顐﹀疾濞嗘垹鐭嗗〒姘ｅ亾闁诡噣绠栭崺?key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
     - `data-sources/rail/rail-station-place-overrides.json` remains empty, so no reviewed override is applied by runtime generation yet.
   - Priority: `High`
 
@@ -899,7 +900,7 @@
   - Apply the first approved override batch only after explicit human review decisions are captured from the batch worksheet.
   - Status: `Open / paused pending documented granularity policy and reviewed override decisions`
   - Notes:
-    - Do not approve KUX, `cn-qianan / 閺夆晙绀侀悾鈺? or any risky slug-only mapping without explicit evidence and a reviewed decision.
+    - Do not approve KUX, `cn-qianan / 闂備礁鎼ˇ顐﹀疾濞嗘垹鐭嗗〒姘ｅ亾闁诡噣绠栭崺? or any risky slug-only mapping without explicit evidence and a reviewed decision.
     - Any future reviewed override should represent the reviewed map/coordinate place, not a forced Journey/Summary grouping key.
   - Priority: `High`
 

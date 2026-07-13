@@ -16,6 +16,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 3. Milestone 0: Project Control And Documentation
 
+### [x] Create and maintain `docs/AI_COLLABORATION_PROJECT_LOG.md` for major checkpoint stories
+- Goal: Keep a durable, resume/interview-friendly narrative log of major project checkpoints and AI-assisted collaboration decisions.
+- Acceptance criteria:
+  - The log exists in `docs/AI_COLLABORATION_PROJECT_LOG.md`.
+  - Major checkpoints can be appended with problem, decision, implementation, validation, and STAR-style notes.
+  - The log is updated for meaningful milestones rather than tiny tweaks.
+- Notes:
+  - Use this for project-story and interview-prep checkpoints; keep routine status tracking in `docs/ISSUE_CHECKLIST.md` and `docs/TASKS.md`.
+
 ### [x] Confirm repository-level guidance is present and followed
 - Goal: Keep work aligned with the repository rules in `AGENTS.md`.
 - Acceptance criteria:
