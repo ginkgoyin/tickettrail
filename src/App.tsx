@@ -1,8 +1,6 @@
-﻿import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { useRef } from "react";
-import { Dashboard } from "./components/Dashboard";
-import { Header } from "./components/Header";
 import { Sidebar, type AppSection } from "./components/Sidebar";
 import { TicketList, type SavedFilterView, type TicketFilters, type TicketSort } from "./components/TicketList";
 import { reviewImportedDraft, type ImportFieldReview, type ImportParseResult } from "./lib/importParser";
@@ -210,7 +208,6 @@ export default function App() {
   const [selectedDetail, setSelectedDetail] = useState<TicketDetailPayload | null>(null);
   const [detailVersion, setDetailVersion] = useState(0);
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
-  const [overviewFilters, setOverviewFilters] = useState<TicketFilters>(defaultFilters);
   const [savedViews, setSavedViews] = useState<SavedFilterView[]>([]);
   const [backups, setBackups] = useState<BackupRecord[]>([]);
   const [backupReadiness, setBackupReadiness] = useState<BackupReadiness | null>(null);
@@ -239,7 +236,6 @@ export default function App() {
   });
 
   const deferredQuery = useDeferredValue(filters.query);
-  const deferredOverviewQuery = useDeferredValue(overviewFilters.query);
   const t = useMemo(() => (key: I18nKey) => getMessage(language, key), [language]);
 
   const filterTicketsByContext = (
@@ -267,9 +263,6 @@ export default function App() {
     return filterTicketsByContext(tickets, filters, deferredQuery);
   }, [deferredQuery, filters, tickets]);
 
-  const visibleOverviewTickets = useMemo(() => {
-    return filterTicketsByContext(tickets, overviewFilters, deferredOverviewQuery);
-  }, [deferredOverviewQuery, overviewFilters, tickets]);
 
   const selectedTicket = visibleTickets.find((ticket) => ticket.id === selectedId) ?? visibleTickets[0] ?? null;
   const editingTicket = tickets.find((ticket) => ticket.id === editingId) ?? null;
@@ -536,18 +529,9 @@ export default function App() {
     setErrorMessage("");
   };
 
-  const handleApplyAnalyticsFilter = (patch: Partial<TicketFilters>) => {
-    startTransition(() => {
-      setOverviewFilters((current) => ({
-        ...current,
-        ...patch,
-      }));
-    });
-  };
-
   const handleApplyArchiveQuery = (query: string) => {
     startTransition(() => {
-      setOverviewFilters((current) => ({
+      setFilters((current) => ({
         ...current,
         query,
       }));
@@ -820,41 +804,13 @@ export default function App() {
 
   const renderSectionHeader = () => {
     if (activeSection === "overview") {
-      return (
-        <section className="hero">
-          <div>
-            <h1>TicketTrail</h1>
-            <p className="hero-copy">
-              Capture flights and rail trips, normalize them into structured journeys,
-              preview map routes, and prepare branded ticket-stub exports.
-            </p>
-            <p className="hero-copy">
-              {loading
-                ? "Loading local archive..."
-                : `Archive ready: ${visibleTickets.length} visible ticket(s) from ${tickets.length} total.`}
-            </p>
-            {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
-          </div>
-          <div className="hero-stats">
-            <div className="stat-card">
-              <span className="stat-value">{tickets.length}</span>
-              <span className="stat-label">Stored tickets</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-value">
-                {tickets.filter((ticket) => ticket.ticketType === "flight").length}
-              </span>
-              <span className="stat-label">Flights</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-value">
-                {tickets.filter((ticket) => ticket.ticketType === "train").length}
-              </span>
-              <span className="stat-label">Rail segments</span>
-            </div>
+      return errorMessage ? (
+        <section className="section-page-header">
+          <div className="section-page-header-main">
+            <p className="error-banner section-page-error">{errorMessage}</p>
           </div>
         </section>
-      );
+      ) : null;
     }
 
     const sectionKey = activeSection === "exports" ? "settings" : activeSection;
@@ -896,8 +852,7 @@ export default function App() {
                 className="section-help-trigger"
                 type="button"
               >
-                ⓘ
-              </button>
+                �?              </button>
               <span className="section-help-tooltip" id={`section-help-${activeSection}`} role="tooltip">
                 {meta.copy}
               </span>
@@ -925,22 +880,11 @@ export default function App() {
     activeSection === "overview"
       ? (
           <HomePage
-            dashboardProps={{
-              ...dashboardProps,
-              activeArchiveContext: overviewFilters,
-              mode: "overview",
-              onSelectTicket: (ticketId) => {
-                setSelectedId(ticketId);
-                setActiveSection("tickets");
-              },
-              ticketsInView: visibleOverviewTickets,
+            onOpenTicket={(ticketId) => {
+              setSelectedId(ticketId);
+              setActiveSection("tickets");
             }}
-            statisticsProps={{
-              activeArchiveContext: overviewFilters,
-              onApplyArchiveFilter: handleApplyAnalyticsFilter,
-              tickets: visibleOverviewTickets,
-              totalCount: tickets.length,
-            }}
+            tickets={tickets}
           />
         )
       : activeSection === "tickets"
@@ -1026,7 +970,6 @@ export default function App() {
         <Sidebar activeSection={activeSection} onSelectSection={setActiveSection} />
         <main className="workspace" ref={workspaceRef}>
           <AppErrorBoundary>
-            {activeSection === "overview" ? <Header /> : null}
             {renderSectionHeader()}
 
             {sectionContent}

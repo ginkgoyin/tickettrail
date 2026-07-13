@@ -461,15 +461,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed design checkpoint: `OVERVIEW-REDESIGN-001A`.
+Latest completed Overview checkpoint: `OVERVIEW-REDESIGN-002B`.
 
-Recommended next task after explicit implementation approval: `OVERVIEW-REDESIGN-002`.
+Recommended next task: `OVERVIEW-REDESIGN-003`.
 
 The recommended next implementation order is now:
 
-1. keep `OVERVIEW-REDESIGN-001A` as the current approved design checkpoint until the user explicitly approves implementation
-2. build the new `OVERVIEW-REDESIGN-002` layout shell only after that approval
-3. connect real data in `OVERVIEW-REDESIGN-003`, keep `MAP-ROUTE-STYLING-001` separate as a shared map follow-up, then polish in `OVERVIEW-REDESIGN-004`
+1. keep `OVERVIEW-REDESIGN-002` as the new Overview shell baseline
+2. refine section-level data selection and fallback behavior in `OVERVIEW-REDESIGN-003`
+3. keep `MAP-ROUTE-STYLING-001` separate as a shared map follow-up, then polish responsive and empty states in `OVERVIEW-REDESIGN-004`
 
 Implementation notes:
 
@@ -495,11 +495,13 @@ Implementation notes:
 - After `PLACE-GROUPING-MIXED-REPAIR-002`, the current rail/place/grouping cleanup line is intentionally paused so the next major track can move to a complete Overview redesign.
 - `OVERVIEW-REDESIGN-001` is now the accepted audit/design checkpoint: the current Overview is split across the App hero, `StatisticsPanel`, and `Dashboard(mode="overview")`, so the next pass should rebuild the page from a new information architecture instead of patching those modules in place.
 - The new Overview purpose is now documented as a clean archive dashboard focused on snapshot status, upcoming focus, recent journeys, compact map context, concise stats, and quick actions rather than route-analysis clutter.
-- `OVERVIEW-REDESIGN-002` is now the next implementation task: build the new static layout shell first, then connect data in later phases.
+- `OVERVIEW-REDESIGN-002` established the new Overview shell order: Archive Snapshot, full-width Travel Map, Focus Trip, Recent Journeys plus Upcoming/Recent Tickets, and finally This year plus Favorite places.
 - `OVERVIEW-REDESIGN-001A` now records the user-approved V1 Overview section order: Archive Snapshot, full-width Travel Map, Focus Trip, Recent Journeys plus Upcoming/Recent Tickets, then This year plus Favorite places.
 - Overview V1 should feel like a clean personal travel archive home rather than an analytics workbench or a route-debug page; quick actions and data-health reminders are intentionally out of scope for V1.
+- `OVERVIEW-REDESIGN-002A` tightens the Overview shell with smaller type, reduced padding, shorter internal rows, simpler headings, and a top `All / Flights / Rail` scope toggle.
+- `OVERVIEW-REDESIGN-002B` clarifies that the transport toggle is a scope matcher for journeys, not a journey splitter: mixed journeys can appear in both `Flights` and `Rail` while still rendering as whole journey cards.
 - `MAP-ROUTE-STYLING-001` is now the separate shared follow-up for route-line color and repeated-route thickness behavior; do not mix it into the first Overview shell rebuild.
-- Even though the V1 direction is now documented, runtime implementation should not start until the user explicitly approves moving from design into implementation.
+- `OVERVIEW-REDESIGN-003` should focus on refining data selection and fallback logic, not on reintroducing the old analytics-heavy `StatisticsPanel` / `Dashboard(mode="overview")` composition.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.

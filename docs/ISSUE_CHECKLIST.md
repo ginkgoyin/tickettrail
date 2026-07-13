@@ -278,6 +278,36 @@
     - Shared map route-line color/thickness rules are recorded as follow-up task `MAP-ROUTE-STYLING-001` rather than implemented here.
   - Priority: `High`
 
+- `OVERVIEW-REDESIGN-002`
+  - Replace the old Overview composition with the new V1 layout shell: Archive Snapshot, full-width Travel Map, Focus Trip, Recent Journeys plus Upcoming/Recent Tickets, then This year plus Favorite places.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - The old `StatisticsPanel` + `Dashboard(mode="overview")` clutter is no longer rendered on Overview.
+    - The shell reuses existing ticket, journey, and route-map data only where the current app already exposes it cleanly.
+    - Quick actions and data-health reminders remain intentionally out of Overview V1.
+    - Shared map line styling still belongs to separate follow-up task `MAP-ROUTE-STYLING-001`.
+  - Priority: `High`
+
+- `OVERVIEW-REDESIGN-002A`
+  - Refine the new Overview shell for tighter density, cleaner alignment, simplified copy, and a compact top transport scope toggle.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Overview now has an `All / Flights / Rail` scope toggle near the top.
+    - Snapshot, map, ticket rail, and ticket-derived summary pieces respond to the toggle directly.
+    - Journey-based sections in flight/rail scope can still include mixed journeys when they contain at least one ticket in scope.
+    - Shared map route styling still remains separate in `MAP-ROUTE-STYLING-001`.
+  - Priority: `High`
+
+- `OVERVIEW-REDESIGN-002B`
+  - Audit and refine Overview transport-scope behavior so Journey modules treat the toggle as transport scope instead of splitting journeys into transport-only fragments.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - `All` shows all journeys; `Flights` shows journeys containing at least one flight ticket; `Rail` shows journeys containing at least one rail ticket.
+    - Mixed journeys can appear in both `Flights` and `Rail` views and still render as whole journey cards.
+    - Ticket/map modules remain directly transport-scoped by ticket type.
+    - Favorite places in scoped views now fall back to ticket-derived scope rather than mixed whole-journey destination rollups.
+  - Priority: `High`
+
 - `MAP-ROUTE-STYLING-001`
   - Add shared route-line styling rules so rail and flight routes use different colors, all lines are thinner than the current style, and repeated routes use a simple binary thicker-than-once rule.
   - Status: `Open / future implementation`
@@ -842,7 +872,7 @@
   - Clean up the remaining candidate review artifact so key-collision rows no longer appear as safe auto-add work.
   - Status: `Implemented / conflict review cleanup`
   - Notes:
-    - `cn-qianan / 鏉╀礁鐣╜ is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
+    - `cn-qianan / 閺夆晙绀侀悾鈺?is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
     - The reviewed-safe source file excludes skipped conflict rows and keeps only the safe matches actually applied by regeneration.
   - Priority: `High`
 
@@ -853,7 +883,7 @@
     - Reviewed overrides now live in `data-sources/rail/rail-station-place-overrides.json` and apply only when `enabled = true` and `reviewStatus = approved`.
     - Generator-side validation now rejects duplicate/conflicting overrides, missing Place Catalog targets, and approved overrides that do not match any generated rail station.
     - Remaining hard cases are now prioritized in `docs/reviews/rail-place-override-priority.csv` for manual review.
-    - KUX and `cn-qianan / 鏉╀礁鐣╜ remain explicit human-review cases and are not auto-resolved by this override layer.
+    - KUX and `cn-qianan / 閺夆晙绀侀悾鈺?remain explicit human-review cases and are not auto-resolved by this override layer.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-OVERRIDE-001A`
@@ -861,7 +891,7 @@
   - Status: `Implemented / first human review batch prepared`
   - Notes:
     - The first worksheet now lives at `docs/reviews/rail-place-override-batch-001.csv`.
-    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 鏉╀礁鐣╜ key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
+    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 閺夆晙绀侀悾鈺?key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
     - `data-sources/rail/rail-station-place-overrides.json` remains empty, so no reviewed override is applied by runtime generation yet.
   - Priority: `High`
 
@@ -869,7 +899,7 @@
   - Apply the first approved override batch only after explicit human review decisions are captured from the batch worksheet.
   - Status: `Open / paused pending documented granularity policy and reviewed override decisions`
   - Notes:
-    - Do not approve KUX, `cn-qianan / 鏉╀礁鐣╜, or any risky slug-only mapping without explicit evidence and a reviewed decision.
+    - Do not approve KUX, `cn-qianan / 閺夆晙绀侀悾鈺? or any risky slug-only mapping without explicit evidence and a reviewed decision.
     - Any future reviewed override should represent the reviewed map/coordinate place, not a forced Journey/Summary grouping key.
   - Priority: `High`
 

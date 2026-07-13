@@ -1,14 +1,14 @@
-﻿# OVERVIEW_REDESIGN
+# OVERVIEW_REDESIGN
 
 ## 1. Purpose
 
 This document records the audit and redesign direction for the `Overview` page.
 
-It is a design-only checkpoint for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`.
+It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the first runtime shell implementation in `OVERVIEW-REDESIGN-002`.
 
 It does not:
 
-- implement the new Overview UI
+- redesign RouteMap internals
 - change runtime behavior
 - add dependencies
 - redesign RouteMap itself
@@ -305,9 +305,16 @@ Manual testing will be especially important for:
 - `OVERVIEW-REDESIGN-001A`
   - record the user-approved V1 layout decisions and shared map styling requirements
 - `OVERVIEW-REDESIGN-002`
-  - build a new Overview layout shell with static placeholders and section structure after explicit implementation approval
+  - implement the new Overview layout shell and remove the old `StatisticsPanel` + `Dashboard(mode="overview")` composition from Overview
+  - reuse existing ticket, journey, and map data where it is already available without broad new data plumbing
+- `OVERVIEW-REDESIGN-002A`
+  - tighten layout density, reduce heading/copy noise, flatten nested mini-card weight, and add a compact `All / Flights / Rail` transport scope toggle
+  - keep the approved section order and reuse the existing shell rather than introducing new major modules
+- `OVERVIEW-REDESIGN-002B`
+  - audit and refine transport-scope behavior so Journey cards match scope by linked transport presence while still rendering as whole journeys
+  - keep ticket/map modules transport-scoped by ticket type and avoid pretending scoped Journey views are hard transport splits
 - `OVERVIEW-REDESIGN-003`
-  - connect real ticket/journey data to the approved V1 sections
+  - refine section-level data selectors, fallback behavior, and Overview-specific helpers without changing the approved information architecture
 - `MAP-ROUTE-STYLING-001`
   - shared map route-line styling follow-up for color/thickness/repeated-route behavior
 - `OVERVIEW-REDESIGN-004`
@@ -341,5 +348,5 @@ Scope note:
 - The current Overview should be rebuilt from a new layout rather than patched section by section.
 - The current rail/place/grouping cleanup line is intentionally paused.
 - The active product/design line is now Overview redesign.
-- `OVERVIEW-REDESIGN-001A` records approved V1 design decisions only.
-- Runtime implementation should not start until the user explicitly approves moving into the implementation phase.
+- `OVERVIEW-REDESIGN-002A` now refines that shell with denser spacing, simpler headings, and a top transport-scope toggle.
+- `OVERVIEW-REDESIGN-003` should refine data wiring and fallback behavior without reintroducing the old analytics-heavy Overview composition.
