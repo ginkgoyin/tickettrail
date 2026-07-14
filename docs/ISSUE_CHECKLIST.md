@@ -319,6 +319,26 @@
     - Favorite places in `Flights` and `Rail` now come from ticket-derived places instead of whole-journey destination rollups.
     - Scoped total-cost display still relies on journey-level cost totals when that is the available source, so mixed-trip overlap is disclosed rather than hidden.
   - Priority: `High`
+
+- `OVERVIEW-REDESIGN-004`
+  - Rearrange the new Overview shell into a denser desktop dashboard grid without changing the transport-scope behavior from `OVERVIEW-REDESIGN-003`.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - `Total overview` remains full-width at the top.
+    - `Travel map` now sits beside `Favorite places` in a larger-left-column row instead of a tall full-width block.
+    - `This year` now sits beside `Tickets`, and `Recent journeys` now sits beside `What matters next`.
+    - Shared route-line styling still remains deferred to `MAP-ROUTE-STYLING-001`.
+  - Priority: `High`
+
+- `OVERVIEW-REDESIGN-004A`
+  - Make the yearly summary module more compact and replace the hardcoded `This year` title with the active data year.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - The visible yearly module title now shows the active data year such as `2026`.
+    - The active year prefers the current calendar year when scoped data exists; otherwise it falls back to the latest year with records.
+    - The yearly summary card is now intentionally more compact and does not need to visually stretch to fill the row.
+    - Future Overview year switching remains deferred to `OVERVIEW-YEAR-FILTER-001`.
+  - Priority: `Medium`
 - `MAP-ROUTE-STYLING-001`
   - Add shared route-line styling rules so rail and flight routes use different colors, all lines are thinner than the current style, and repeated routes use a simple binary thicker-than-once rule.
   - Status: `Open / future implementation`

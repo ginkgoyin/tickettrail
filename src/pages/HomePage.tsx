@@ -10,6 +10,7 @@ import { getTicketDetail } from "../lib/ticketService";
 import {
   buildOverviewFavoritePlaces,
   countUniqueOverviewTicketPlaces,
+  deriveActiveOverviewYear,
   deriveOverviewScopedSnapshot,
   getOverviewEmptyStateCopy,
   getOverviewScopeLabel,
@@ -325,7 +326,7 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
     };
   }, [tickets]);
 
-  const currentYear = String(new Date().getFullYear());
+  const currentCalendarYear = String(new Date().getFullYear());
   const todayKey = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString().slice(0, 16);
 
@@ -347,12 +348,16 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
     () => (upcomingTickets.length ? upcomingTickets : recentTickets).slice(0, 4),
     [recentTickets, upcomingTickets],
   );
+  const activeOverviewYear = useMemo(
+    () => deriveActiveOverviewYear(scopedJourneys, scopedTickets, currentCalendarYear),
+    [currentCalendarYear, scopedJourneys, scopedTickets],
+  );
   const scopedYearTickets = useMemo(
     () => scopedTickets.filter((ticket) => {
       const dateValue = safeText(ticket.departureTimeLocal).trim() || safeText(ticket.createdAt).trim();
-      return dateValue.startsWith(`${currentYear}-`);
+      return dateValue.startsWith(`${activeOverviewYear}-`);
     }),
-    [currentYear, scopedTickets],
+    [activeOverviewYear, scopedTickets],
   );
   const overviewMap = useMemo(() => buildOverviewMapPayload(scopedMapDetails), [scopedMapDetails]);
 
@@ -361,16 +366,16 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
       return null;
     }
 
-    return buildJourneySummaryBase(scopedJourneys, scopedTickets, currentYear);
-  }, [currentYear, scopedJourneys, scopedTickets]);
+    return buildJourneySummaryBase(scopedJourneys, scopedTickets, activeOverviewYear);
+  }, [activeOverviewYear, scopedJourneys, scopedTickets]);
 
   const yearSummary = useMemo(() => {
     if (!summaryBase) {
       return null;
     }
 
-    return buildJourneySummaryCalendar(summaryBase, currentYear);
-  }, [currentYear, summaryBase]);
+    return buildJourneySummaryCalendar(summaryBase, activeOverviewYear);
+  }, [activeOverviewYear, summaryBase]);
 
   const focusJourney = upcomingJourneys[0] ?? sortedJourneys[0] ?? null;
   const focusTicket = focusJourney ? null : upcomingTickets[0] ?? recentTickets[0] ?? null;
@@ -452,88 +457,138 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
         ) : null}
       </section>
 
-      <section className="panel overview-section overview-map-section">
-        <div className="overview-title-row">
-          <h3>Travel map</h3>
-          {overviewMap ? <span className="overview-section-meta">{formatCount(overviewMap.segments.length)} legs</span> : null}
-        </div>
-        {overviewMap ? (
-          <>
-            <div className="overview-map-shell">
-              <Suspense fallback={<p className="detail-loading">Loading archive map...</p>}>
-                <RouteMap
-                  points={overviewMap.points}
-                  route={overviewMap.route}
-                  segments={overviewMap.segments}
-                  variant="summary"
-                />
-              </Suspense>
+      <section className="overview-dashboard-row overview-map-favorites-row">
+        <section className="panel overview-section overview-map-section overview-dashboard-main">
+          <div className="overview-title-row">
+            <h3>Travel map</h3>
+            {overviewMap ? <span className="overview-section-meta">{formatCount(overviewMap.segments.length)} legs</span> : null}
+          </div>
+          {overviewMap ? (
+            <>
+              <div className="overview-map-shell">
+                <Suspense fallback={<p className="detail-loading">Loading archive map...</p>}>
+                  <RouteMap
+                    points={overviewMap.points}
+                    route={overviewMap.route}
+                    segments={overviewMap.segments}
+                    variant="summary"
+                  />
+                </Suspense>
+              </div>
+              <div className="overview-map-meta">
+                <span>{`${formatCount(scopedTickets.length)} tickets`}</span>
+                <span>{`${formatCount(overviewMap.points.length)} points`}</span>
+                <span>{getOverviewScopeLabel(scope)}</span>
+              </div>
+            </>
+          ) : mapLoading ? (
+            <div className="overview-empty-state compact">
+              <strong>Loading map...</strong>
             </div>
-            <div className="overview-map-meta">
-              <span>{`${formatCount(scopedTickets.length)} tickets`}</span>
-              <span>{`${formatCount(overviewMap.points.length)} points`}</span>
-              <span>{getOverviewScopeLabel(scope)}</span>
+          ) : scopedTickets.length ? (
+            <div className="overview-empty-state compact">
+              <strong>Travel map is unavailable</strong>
+              <p>Safe route data is limited in the current scope.</p>
             </div>
-          </>
-        ) : mapLoading ? (
-          <div className="overview-empty-state compact">
-            <strong>Loading map...</strong>
+          ) : (
+            <div className="overview-empty-state compact">
+              <strong>{getOverviewEmptyStateCopy(scope, "map")}</strong>
+              <p>{scope === "all" ? "Add tickets to start building the archive." : "Switch scope or add more matching tickets."}</p>
+            </div>
+          )}
+        </section>
+
+        <section className="panel overview-section overview-list-panel overview-dashboard-side overview-favorites-section">
+          <div className="overview-title-row">
+            <h3>Favorite places</h3>
+            {scope !== "all" ? <span className="overview-section-meta">Ticket-derived</span> : null}
           </div>
-        ) : scopedTickets.length ? (
-          <div className="overview-empty-state compact">
-            <strong>Travel map is unavailable</strong>
-            <p>Safe route data is limited in the current scope.</p>
-          </div>
-        ) : (
-          <div className="overview-empty-state compact">
-            <strong>{getOverviewEmptyStateCopy(scope, "map")}</strong>
-            <p>{scope === "all" ? "Add tickets to start building the archive." : "Switch scope or add more matching tickets."}</p>
-          </div>
-        )}
+          {favoritePlaces.length ? (
+            <div className="overview-favorites-list">
+              {favoritePlaces.map((place) => (
+                <article className="overview-favorite-row" key={place.label}>
+                  <strong>{place.label}</strong>
+                  <span>{place.detail}</span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="overview-empty-state compact">
+              <strong>{getOverviewEmptyStateCopy(scope, "favorites")}</strong>
+              <p>{scope === "all" ? "Places will gather here once journeys or ticket routes are available." : "Scoped favorite places come from matching ticket endpoints."}</p>
+            </div>
+          )}
+        </section>
       </section>
 
-      <section className="panel overview-section overview-focus-section">
-        <div className="overview-title-row">
-          <h3>What matters next</h3>
-        </div>
-        {focusJourney ? (
-          <article className="overview-focus-card">
-            <div className="overview-focus-meta">
-              <span className="status-pill">{upcomingJourneys[0]?.id === focusJourney.id ? "Next journey" : "Recent journey"}</span>
-              {formatJourneyCost(focusJourney) ? <span className="overview-muted-inline">{formatJourneyCost(focusJourney)}</span> : null}
-            </div>
-            <h4>{focusJourney.title}</h4>
-            <p className="overview-focus-range">{formatJourneyDateRange(focusJourney)}</p>
-            <div className="overview-focus-tags">
-              <span>{`${formatCount(focusJourney.ticketIds.length)} linked ticket${focusJourney.ticketIds.length === 1 ? "" : "s"}`}</span>
-              <span>{focusJourney.destination?.trim() || "Destination from stays and linked tickets"}</span>
-            </div>
-          </article>
-        ) : focusTicket ? (
-          <article className="overview-focus-card">
-            <div className="overview-focus-meta">
-              <span className="status-pill">{upcomingTickets[0]?.id === focusTicket.id ? "Next ticket" : "Recent ticket"}</span>
-              <span className="overview-muted-inline">{focusTicket.ticketType === "flight" ? "Flight" : "Rail"}</span>
-            </div>
-            <h4>{focusTicket.routeLabel}</h4>
-            <p className="overview-focus-range">{formatTicketDate(focusTicket)}</p>
-            <div className="overview-focus-actions">
-              <span className="overview-focus-tags-single">{safeText(focusTicket.carrierName, "Carrier pending")}</span>
-              <button className="ghost-button compact-button" onClick={() => onOpenTicket(focusTicket.id)} type="button">
-                Open ticket
-              </button>
-            </div>
-          </article>
-        ) : (
-          <div className="overview-empty-state compact">
-            <strong>{getOverviewEmptyStateCopy(scope, "focus")}</strong>
-            <p>{scope === "all" ? "Add a journey or ticket to get started." : "No matching journey or ticket is ready in this scope."}</p>
+      <section className="overview-dashboard-row">
+        <section className="panel overview-section overview-list-panel overview-dashboard-main overview-year-section">
+          <div className="overview-title-row">
+            <h3>{activeOverviewYear}</h3>
           </div>
-        )}
+          <div className="overview-highlight-strip">
+            <article className="overview-highlight-chip">
+              <span>Journeys</span>
+              <strong>{formatCount(thisYearHighlights.journeyCount)}</strong>
+            </article>
+            <article className="overview-highlight-chip">
+              <span>Travel days</span>
+              <strong>{formatCount(thisYearHighlights.travelDays)}</strong>
+            </article>
+            <article className="overview-highlight-chip">
+              <span>Tickets</span>
+              <strong>{formatCount(thisYearHighlights.ticketCount)}</strong>
+            </article>
+            <article className="overview-highlight-chip">
+              <span>Places</span>
+              <strong>{thisYearHighlights.placeCount ? formatCount(thisYearHighlights.placeCount) : "--"}</strong>
+            </article>
+          </div>
+        </section>
+
+        <section className="panel overview-section overview-focus-section overview-dashboard-side">
+          <div className="overview-title-row">
+            <h3>What matters next</h3>
+          </div>
+          {focusJourney ? (
+            <article className="overview-focus-card">
+              <div className="overview-focus-meta">
+                <span className="status-pill">{upcomingJourneys[0]?.id === focusJourney.id ? "Next journey" : "Recent journey"}</span>
+                {formatJourneyCost(focusJourney) ? <span className="overview-muted-inline">{formatJourneyCost(focusJourney)}</span> : null}
+              </div>
+              <h4>{focusJourney.title}</h4>
+              <p className="overview-focus-range">{formatJourneyDateRange(focusJourney)}</p>
+              <div className="overview-focus-tags">
+                <span>{`${formatCount(focusJourney.ticketIds.length)} linked ticket${focusJourney.ticketIds.length === 1 ? "" : "s"}`}</span>
+                <span>{focusJourney.destination?.trim() || "Destination from stays and linked tickets"}</span>
+              </div>
+            </article>
+          ) : focusTicket ? (
+            <article className="overview-focus-card">
+              <div className="overview-focus-meta">
+                <span className="status-pill">{upcomingTickets[0]?.id === focusTicket.id ? "Next ticket" : "Recent ticket"}</span>
+                <span className="overview-muted-inline">{focusTicket.ticketType === "flight" ? "Flight" : "Rail"}</span>
+              </div>
+              <h4>{focusTicket.routeLabel}</h4>
+              <p className="overview-focus-range">{formatTicketDate(focusTicket)}</p>
+              <div className="overview-focus-actions">
+                <span className="overview-focus-tags-single">{safeText(focusTicket.carrierName, "Carrier pending")}</span>
+                <button className="ghost-button compact-button" onClick={() => onOpenTicket(focusTicket.id)} type="button">
+                  Open ticket
+                </button>
+              </div>
+            </article>
+          ) : (
+            <div className="overview-empty-state compact">
+              <strong>{getOverviewEmptyStateCopy(scope, "focus")}</strong>
+              <p>{scope === "all" ? "Add a journey or ticket to get started." : "No matching journey or ticket is ready in this scope."}</p>
+            </div>
+          )}
+        </section>
       </section>
 
-      <section className="overview-two-column-grid">
-        <section className="panel overview-section overview-list-panel">
+      <section className="overview-dashboard-row">
+        <section className="panel overview-section overview-list-panel overview-dashboard-main overview-journeys-section">
           <div className="overview-title-row">
             <h3>Recent journeys</h3>
             {scope !== "all" ? <span className="overview-section-meta">Whole journeys in scope</span> : null}
@@ -564,7 +619,7 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
           )}
         </section>
 
-        <section className="panel overview-section overview-list-panel">
+        <section className="panel overview-section overview-list-panel overview-dashboard-side overview-ticket-section">
           <div className="overview-title-row">
             <h3>Tickets</h3>
             <span className="overview-section-meta">{upcomingTickets.length ? "Upcoming first" : "Recent first"}</span>
@@ -587,54 +642,6 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             <div className="overview-empty-state compact">
               <strong>{getOverviewEmptyStateCopy(scope, "tickets")}</strong>
               <p>{scope === "all" ? "Save a ticket to start filling the archive." : "Switch scope or save more matching tickets."}</p>
-            </div>
-          )}
-        </section>
-      </section>
-
-      <section className="overview-two-column-grid overview-highlights-grid">
-        <section className="panel overview-section overview-list-panel">
-          <div className="overview-title-row">
-            <h3>This year</h3>
-          </div>
-          <div className="overview-highlight-strip">
-            <article className="overview-highlight-chip">
-              <span>Journeys</span>
-              <strong>{formatCount(thisYearHighlights.journeyCount)}</strong>
-            </article>
-            <article className="overview-highlight-chip">
-              <span>Travel days</span>
-              <strong>{formatCount(thisYearHighlights.travelDays)}</strong>
-            </article>
-            <article className="overview-highlight-chip">
-              <span>Tickets</span>
-              <strong>{formatCount(thisYearHighlights.ticketCount)}</strong>
-            </article>
-            <article className="overview-highlight-chip">
-              <span>Places</span>
-              <strong>{thisYearHighlights.placeCount ? formatCount(thisYearHighlights.placeCount) : "--"}</strong>
-            </article>
-          </div>
-        </section>
-
-        <section className="panel overview-section overview-list-panel">
-          <div className="overview-title-row">
-            <h3>Favorite places</h3>
-            {scope !== "all" ? <span className="overview-section-meta">Ticket-derived in scoped view</span> : null}
-          </div>
-          {favoritePlaces.length ? (
-            <div className="overview-favorites-list">
-              {favoritePlaces.map((place) => (
-                <article className="overview-favorite-row" key={place.label}>
-                  <strong>{place.label}</strong>
-                  <span>{place.detail}</span>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="overview-empty-state compact">
-              <strong>{getOverviewEmptyStateCopy(scope, "favorites")}</strong>
-              <p>{scope === "all" ? "Places will gather here once journeys or ticket routes are available." : "Scoped favorite places come from matching ticket endpoints."}</p>
             </div>
           )}
         </section>

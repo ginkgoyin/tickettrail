@@ -15,6 +15,49 @@ export interface OverviewFavoritePlace {
   detail: string;
 }
 
+function collectOverviewYearFromValue(value: string | undefined) {
+  const normalized = value?.trim();
+  if (!normalized || normalized.length < 4) {
+    return null;
+  }
+
+  const year = normalized.slice(0, 4);
+  return /^\d{4}$/.test(year) ? year : null;
+}
+
+export function deriveActiveOverviewYear(
+  journeys: Journey[],
+  tickets: TicketRecord[],
+  currentCalendarYear = String(new Date().getFullYear()),
+) {
+  const discoveredYears = new Set<string>();
+
+  journeys.forEach((journey) => {
+    [journey.startDate, journey.endDate, journey.updatedAt].forEach((value) => {
+      const year = collectOverviewYearFromValue(value);
+      if (year) {
+        discoveredYears.add(year);
+      }
+    });
+  });
+
+  tickets.forEach((ticket) => {
+    [ticket.departureTimeLocal, ticket.arrivalTimeLocal, ticket.createdAt].forEach((value) => {
+      const year = collectOverviewYearFromValue(value);
+      if (year) {
+        discoveredYears.add(year);
+      }
+    });
+  });
+
+  if (discoveredYears.has(currentCalendarYear)) {
+    return currentCalendarYear;
+  }
+
+  const sortedYears = [...discoveredYears].sort((left, right) => right.localeCompare(left));
+  return sortedYears[0] ?? currentCalendarYear;
+}
+
 export function filterTicketsByOverviewScope(tickets: TicketRecord[], scope: OverviewScope) {
   if (scope === "all") {
     return tickets;

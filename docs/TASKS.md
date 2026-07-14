@@ -478,15 +478,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed Overview checkpoint: `OVERVIEW-REDESIGN-003`.
+Latest completed Overview checkpoint: `OVERVIEW-REDESIGN-004A`.
 
-Recommended next task: `OVERVIEW-REDESIGN-004`.
+Recommended next task: `OVERVIEW-YEAR-FILTER-001` or `MAP-ROUTE-STYLING-001`, depending on whether the next pass stays on Overview or moves to shared map styling.
 
 The recommended next implementation order is now:
 
-1. keep `OVERVIEW-REDESIGN-003` as the current Overview data-and-fallback baseline
-2. keep `MAP-ROUTE-STYLING-001` separate as a shared map follow-up
-3. polish responsive and empty states in `OVERVIEW-REDESIGN-004`
+1. keep `OVERVIEW-REDESIGN-004A` as the current Overview layout/year-summary baseline
+2. choose between `OVERVIEW-YEAR-FILTER-001` and `MAP-ROUTE-STYLING-001` for the next focused pass
+3. keep broader Overview redesign work separate from shared RouteMap styling changes
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
@@ -520,7 +520,9 @@ The recommended next implementation order is now:
 - Overview Snapshot and This year scoped travel-day totals intentionally use full days from matching journeys instead of slicing mixed journeys into transport-only day fragments.
 - Favorite places in `Flights` and `Rail` now come from ticket-derived places/endpoints rather than whole-journey destination rollups.
 - Scoped total-cost display still uses the current journey-level source when available, so mixed-trip overlap is disclosed in the UI rather than hidden.
-- `MAP-ROUTE-STYLING-001` is now the separate shared follow-up for route-line color and repeated-route thickness behavior; do not mix it into the first Overview shell rebuild.
+- `OVERVIEW-REDESIGN-004` now compacts the page into a denser dashboard grid: `Total overview` full-width, `Travel map + Favorite places`, `This year + Tickets`, and `Recent journeys + What matters next`.
+- `OVERVIEW-REDESIGN-004` is a layout/density pass only; it does not change the `OVERVIEW-REDESIGN-003` transport-scope behavior.
+- `MAP-ROUTE-STYLING-001` is now the separate shared follow-up for route-line color and repeated-route thickness behavior; do not mix it into the Overview grid/layout work.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.

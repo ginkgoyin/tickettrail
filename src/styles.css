@@ -3576,25 +3576,25 @@ textarea {
 
 .overview-home {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .overview-topbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
+  align-items: center;
+  gap: 14px;
 }
 
 .overview-topbar h2 {
   margin: 0;
-  font-size: 1.65rem;
+  font-size: 1.55rem;
 }
 
 .overview-topbar p {
   margin: 4px 0 0;
   color: var(--text-soft);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .overview-scope-toggle {
@@ -3604,21 +3604,21 @@ textarea {
 
 .overview-section {
   display: grid;
-  gap: 14px;
-  padding: 20px 22px;
-  border-radius: 24px;
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: 22px;
 }
 
 .overview-title-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 14px;
+  gap: 12px;
 }
 
 .overview-title-row h3 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.02rem;
 }
 
 .overview-section-meta,
@@ -3635,7 +3635,24 @@ textarea {
 
 .overview-section-meta,
 .overview-scope-note {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+}
+
+.overview-dashboard-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.54fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.overview-map-favorites-row {
+  grid-template-columns: minmax(0, 2.45fr) minmax(280px, 0.95fr);
+}
+
+.overview-dashboard-main,
+.overview-dashboard-side,
+.overview-list-panel {
+  min-width: 0;
 }
 
 .overview-stat-strip {
@@ -3655,11 +3672,11 @@ textarea {
 }
 
 .overview-stat-cell {
-  min-height: 84px;
-  padding: 12px 14px;
-  border-radius: 18px;
+  min-height: 74px;
+  padding: 10px 12px;
+  border-radius: 16px;
   display: grid;
-  gap: 6px;
+  gap: 5px;
   align-content: center;
 }
 
@@ -3671,7 +3688,7 @@ textarea {
 .overview-highlight-chip span,
 .overview-favorite-row span {
   color: var(--text-soft);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 .overview-stat-cell strong,
@@ -3680,76 +3697,67 @@ textarea {
 .overview-list-row strong,
 .overview-favorite-row strong {
   margin: 0;
-  font-size: 1.12rem;
+  font-size: 1.02rem;
 }
 
 .overview-map-shell {
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: 20px;
   border: 1px solid rgba(186, 215, 225, 0.08);
   background: rgba(255, 255, 255, 0.03);
 }
 
 .overview-map-shell .route-map {
-  min-height: 340px;
+  min-height: 250px;
 }
 
 .overview-map-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  font-size: 0.86rem;
+  gap: 6px 14px;
+  font-size: 0.82rem;
 }
 
 .overview-focus-card {
-  padding: 18px 20px;
-  border-radius: 20px;
+  padding: 14px 16px;
+  border-radius: 18px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  align-content: start;
 }
 
 .overview-focus-meta,
 .overview-focus-actions,
 .overview-focus-tags {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   align-items: center;
 }
 
 .overview-focus-card h4 {
-  font-size: 1.45rem;
+  font-size: 1.16rem;
+  line-height: 1.3;
 }
 
 .overview-focus-range {
-  margin: -2px 0 0;
-  font-size: 0.95rem;
+  margin: -1px 0 0;
+  font-size: 0.88rem;
 }
 
 .overview-focus-tags span,
 .overview-focus-tags-single {
-  padding: 8px 12px;
+  padding: 7px 10px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(186, 215, 225, 0.08);
-  font-size: 0.88rem;
-}
-
-.overview-two-column-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  align-items: start;
-}
-
-.overview-list-panel {
-  min-width: 0;
+  font-size: 0.82rem;
 }
 
 .overview-list-shell,
 .overview-favorites-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .overview-list-row,
@@ -3759,9 +3767,9 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  border-radius: 16px;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
   text-align: left;
 }
 
@@ -3784,39 +3792,62 @@ textarea {
 
 .overview-list-row p,
 .overview-favorite-row span {
-  font-size: 0.88rem;
+  font-size: 0.84rem;
 }
 
 .overview-list-side {
-  max-width: 38%;
+  max-width: 42%;
   text-align: right;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 
 .overview-highlight-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
+}
+
+.overview-year-section {
+  align-self: start;
+}
+
+.overview-year-section .overview-highlight-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 
 .overview-highlight-chip {
-  min-height: 82px;
-  padding: 12px 14px;
-  border-radius: 18px;
+  min-height: 70px;
+  padding: 10px 12px;
+  border-radius: 16px;
   display: grid;
-  gap: 6px;
+  gap: 5px;
   align-content: center;
 }
 
+.overview-year-section .overview-highlight-chip {
+  min-height: 58px;
+  padding: 9px 10px;
+  border-radius: 14px;
+}
+
+.overview-year-section .overview-highlight-chip strong {
+  font-size: 0.98rem;
+}
+
+.overview-year-section .overview-highlight-chip span {
+  font-size: 0.76rem;
+}
+
 .overview-empty-state {
-  padding: 18px 20px;
-  border-radius: 20px;
+  padding: 16px 18px;
+  border-radius: 18px;
   border: 1px dashed rgba(186, 215, 225, 0.18);
   background: rgba(255, 255, 255, 0.02);
 }
 
 .overview-empty-state.compact {
-  padding: 14px 16px;
+  padding: 12px 14px;
 }
 
 .overview-empty-state strong,
@@ -3824,7 +3855,7 @@ textarea {
   margin: 0;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
   .overview-stat-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3838,10 +3869,20 @@ textarea {
   }
 }
 
+@media (max-width: 1100px) {
+  .overview-dashboard-row,
+  .overview-map-favorites-row {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-map-shell .route-map {
+    min-height: 230px;
+  }
+}
+
 @media (max-width: 900px) {
   .overview-topbar,
   .overview-title-row,
-  .overview-two-column-grid,
   .overview-list-row,
   .overview-list-row-button,
   .overview-favorite-row {
@@ -3863,15 +3904,11 @@ textarea {
   .overview-stat-cell-wide {
     grid-column: span 2;
   }
-
-  .overview-map-shell .route-map {
-    min-height: 300px;
-  }
 }
 
 @media (max-width: 640px) {
   .overview-section {
-    padding: 18px;
+    padding: 16px;
   }
 
   .overview-stat-strip,

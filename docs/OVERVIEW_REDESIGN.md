@@ -4,7 +4,7 @@
 
 This document records the audit and redesign direction for the `Overview` page.
 
-It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the runtime Overview rebuild work through `OVERVIEW-REDESIGN-003`.
+It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the runtime Overview rebuild work through `OVERVIEW-REDESIGN-004`.
 
 It does not:
 
@@ -320,7 +320,8 @@ Manual testing will be especially important for:
 - `MAP-ROUTE-STYLING-001`
   - shared map route-line styling follow-up for color/thickness/repeated-route behavior
 - `OVERVIEW-REDESIGN-004`
-  - responsive polish, empty states, loading states, and visual cleanup
+  - rearrange the approved Overview modules into a denser desktop dashboard grid while keeping the `OVERVIEW-REDESIGN-003` scope behavior unchanged
+  - use the V1 compact row order: `Total overview`, then `Travel map + Favorite places`, then `This year + Tickets`, then `Recent journeys + What matters next`
 
 ## 9. Shared Map Styling Follow-up
 
@@ -365,3 +366,15 @@ Scope note:
   - `No travel records yet.`
   - `No flight records in this scope.`
   - `No rail records in this scope.`
+- `OVERVIEW-REDESIGN-004` now compacts the page into a denser dashboard grid:
+  - `Total overview` stays full-width at the top
+  - `Travel map` now shares a desktop row with `Favorite places` and keeps the larger left column
+  - `This year` now shares a row with `Tickets`
+  - `Recent journeys` now shares a row with `What matters next`
+- `OVERVIEW-REDESIGN-004A` keeps that arrangement but polishes the yearly summary card:
+  - the visible title now shows the active data year instead of hardcoded `This year`
+  - the active year prefers the current calendar year when scoped data exists, otherwise it falls back to the latest year with records
+  - the yearly summary strip is intentionally more compact and no longer needs to visually stretch to match a taller adjacent panel
+- `OVERVIEW-YEAR-FILTER-001` remains the future follow-up for a real Overview year selector.
+- This pass changes layout density and year-label presentation only; it does not change the transport-scope matching rules added in `OVERVIEW-REDESIGN-003`.
+- `MAP-ROUTE-STYLING-001` still remains separate from the Overview grid/layout work.

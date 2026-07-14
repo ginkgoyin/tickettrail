@@ -2,6 +2,7 @@
 import {
   buildOverviewFavoritePlaces,
   countUniqueOverviewTicketPlaces,
+  deriveActiveOverviewYear,
   deriveOverviewScopedSnapshot,
   getOverviewEmptyStateCopy,
 } from "../src/lib/overviewData";
@@ -170,5 +171,31 @@ describe("overviewData helpers", () => {
     expect(getOverviewEmptyStateCopy("all", "records")).toBe("No travel records yet.");
     expect(getOverviewEmptyStateCopy("flight", "journeys")).toBe("No flight journeys in this scope.");
     expect(getOverviewEmptyStateCopy("train", "favorites")).toBe("No rail places in this scope.");
+  });
+
+  it("prefers the current calendar year when scoped data exists for it, otherwise falls back to the latest data year", () => {
+    expect(deriveActiveOverviewYear(journeys, tickets, "2026")).toBe("2026");
+
+    const olderTicket = makeTicket({
+      id: "flight-older",
+      ticketType: "flight",
+      departure: makeLocation("Melbourne", "MEL"),
+      arrival: makeLocation("Singapore", "SIN"),
+      departureTimeLocal: "2024-02-01T08:00",
+      arrivalTimeLocal: "2024-02-01T14:00",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    });
+    const olderJourney = makeJourney({
+      id: "j-older",
+      title: "Older journey",
+      ticketIds: ["flight-older"],
+      startDate: "2024-02-01",
+      endDate: "2024-02-03",
+      updatedAt: "2024-02-04T00:00:00Z",
+    });
+
+    expect(deriveActiveOverviewYear([olderJourney], [olderTicket], "2026")).toBe("2024");
+    expect(deriveActiveOverviewYear([], [], "2026")).toBe("2026");
   });
 });
