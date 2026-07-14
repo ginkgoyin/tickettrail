@@ -446,3 +446,61 @@ They are based on current repository docs/checklists and should be expanded from
 - Task: Replace it with a cleaner archive-home structure that reflects what users actually need first.
 - Action: Audited the current IA, documented a new section order, and implemented the first new runtime shell.
 - Result: Overview moved toward a cleaner archive-home experience with a clearer base for future refinement.
+
+---
+
+## Entry: Overview Scope Data Refinement
+
+- Date: 2026-07-14
+- Task ID: `OVERVIEW-REDESIGN-003`
+- Area: Overview data scope / fallback logic / helper extraction
+- Status: Implemented
+- Problem / requirement:
+  - Overview data logic had become too dense inside `HomePage.tsx`.
+  - Scoped `Favorite places` could mix whole-journey destinations into transport-scoped views.
+  - Places count was previously not a true scoped unique endpoint count.
+- Why it mattered:
+  - The new Overview shell needed consistent scope behavior across journeys, tickets, map, and highlights.
+- User decision / product constraint:
+  - Keep `All / Flights / Rail` as a transport scope matcher, not a journey splitter.
+  - Mixed journeys can appear in both `Flights` and `Rail`.
+  - Scoped travel days remain full matching journey days.
+  - Scoped cost may overlap for mixed journeys and should not be overstated as sliced transport cost.
+- Final approach:
+  - Extract Overview-specific data derivation helpers.
+  - Keep journey cards whole while scoping ticket-derived modules directly by transport.
+  - Use ticket-derived places for transport-scoped favorite places.
+- Implementation summary:
+  - Extracted Overview data logic into `src/lib/overviewData.ts`.
+  - Added `tests/overviewData.test.ts`.
+  - Updated `HomePage.tsx` to consume helper-derived data.
+  - Favorite places in transport-scoped views are now ticket-derived.
+- Files / modules changed:
+  - `src/pages/HomePage.tsx`
+  - `src/lib/overviewData.ts`
+  - `tests/overviewData.test.ts`
+  - `docs/OVERVIEW_REDESIGN.md`
+  - `docs/ISSUE_CHECKLIST.md`
+  - `docs/TASKS.md`
+- Tests / validation:
+  - `npm.cmd run test -- tests/overviewData.test.ts`
+  - `npm.cmd run test -- tests/placeGrouping.test.ts`
+  - `npm.cmd run test -- tests/journeySummary.test.ts`
+  - `npm.cmd run build`
+  - `git diff --check`
+- Manual verification:
+  - Pending desktop verification of `All / Flights / Rail` section behavior.
+- Risks / tradeoffs:
+  - Mixed-scope cost overlap remains a known limitation.
+  - Transport-sliced travel days are intentionally out of scope.
+  - `MAP-ROUTE-STYLING-001` remains separate.
+- Interview talking points:
+  - Converting dense page-level derivation into focused view helpers.
+  - Preserving honest scope semantics instead of faking transport-sliced precision.
+
+### STAR Summary
+
+- Situation: The Overview redesign shell was in place, but section-level data scope and fallback behavior were still too dense and inconsistent.
+- Task: Make Overview scope behavior consistent for `All`, `Flights`, and `Rail` without changing the approved layout.
+- Action: Extracted Overview data helpers, switched scoped favorite places to ticket-derived data, and aligned snapshot/fallback behavior with the approved transport-scope rules.
+- Result: The Overview shell now uses a clearer scope model while keeping mixed journeys whole and documenting the remaining cost/day limitations honestly.

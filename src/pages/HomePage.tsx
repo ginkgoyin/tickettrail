@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+﻿import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { listJourneys } from "../lib/journeyService";
 import {
   buildJourneySummaryBase,
@@ -7,6 +7,15 @@ import {
   type JourneySummaryBase,
 } from "../lib/journeySummary";
 import { getTicketDetail } from "../lib/ticketService";
+import {
+  buildOverviewFavoritePlaces,
+  countUniqueOverviewTicketPlaces,
+  deriveOverviewScopedSnapshot,
+  getOverviewEmptyStateCopy,
+  getOverviewScopeLabel,
+  getOverviewTicketDayCount,
+  type OverviewScope,
+} from "../lib/overviewData";
 import type { Journey } from "../types/journey";
 import type {
   MapPointPayload,
@@ -17,8 +26,6 @@ import type {
 } from "../types/ticket";
 
 const RouteMap = lazy(async () => import("../components/RouteMap").then((module) => ({ default: module.RouteMap })));
-
-type OverviewScope = "all" | TicketRecord["ticketType"];
 
 const OVERVIEW_SCOPE_OPTIONS: Array<{ label: string; value: OverviewScope }> = [
   { label: "All", value: "all" },
@@ -206,36 +213,6 @@ function buildArchiveCostLabel(summaryBase: JourneySummaryBase | null) {
   return null;
 }
 
-function countUniqueTicketPlaces(tickets: TicketRecord[]) {
-  const seen = new Set<string>();
-
-  tickets.forEach((ticket) => {
-    [ticket.departure?.name, ticket.arrival?.name].forEach((name) => {
-      const normalized = safeText(name).trim();
-      if (normalized) {
-        seen.add(normalized.toLowerCase());
-      }
-    });
-  });
-
-  return seen.size;
-}
-
-function getTicketDayCount(tickets: TicketRecord[]) {
-  const dayKeys = new Set<string>();
-
-  tickets.forEach((ticket) => {
-    [ticket.departureTimeLocal, ticket.arrivalTimeLocal].forEach((value) => {
-      const normalized = safeText(value).trim();
-      if (normalized.length >= 10) {
-        dayKeys.add(normalized.slice(0, 10));
-      }
-    });
-  });
-
-  return dayKeys.size;
-}
-
 function isUpcomingJourney(journey: Journey, todayKey: string) {
   const comparisonDate = journey.startDate ?? journey.endDate ?? "";
   return comparisonDate >= todayKey;
@@ -267,64 +244,6 @@ function buildUpcomingTickets(tickets: TicketRecord[], nowIso: string) {
 
 function buildRecentTickets(tickets: TicketRecord[]) {
   return [...tickets].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-}
-
-function buildFavoritePlaces(summaryBase: JourneySummaryBase | null, tickets: TicketRecord[]) {
-  if (summaryBase?.topDestinations.length) {
-    return summaryBase.topDestinations.slice(0, 4).map((item) => ({
-      label: item.label,
-      detail: `${formatCount(item.journeyCount)} journey${item.journeyCount === 1 ? "" : "s"}`,
-    }));
-  }
-
-  const counter = new Map<string, number>();
-  tickets.forEach((ticket) => {
-    [ticket.departure?.name, ticket.arrival?.name].forEach((name) => {
-      const label = safeText(name).trim();
-      if (!label) {
-        return;
-      }
-      counter.set(label, (counter.get(label) ?? 0) + 1);
-    });
-  });
-
-  return [...counter.entries()]
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, 4)
-    .map(([label, count]) => ({
-      label,
-      detail: `${formatCount(count)} touchpoint${count === 1 ? "" : "s"}`,
-    }));
-}
-
-function filterTicketsByScope(tickets: TicketRecord[], scope: OverviewScope) {
-  if (scope === "all") {
-    return tickets;
-  }
-
-  return tickets.filter((ticket) => ticket.ticketType === scope);
-}
-
-function journeyMatchesScope(
-  journey: Journey,
-  ticketsById: Map<string, TicketRecord>,
-  scope: OverviewScope,
-) {
-  if (scope === "all") {
-    return true;
-  }
-
-  return journey.ticketIds.some((ticketId) => ticketsById.get(ticketId)?.ticketType === scope);
-}
-
-function getScopeLabel(scope: OverviewScope) {
-  if (scope === "flight") {
-    return "Flights";
-  }
-  if (scope === "train") {
-    return "Rail";
-  }
-  return "All";
 }
 
 export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
@@ -410,22 +329,31 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
   const todayKey = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString().slice(0, 16);
 
-  const ticketsById = useMemo(() => new Map(tickets.map((ticket) => [ticket.id, ticket])), [tickets]);
-  const scopedTickets = useMemo(() => filterTicketsByScope(tickets, scope), [scope, tickets]);
+  const { scopedTickets, scopedJourneys } = useMemo(
+    () => deriveOverviewScopedSnapshot(journeys, tickets, scope),
+    [journeys, scope, tickets],
+  );
   const scopedTicketIds = useMemo(() => new Set(scopedTickets.map((ticket) => ticket.id)), [scopedTickets]);
   const scopedMapDetails = useMemo(
     () => mapDetails.filter((detail) => scopedTicketIds.has(detail.ticket.id)),
     [mapDetails, scopedTicketIds],
   );
-  const scopedJourneys = useMemo(
-    () => journeys.filter((journey) => journeyMatchesScope(journey, ticketsById, scope)),
-    [journeys, scope, ticketsById],
-  );
-
   const sortedJourneys = useMemo(() => sortJourneysByStartDate(scopedJourneys), [scopedJourneys]);
   const upcomingJourneys = useMemo(() => buildUpcomingJourneys(scopedJourneys, todayKey), [scopedJourneys, todayKey]);
   const upcomingTickets = useMemo(() => buildUpcomingTickets(scopedTickets, nowIso), [scopedTickets, nowIso]);
   const recentTickets = useMemo(() => buildRecentTickets(scopedTickets), [scopedTickets]);
+  const recentJourneys = useMemo(() => sortedJourneys.slice(0, 4), [sortedJourneys]);
+  const recentScopedTickets = useMemo(
+    () => (upcomingTickets.length ? upcomingTickets : recentTickets).slice(0, 4),
+    [recentTickets, upcomingTickets],
+  );
+  const scopedYearTickets = useMemo(
+    () => scopedTickets.filter((ticket) => {
+      const dateValue = safeText(ticket.departureTimeLocal).trim() || safeText(ticket.createdAt).trim();
+      return dateValue.startsWith(`${currentYear}-`);
+    }),
+    [currentYear, scopedTickets],
+  );
   const overviewMap = useMemo(() => buildOverviewMapPayload(scopedMapDetails), [scopedMapDetails]);
 
   const summaryBase = useMemo(() => {
@@ -446,32 +374,31 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
 
   const focusJourney = upcomingJourneys[0] ?? sortedJourneys[0] ?? null;
   const focusTicket = focusJourney ? null : upcomingTickets[0] ?? recentTickets[0] ?? null;
-  const recentJourneys = sortedJourneys.slice(0, 4);
-  const recentScopedTickets = (upcomingTickets.length ? upcomingTickets : recentTickets).slice(0, 4);
   const favoritePlaces = useMemo(
-    () => buildFavoritePlaces(scope === "all" ? summaryBase : null, scopedTickets),
+    () => buildOverviewFavoritePlaces(scope, summaryBase, scopedTickets),
     [scope, scopedTickets, summaryBase],
   );
 
-  const archiveSnapshot = {
-    journeyCount: scopedJourneys.length,
-    ticketCount: scopedTickets.length,
-    travelDays: summaryBase?.allTravelDays ?? getTicketDayCount(scopedTickets),
-    destinationCount: scope === "all"
-      ? (summaryBase?.topDestinations.length ?? countUniqueTicketPlaces(scopedTickets))
-      : countUniqueTicketPlaces(scopedTickets),
-    totalCostLabel: buildArchiveCostLabel(summaryBase),
-  };
+  const archiveSnapshot = useMemo(
+    () => ({
+      journeyCount: scopedJourneys.length,
+      ticketCount: scopedTickets.length,
+      travelDays: summaryBase?.allTravelDays ?? getOverviewTicketDayCount(scopedTickets),
+      destinationCount: countUniqueOverviewTicketPlaces(scopedTickets),
+      totalCostLabel: buildArchiveCostLabel(summaryBase),
+    }),
+    [scopedJourneys.length, scopedTickets, summaryBase],
+  );
 
-  const thisYearHighlights = {
-    journeyCount: yearSummary?.selectedYearJourneys ?? 0,
-    travelDays: yearSummary?.selectedYearTravelDays ?? 0,
-    ticketCount: scopedTickets.filter((ticket) => {
-      const dateValue = safeText(ticket.departureTimeLocal).trim() || safeText(ticket.createdAt).trim();
-      return dateValue.startsWith(`${currentYear}-`);
-    }).length,
-    busiestMonth: summaryBase?.busiestMonth?.monthKey ?? "--",
-  };
+  const thisYearHighlights = useMemo(
+    () => ({
+      journeyCount: yearSummary?.selectedYearJourneys ?? 0,
+      travelDays: yearSummary?.selectedYearTravelDays ?? 0,
+      ticketCount: scopedYearTickets.length,
+      placeCount: countUniqueOverviewTicketPlaces(scopedYearTickets),
+    }),
+    [scopedYearTickets, yearSummary],
+  );
 
   return (
     <section className="overview-home">
@@ -496,7 +423,7 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
       <section className="panel overview-section overview-snapshot-section">
         <div className="overview-title-row">
           <h3>Total overview</h3>
-          <span className="overview-scope-note">{getScopeLabel(scope)}</span>
+          <span className="overview-scope-note">{getOverviewScopeLabel(scope)}</span>
         </div>
         <div className="overview-stat-strip">
           <article className="overview-stat-cell">
@@ -520,6 +447,9 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             <strong>{archiveSnapshot.totalCostLabel ?? "Not available yet"}</strong>
           </article>
         </div>
+        {scope !== "all" && archiveSnapshot.totalCostLabel ? (
+          <p className="overview-section-meta">Journey-level cost can overlap in mixed trips.</p>
+        ) : null}
       </section>
 
       <section className="panel overview-section overview-map-section">
@@ -541,8 +471,8 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             </div>
             <div className="overview-map-meta">
               <span>{`${formatCount(scopedTickets.length)} tickets`}</span>
-              <span>{`${formatCount(overviewMap.points.length)} places`}</span>
-              <span>{scope === "all" ? "Flights and rail" : scope === "flight" ? "Flights only" : "Rail only"}</span>
+              <span>{`${formatCount(overviewMap.points.length)} points`}</span>
+              <span>{getOverviewScopeLabel(scope)}</span>
             </div>
           </>
         ) : mapLoading ? (
@@ -552,12 +482,12 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
         ) : scopedTickets.length ? (
           <div className="overview-empty-state compact">
             <strong>Travel map is unavailable</strong>
-            <p>Not enough safe route data is available in the current scope.</p>
+            <p>Safe route data is limited in the current scope.</p>
           </div>
         ) : (
           <div className="overview-empty-state compact">
-            <strong>No tickets in this scope</strong>
-            <p>Switch back to All or add more tickets.</p>
+            <strong>{getOverviewEmptyStateCopy(scope, "map")}</strong>
+            <p>{scope === "all" ? "Add tickets to start building the archive." : "Switch scope or add more matching tickets."}</p>
           </div>
         )}
       </section>
@@ -596,8 +526,8 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
           </article>
         ) : (
           <div className="overview-empty-state compact">
-            <strong>Nothing to focus on yet</strong>
-            <p>{scope === "all" ? "Create a journey or add a ticket to start building the archive." : `No ${scope === "flight" ? "flight" : "rail"} journeys or tickets match this scope yet.`}</p>
+            <strong>{getOverviewEmptyStateCopy(scope, "focus")}</strong>
+            <p>{scope === "all" ? "Add a journey or ticket to get started." : "No matching journey or ticket is ready in this scope."}</p>
           </div>
         )}
       </section>
@@ -628,8 +558,8 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             </div>
           ) : (
             <div className="overview-empty-state compact">
-              <strong>No journeys yet</strong>
-              <p>{journeyError || "Journeys will appear here once tickets are grouped into trips."}</p>
+              <strong>{getOverviewEmptyStateCopy(scope, "journeys")}</strong>
+              <p>{journeyError || (scope === "all" ? "Journeys will appear here once tickets are grouped into trips." : "Matching whole journeys will appear here when this scope has linked trips.")}</p>
             </div>
           )}
         </section>
@@ -655,8 +585,8 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             </div>
           ) : (
             <div className="overview-empty-state compact">
-              <strong>No tickets in this scope</strong>
-              <p>Switch back to All or save a ticket in this transport type.</p>
+              <strong>{getOverviewEmptyStateCopy(scope, "tickets")}</strong>
+              <p>{scope === "all" ? "Save a ticket to start filling the archive." : "Switch scope or save more matching tickets."}</p>
             </div>
           )}
         </section>
@@ -681,8 +611,8 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
               <strong>{formatCount(thisYearHighlights.ticketCount)}</strong>
             </article>
             <article className="overview-highlight-chip">
-              <span>Busiest month</span>
-              <strong>{thisYearHighlights.busiestMonth}</strong>
+              <span>Places</span>
+              <strong>{thisYearHighlights.placeCount ? formatCount(thisYearHighlights.placeCount) : "--"}</strong>
             </article>
           </div>
         </section>
@@ -703,8 +633,8 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             </div>
           ) : (
             <div className="overview-empty-state compact">
-              <strong>No favorite places yet</strong>
-              <p>Places will gather here once the archive has journeys or mapped ticket endpoints.</p>
+              <strong>{getOverviewEmptyStateCopy(scope, "favorites")}</strong>
+              <p>{scope === "all" ? "Places will gather here once journeys or ticket routes are available." : "Scoped favorite places come from matching ticket endpoints."}</p>
             </div>
           )}
         </section>

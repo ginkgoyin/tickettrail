@@ -4,7 +4,7 @@
 
 This document records the audit and redesign direction for the `Overview` page.
 
-It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the first runtime shell implementation in `OVERVIEW-REDESIGN-002`.
+It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the runtime Overview rebuild work through `OVERVIEW-REDESIGN-003`.
 
 It does not:
 
@@ -315,6 +315,8 @@ Manual testing will be especially important for:
   - keep ticket/map modules transport-scoped by ticket type and avoid pretending scoped Journey views are hard transport splits
 - `OVERVIEW-REDESIGN-003`
   - refine section-level data selectors, fallback behavior, and Overview-specific helpers without changing the approved information architecture
+  - keep the transport toggle as a scope matcher, not a journey splitter
+  - keep scoped journey cards whole while scoping ticket/map/favorite-place modules directly by transport
 - `MAP-ROUTE-STYLING-001`
   - shared map route-line styling follow-up for color/thickness/repeated-route behavior
 - `OVERVIEW-REDESIGN-004`
@@ -349,4 +351,17 @@ Scope note:
 - The current rail/place/grouping cleanup line is intentionally paused.
 - The active product/design line is now Overview redesign.
 - `OVERVIEW-REDESIGN-002A` now refines that shell with denser spacing, simpler headings, and a top transport-scope toggle.
-- `OVERVIEW-REDESIGN-003` should refine data wiring and fallback behavior without reintroducing the old analytics-heavy Overview composition.
+- `OVERVIEW-REDESIGN-003` now refines Overview data wiring and fallback behavior without reintroducing the old analytics-heavy Overview composition.
+- The transport toggle remains a scope matcher:
+  - `All` uses all journeys and tickets
+  - `Flights` uses journeys containing at least one flight ticket plus flight tickets/routes directly
+  - `Rail` uses journeys containing at least one rail ticket plus rail tickets/routes directly
+- Mixed journeys can appear in both `Flights` and `Rail`, but they continue to render as whole journey cards.
+- Snapshot and This year travel-day totals intentionally use full matching journey days in scoped views instead of trying to split mixed journeys into transport-only day fragments.
+- Favorite places now follow two paths:
+  - `All` can still use Journey/Summary destination rollups
+  - `Flights` and `Rail` use ticket-derived places/endpoints so scoped views do not inherit mixed whole-journey rollups
+- Scoped empty states should stay concise:
+  - `No travel records yet.`
+  - `No flight records in this scope.`
+  - `No rail records in this scope.`

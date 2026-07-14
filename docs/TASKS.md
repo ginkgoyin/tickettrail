@@ -478,17 +478,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed Overview checkpoint: `OVERVIEW-REDESIGN-002B`.
+Latest completed Overview checkpoint: `OVERVIEW-REDESIGN-003`.
 
-Recommended next task: `OVERVIEW-REDESIGN-003`.
+Recommended next task: `OVERVIEW-REDESIGN-004`.
 
 The recommended next implementation order is now:
 
-1. keep `OVERVIEW-REDESIGN-002` as the new Overview shell baseline
-2. refine section-level data selection and fallback behavior in `OVERVIEW-REDESIGN-003`
-3. keep `MAP-ROUTE-STYLING-001` separate as a shared map follow-up, then polish responsive and empty states in `OVERVIEW-REDESIGN-004`
-
-Implementation notes:
+1. keep `OVERVIEW-REDESIGN-003` as the current Overview data-and-fallback baseline
+2. keep `MAP-ROUTE-STYLING-001` separate as a shared map follow-up
+3. polish responsive and empty states in `OVERVIEW-REDESIGN-004`
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
@@ -517,8 +515,12 @@ Implementation notes:
 - Overview V1 should feel like a clean personal travel archive home rather than an analytics workbench or a route-debug page; quick actions and data-health reminders are intentionally out of scope for V1.
 - `OVERVIEW-REDESIGN-002A` tightens the Overview shell with smaller type, reduced padding, shorter internal rows, simpler headings, and a top `All / Flights / Rail` scope toggle.
 - `OVERVIEW-REDESIGN-002B` clarifies that the transport toggle is a scope matcher for journeys, not a journey splitter: mixed journeys can appear in both `Flights` and `Rail` while still rendering as whole journey cards.
+- `OVERVIEW-REDESIGN-003` now refines section-level data selection and fallback logic without reintroducing the old analytics-heavy `StatisticsPanel` / `Dashboard(mode="overview")` composition.
+- The Overview transport toggle remains a scope matcher rather than a journey splitter: mixed journeys can appear in both `Flights` and `Rail`, while still rendering as whole journey cards.
+- Overview Snapshot and This year scoped travel-day totals intentionally use full days from matching journeys instead of slicing mixed journeys into transport-only day fragments.
+- Favorite places in `Flights` and `Rail` now come from ticket-derived places/endpoints rather than whole-journey destination rollups.
+- Scoped total-cost display still uses the current journey-level source when available, so mixed-trip overlap is disclosed in the UI rather than hidden.
 - `MAP-ROUTE-STYLING-001` is now the separate shared follow-up for route-line color and repeated-route thickness behavior; do not mix it into the first Overview shell rebuild.
-- `OVERVIEW-REDESIGN-003` should focus on refining data selection and fallback logic, not on reintroducing the old analytics-heavy `StatisticsPanel` / `Dashboard(mode="overview")` composition.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.

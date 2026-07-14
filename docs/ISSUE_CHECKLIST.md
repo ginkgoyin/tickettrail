@@ -308,8 +308,17 @@
     - Mixed journeys can appear in both `Flights` and `Rail` views and still render as whole journey cards.
     - Ticket/map modules remain directly transport-scoped by ticket type.
     - Favorite places in scoped views now fall back to ticket-derived scope rather than mixed whole-journey destination rollups.
-  - Priority: `High`
 
+
+- `OVERVIEW-REDESIGN-003`
+  - Refine Overview section-level data selection, scoped fallbacks, and helper boundaries without changing the approved layout shell.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - The transport toggle remains a scope matcher, not a journey splitter.
+    - Snapshot and This year scoped travel days intentionally use full days from matching journeys, even when mixed journeys can overlap between `Flights` and `Rail`.
+    - Favorite places in `Flights` and `Rail` now come from ticket-derived places instead of whole-journey destination rollups.
+    - Scoped total-cost display still relies on journey-level cost totals when that is the available source, so mixed-trip overlap is disclosed rather than hidden.
+  - Priority: `High`
 - `MAP-ROUTE-STYLING-001`
   - Add shared route-line styling rules so rail and flight routes use different colors, all lines are thinner than the current style, and repeated routes use a simple binary thicker-than-once rule.
   - Status: `Open / future implementation`
@@ -874,7 +883,7 @@
   - Clean up the remaining candidate review artifact so key-collision rows no longer appear as safe auto-add work.
   - Status: `Implemented / conflict review cleanup`
   - Notes:
-    - `cn-qianan / 闂傚倸鍊风粈渚€骞栭位鍥敃閿曗偓閻ょ偓绻涢崱妯虹仼闁活厼妫楅妴鎺戭潩閿濆懍澹曢梻浣筋嚃閸ｏ絿绮婚弽顓炴槬?is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
+    - `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亝鎹ｉ柣顓炴閵嗘帒顫濋敐鍛婵°倗濮烽崑鐐烘偋閻樻眹鈧線寮村杈┬㈤梻浣规偠閸庢椽宕滈敃鍌氭瀬闁告劦鍠楅悡銉╂煛閸ヮ煈娈斿ù婊堢畺濮婂搫效閸パ€鍋撳Δ鍛；闁规崘鍩栧畷鍙夌箾閹存瑥鐏╂鐐灪娣囧﹪顢涘┑鍥朵哗婵炲濮撮妶绋款潖閸濆娊铏规嫚閹绘帞顔愭繝纰樻閸嬪懘銆冩繝鍐х箚闁圭虎鍠栫粻鎶芥煙閹碱厼骞楅柛宥囨暬濮婃椽骞愭惔锝囩暤闂佺懓鍟跨粔鐢电博閻旂厧鍗抽柕蹇婃閹风粯绻涙潏鍓ф偧闁烩剝妫冨畷鐢稿礃椤旂晫鍘遍梺鎸庣箓缁绘帡骞冮懖鈺冪＜妞ゆ梻鈷堥悡鑲┾偓娈垮枙缁瑩銆佸鈧幃娆戔偓娑欘焺?is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
     - The reviewed-safe source file excludes skipped conflict rows and keeps only the safe matches actually applied by regeneration.
   - Priority: `High`
 
@@ -885,7 +894,7 @@
     - Reviewed overrides now live in `data-sources/rail/rail-station-place-overrides.json` and apply only when `enabled = true` and `reviewStatus = approved`.
     - Generator-side validation now rejects duplicate/conflicting overrides, missing Place Catalog targets, and approved overrides that do not match any generated rail station.
     - Remaining hard cases are now prioritized in `docs/reviews/rail-place-override-priority.csv` for manual review.
-    - KUX and `cn-qianan / 闂傚倸鍊风粈渚€骞栭位鍥敃閿曗偓閻ょ偓绻涢崱妯虹仼闁活厼妫楅妴鎺戭潩閿濆懍澹曢梻浣筋嚃閸ｏ絿绮婚弽顓炴槬?remain explicit human-review cases and are not auto-resolved by this override layer.
+    - KUX and `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亝鎹ｉ柣顓炴閵嗘帒顫濋敐鍛婵°倗濮烽崑鐐烘偋閻樻眹鈧線寮村杈┬㈤梻浣规偠閸庢椽宕滈敃鍌氭瀬闁告劦鍠楅悡銉╂煛閸ヮ煈娈斿ù婊堢畺濮婂搫效閸パ€鍋撳Δ鍛；闁规崘鍩栧畷鍙夌箾閹存瑥鐏╂鐐灪娣囧﹪顢涘┑鍥朵哗婵炲濮撮妶绋款潖閸濆娊铏规嫚閹绘帞顔愭繝纰樻閸嬪懘銆冩繝鍐х箚闁圭虎鍠栫粻鎶芥煙閹碱厼骞楅柛宥囨暬濮婃椽骞愭惔锝囩暤闂佺懓鍟跨粔鐢电博閻旂厧鍗抽柕蹇婃閹风粯绻涙潏鍓ф偧闁烩剝妫冨畷鐢稿礃椤旂晫鍘遍梺鎸庣箓缁绘帡骞冮懖鈺冪＜妞ゆ梻鈷堥悡鑲┾偓娈垮枙缁瑩銆佸鈧幃娆戔偓娑欘焺?remain explicit human-review cases and are not auto-resolved by this override layer.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-OVERRIDE-001A`
@@ -893,7 +902,7 @@
   - Status: `Implemented / first human review batch prepared`
   - Notes:
     - The first worksheet now lives at `docs/reviews/rail-place-override-batch-001.csv`.
-    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 闂傚倸鍊风粈渚€骞栭位鍥敃閿曗偓閻ょ偓绻涢崱妯虹仼闁活厼妫楅妴鎺戭潩閿濆懍澹曢梻浣筋嚃閸ｏ絿绮婚弽顓炴槬?key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
+    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亝鎹ｉ柣顓炴閵嗘帒顫濋敐鍛婵°倗濮烽崑鐐烘偋閻樻眹鈧線寮村杈┬㈤梻浣规偠閸庢椽宕滈敃鍌氭瀬闁告劦鍠楅悡銉╂煛閸ヮ煈娈斿ù婊堢畺濮婂搫效閸パ€鍋撳Δ鍛；闁规崘鍩栧畷鍙夌箾閹存瑥鐏╂鐐灪娣囧﹪顢涘┑鍥朵哗婵炲濮撮妶绋款潖閸濆娊铏规嫚閹绘帞顔愭繝纰樻閸嬪懘銆冩繝鍐х箚闁圭虎鍠栫粻鎶芥煙閹碱厼骞楅柛宥囨暬濮婃椽骞愭惔锝囩暤闂佺懓鍟跨粔鐢电博閻旂厧鍗抽柕蹇婃閹风粯绻涙潏鍓ф偧闁烩剝妫冨畷鐢稿礃椤旂晫鍘遍梺鎸庣箓缁绘帡骞冮懖鈺冪＜妞ゆ梻鈷堥悡鑲┾偓娈垮枙缁瑩銆佸鈧幃娆戔偓娑欘焺?key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
     - `data-sources/rail/rail-station-place-overrides.json` remains empty, so no reviewed override is applied by runtime generation yet.
   - Priority: `High`
 
@@ -901,7 +910,7 @@
   - Apply the first approved override batch only after explicit human review decisions are captured from the batch worksheet.
   - Status: `Open / paused pending documented granularity policy and reviewed override decisions`
   - Notes:
-    - Do not approve KUX, `cn-qianan / 闂傚倸鍊风粈渚€骞栭位鍥敃閿曗偓閻ょ偓绻涢崱妯虹仼闁活厼妫楅妴鎺戭潩閿濆懍澹曢梻浣筋嚃閸ｏ絿绮婚弽顓炴槬? or any risky slug-only mapping without explicit evidence and a reviewed decision.
+    - Do not approve KUX, `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亝鎹ｉ柣顓炴閵嗘帒顫濋敐鍛婵°倗濮烽崑鐐烘偋閻樻眹鈧線寮村杈┬㈤梻浣规偠閸庢椽宕滈敃鍌氭瀬闁告劦鍠楅悡銉╂煛閸ヮ煈娈斿ù婊堢畺濮婂搫效閸パ€鍋撳Δ鍛；闁规崘鍩栧畷鍙夌箾閹存瑥鐏╂鐐灪娣囧﹪顢涘┑鍥朵哗婵炲濮撮妶绋款潖閸濆娊铏规嫚閹绘帞顔愭繝纰樻閸嬪懘銆冩繝鍐х箚闁圭虎鍠栫粻鎶芥煙閹碱厼骞楅柛宥囨暬濮婃椽骞愭惔锝囩暤闂佺懓鍟跨粔鐢电博閻旂厧鍗抽柕蹇婃閹风粯绻涙潏鍓ф偧闁烩剝妫冨畷鐢稿礃椤旂晫鍘遍梺鎸庣箓缁绘帡骞冮懖鈺冪＜妞ゆ梻鈷堥悡鑲┾偓娈垮枙缁瑩銆佸鈧幃娆戔偓娑欘焺? or any risky slug-only mapping without explicit evidence and a reviewed decision.
     - Any future reviewed override should represent the reviewed map/coordinate place, not a forced Journey/Summary grouping key.
   - Priority: `High`
 
