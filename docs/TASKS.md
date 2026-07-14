@@ -16,6 +16,14 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 3. Milestone 0: Project Control And Documentation
 
+### [x] Register and maintain docs/PROMPT_PROBLEM_RECORD.md for prompt/problem/decision reasoning
+- Goal: Keep a companion record for major prompt framing, problem discovery, root-cause notes, and decision reasoning that is useful for later review or interview discussion.
+- Acceptance criteria:
+  - The log exists in docs/PROMPT_PROBLEM_RECORD.md.
+  - Future major product/debug/design decisions may update it when they contain interview-useful reasoning.
+- Notes:
+  - Keep this companion log selective and decision-focused rather than treating it as a general changelog.
+
 ### [x] Create and maintain `docs/AI_COLLABORATION_PROJECT_LOG.md` for major checkpoint stories
 - Goal: Keep a durable, resume/interview-friendly narrative log of major project checkpoints and AI-assisted collaboration decisions.
 - Acceptance criteria:
