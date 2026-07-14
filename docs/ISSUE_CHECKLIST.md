@@ -339,6 +339,25 @@
     - The yearly summary card is now intentionally more compact and does not need to visually stretch to fill the row.
     - Future Overview year switching remains deferred to `OVERVIEW-YEAR-FILTER-001`.
   - Priority: `Medium`
+
+- `OVERVIEW-YEAR-FILTER-001`
+  - Add a compact Overview year selector that combines with the existing `All / Flights / Rail` scope toggle.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - The year selector now sits near the top Overview controls and offers `All years` plus descending available years derived from current Overview data.
+    - The default year prefers the current calendar year when scoped data exists, otherwise the latest available year.
+    - Selected year and transport scope now combine across snapshot totals, map, favorite places, yearly highlights, journeys, tickets, and focus fallback behavior.
+    - Mixed journeys still remain whole journey cards and can appear in both `Flights` and `Rail` when they contain matching tickets in the selected year.
+  - Priority: `High`
+- `OVERVIEW-YEAR-FILTER-001B`
+  - Remove the redundant separate yearly summary module from Overview while keeping the year selector and year-filtered `Total overview` behavior.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - The visible yearly card/panel is removed from the dashboard.
+    - `Total overview` now acts as the only summary panel for the selected year plus transport scope.
+    - The layout reflows without leaving an empty dashboard gap.
+  - Priority: `Medium`
+
 - `MAP-ROUTE-STYLING-001`
   - Add shared route-line styling rules so rail and flight routes use different colors, all lines are thinner than the current style, and repeated routes use a simple binary thicker-than-once rule.
   - Status: `Open / future implementation`

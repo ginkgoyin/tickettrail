@@ -3591,6 +3591,29 @@ textarea {
   font-size: 1.55rem;
 }
 
+.overview-topbar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.overview-year-filter {
+  display: inline-flex;
+  align-items: center;
+}
+
+.overview-year-filter select {
+  min-height: 38px;
+  min-width: 118px;
+  padding: 8px 32px 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+}
+
 .overview-topbar p {
   margin: 4px 0 0;
   color: var(--text-soft);
@@ -3662,7 +3685,6 @@ textarea {
 }
 
 .overview-stat-cell,
-.overview-highlight-chip,
 .overview-favorite-row,
 .overview-focus-card,
 .overview-list-row,
@@ -3685,14 +3707,12 @@ textarea {
 }
 
 .overview-stat-cell span,
-.overview-highlight-chip span,
 .overview-favorite-row span {
   color: var(--text-soft);
   font-size: 0.78rem;
 }
 
 .overview-stat-cell strong,
-.overview-highlight-chip strong,
 .overview-focus-card h4,
 .overview-list-row strong,
 .overview-favorite-row strong {
@@ -3801,44 +3821,6 @@ textarea {
   font-size: 0.82rem;
 }
 
-.overview-highlight-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.overview-year-section {
-  align-self: start;
-}
-
-.overview-year-section .overview-highlight-strip {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.overview-highlight-chip {
-  min-height: 70px;
-  padding: 10px 12px;
-  border-radius: 16px;
-  display: grid;
-  gap: 5px;
-  align-content: center;
-}
-
-.overview-year-section .overview-highlight-chip {
-  min-height: 58px;
-  padding: 9px 10px;
-  border-radius: 14px;
-}
-
-.overview-year-section .overview-highlight-chip strong {
-  font-size: 0.98rem;
-}
-
-.overview-year-section .overview-highlight-chip span {
-  font-size: 0.76rem;
-}
-
 .overview-empty-state {
   padding: 16px 18px;
   border-radius: 18px;
@@ -3863,10 +3845,6 @@ textarea {
   .overview-stat-cell-wide {
     grid-column: span 3;
   }
-
-  .overview-highlight-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 1100px) {
@@ -3882,6 +3860,7 @@ textarea {
 
 @media (max-width: 900px) {
   .overview-topbar,
+  .overview-topbar-controls,
   .overview-title-row,
   .overview-list-row,
   .overview-list-row-button,
@@ -3896,8 +3875,7 @@ textarea {
     text-align: left;
   }
 
-  .overview-stat-strip,
-  .overview-highlight-strip {
+  .overview-stat-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3911,8 +3889,7 @@ textarea {
     padding: 16px;
   }
 
-  .overview-stat-strip,
-  .overview-highlight-strip {
+  .overview-stat-strip {
     grid-template-columns: 1fr;
   }
 

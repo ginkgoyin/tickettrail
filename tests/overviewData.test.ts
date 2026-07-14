@@ -1,8 +1,10 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   buildOverviewFavoritePlaces,
   countUniqueOverviewTicketPlaces,
   deriveActiveOverviewYear,
+  deriveAvailableOverviewYears,
+  deriveDefaultOverviewYear,
   deriveOverviewScopedSnapshot,
   getOverviewEmptyStateCopy,
 } from "../src/lib/overviewData";
@@ -90,34 +92,52 @@ describe("overviewData helpers", () => {
     ticketType: "flight",
     departure: makeLocation("Sydney", "SYD"),
     arrival: makeLocation("Tokyo", "HND"),
+    departureTimeLocal: "2026-03-01T08:00",
+    arrivalTimeLocal: "2026-03-01T16:00",
+    createdAt: "2026-02-01T00:00:00Z",
+    updatedAt: "2026-02-01T00:00:00Z",
   });
   const railTicket = makeTicket({
     id: "rail-1",
     ticketType: "train",
     departure: makeLocation("Beijing South", "VNP"),
     arrival: makeLocation("Tianjin West", "TXP"),
+    departureTimeLocal: "2025-05-01T08:00",
+    arrivalTimeLocal: "2025-05-01T10:00",
+    createdAt: "2026-04-01T00:00:00Z",
+    updatedAt: "2026-04-01T00:00:00Z",
   });
   const mixedRailTicket = makeTicket({
     id: "rail-2",
     ticketType: "train",
     departure: makeLocation("Osaka", "OSA"),
     arrival: makeLocation("Kyoto", "UKY"),
+    departureTimeLocal: "2026-04-01T09:00",
+    arrivalTimeLocal: "2026-04-01T10:00",
+    createdAt: "2026-03-01T00:00:00Z",
+    updatedAt: "2026-03-01T00:00:00Z",
   });
 
   const flightJourney = makeJourney({
     id: "j-flight",
     title: "Flight journey",
     ticketIds: ["flight-1"],
+    startDate: "2026-03-01",
+    endDate: "2026-03-04",
   });
   const railJourney = makeJourney({
     id: "j-rail",
     title: "Rail journey",
     ticketIds: ["rail-1"],
+    startDate: "2025-05-01",
+    endDate: "2025-05-02",
   });
   const mixedJourney = makeJourney({
     id: "j-mixed",
     title: "Mixed journey",
     ticketIds: ["flight-1", "rail-2"],
+    startDate: "2026-04-01",
+    endDate: "2026-04-05",
   });
 
   const tickets = [flightTicket, railTicket, mixedRailTicket];
@@ -143,6 +163,44 @@ describe("overviewData helpers", () => {
 
     expect(scoped.scopedTickets.map((ticket) => ticket.id)).toEqual(["rail-1", "rail-2"]);
     expect(scoped.scopedJourneys.map((journey) => journey.id)).toEqual(["j-rail", "j-mixed"]);
+  });
+
+  it("derives available years per scope and prefers the current year when present", () => {
+    expect(deriveAvailableOverviewYears(journeys, tickets)).toEqual(["2026", "2025"]);
+    expect(deriveDefaultOverviewYear(["2026", "2025"], "2026")).toBe("2026");
+    expect(deriveDefaultOverviewYear(["2025", "2024"], "2026")).toBe("2025");
+  });
+
+  it("combines year and transport scope without splitting mixed journeys", () => {
+    const flights2026 = deriveOverviewScopedSnapshot(journeys, tickets, "flight", "2026");
+    const rail2025 = deriveOverviewScopedSnapshot(journeys, tickets, "train", "2025");
+    const rail2026 = deriveOverviewScopedSnapshot(journeys, tickets, "train", "2026");
+
+    expect(flights2026.scopedTickets.map((ticket) => ticket.id)).toEqual(["flight-1"]);
+    expect(flights2026.scopedJourneys.map((journey) => journey.id)).toEqual(["j-flight", "j-mixed"]);
+    expect(rail2025.scopedTickets.map((ticket) => ticket.id)).toEqual(["rail-1"]);
+    expect(rail2025.scopedJourneys.map((journey) => journey.id)).toEqual(["j-rail"]);
+    expect(rail2026.scopedTickets.map((ticket) => ticket.id)).toEqual(["rail-2"]);
+    expect(rail2026.scopedJourneys.map((journey) => journey.id)).toEqual(["j-mixed"]);
+  });
+
+  it("treats a concrete year as narrower than All years even when records were created later", () => {
+    const allYearsRail = deriveOverviewScopedSnapshot(journeys, tickets, "train", "all");
+    const year2026Rail = deriveOverviewScopedSnapshot(journeys, tickets, "train", "2026");
+    const year2025Rail = deriveOverviewScopedSnapshot(journeys, tickets, "train", "2025");
+
+    expect(allYearsRail.scopedTickets.map((ticket) => ticket.id)).toEqual(["rail-1", "rail-2"]);
+    expect(year2026Rail.scopedTickets.map((ticket) => ticket.id)).toEqual(["rail-2"]);
+    expect(year2025Rail.scopedTickets.map((ticket) => ticket.id)).toEqual(["rail-1"]);
+    expect(year2026Rail.scopedTickets.map((ticket) => ticket.id)).not.toEqual(allYearsRail.scopedTickets.map((ticket) => ticket.id));
+  });
+
+  it("keeps a concrete year empty instead of falling back to all records when scope has no matches", () => {
+    const flights2025 = deriveOverviewScopedSnapshot(journeys, tickets, "flight", "2025");
+
+    expect(flights2025.scopedTickets).toHaveLength(0);
+    expect(flights2025.scopedJourneys).toHaveLength(0);
+    expect(getOverviewEmptyStateCopy("flight", "records", "2025")).toBe("No flight records for 2025.");
   });
 
   it("uses summary destinations only in All scope and ticket-derived places in scoped views", () => {
@@ -171,9 +229,11 @@ describe("overviewData helpers", () => {
     expect(getOverviewEmptyStateCopy("all", "records")).toBe("No travel records yet.");
     expect(getOverviewEmptyStateCopy("flight", "journeys")).toBe("No flight journeys in this scope.");
     expect(getOverviewEmptyStateCopy("train", "favorites")).toBe("No rail places in this scope.");
+    expect(getOverviewEmptyStateCopy("flight", "records", "2026")).toBe("No flight records for 2026.");
+    expect(getOverviewEmptyStateCopy("all", "records", "2025")).toBe("No records for 2025.");
   });
 
-  it("prefers the current calendar year when scoped data exists for it, otherwise falls back to the latest data year", () => {
+  it("falls back to the latest available year when current-year scoped data is missing", () => {
     expect(deriveActiveOverviewYear(journeys, tickets, "2026")).toBe("2026");
 
     const olderTicket = makeTicket({

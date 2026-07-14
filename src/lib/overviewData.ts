@@ -1,8 +1,9 @@
-﻿import type { Journey } from "../types/journey";
+import type { Journey } from "../types/journey";
 import type { TicketRecord } from "../types/ticket";
 import type { JourneySummaryBase } from "./journeySummary";
 
 export type OverviewScope = "all" | TicketRecord["ticketType"];
+export type OverviewYearFilter = "all" | string;
 
 export interface OverviewScopedSnapshot {
   scope: OverviewScope;
@@ -25,37 +26,76 @@ function collectOverviewYearFromValue(value: string | undefined) {
   return /^\d{4}$/.test(year) ? year : null;
 }
 
+function addCollectedOverviewYear(target: Set<string>, value: string | undefined) {
+  const year = collectOverviewYearFromValue(value);
+  if (year) {
+    target.add(year);
+  }
+}
+
+function collectTicketOverviewYears(ticket: TicketRecord) {
+  const discoveredYears = new Set<string>();
+  [ticket.departureTimeLocal, ticket.arrivalTimeLocal].forEach((value) => {
+    addCollectedOverviewYear(discoveredYears, value);
+  });
+  return discoveredYears;
+}
+
+function collectJourneyOverviewYears(journey: Journey) {
+  const discoveredYears = new Set<string>();
+  [journey.startDate, journey.endDate].forEach((value) => {
+    addCollectedOverviewYear(discoveredYears, value);
+  });
+  return discoveredYears;
+}
+
+function sortOverviewYears(years: Iterable<string>) {
+  return [...years].sort((left, right) => right.localeCompare(left));
+}
+
+function ticketMatchesOverviewYear(ticket: TicketRecord, selectedYear: string) {
+  return [...collectTicketOverviewYears(ticket)].some((year) => year === selectedYear);
+}
+
+function journeyDateRangeOverlapsOverviewYear(journey: Journey, selectedYear: string) {
+  return collectJourneyOverviewYears(journey).has(selectedYear);
+}
+
+export function deriveAvailableOverviewYears(
+  journeys: Journey[],
+  tickets: TicketRecord[],
+) {
+  const availableYears = new Set<string>();
+
+  tickets.forEach((ticket) => {
+    collectTicketOverviewYears(ticket).forEach((year) => availableYears.add(year));
+  });
+
+  journeys.forEach((journey) => {
+    collectJourneyOverviewYears(journey).forEach((year) => availableYears.add(year));
+  });
+
+  return sortOverviewYears(availableYears);
+}
+
+export function deriveDefaultOverviewYear(
+  availableYears: string[],
+  currentCalendarYear = String(new Date().getFullYear()),
+) {
+  if (availableYears.includes(currentCalendarYear)) {
+    return currentCalendarYear;
+  }
+
+  return availableYears[0] ?? currentCalendarYear;
+}
+
 export function deriveActiveOverviewYear(
   journeys: Journey[],
   tickets: TicketRecord[],
   currentCalendarYear = String(new Date().getFullYear()),
 ) {
-  const discoveredYears = new Set<string>();
-
-  journeys.forEach((journey) => {
-    [journey.startDate, journey.endDate, journey.updatedAt].forEach((value) => {
-      const year = collectOverviewYearFromValue(value);
-      if (year) {
-        discoveredYears.add(year);
-      }
-    });
-  });
-
-  tickets.forEach((ticket) => {
-    [ticket.departureTimeLocal, ticket.arrivalTimeLocal, ticket.createdAt].forEach((value) => {
-      const year = collectOverviewYearFromValue(value);
-      if (year) {
-        discoveredYears.add(year);
-      }
-    });
-  });
-
-  if (discoveredYears.has(currentCalendarYear)) {
-    return currentCalendarYear;
-  }
-
-  const sortedYears = [...discoveredYears].sort((left, right) => right.localeCompare(left));
-  return sortedYears[0] ?? currentCalendarYear;
+  const availableYears = deriveAvailableOverviewYears(journeys, tickets);
+  return deriveDefaultOverviewYear(availableYears, currentCalendarYear);
 }
 
 export function filterTicketsByOverviewScope(tickets: TicketRecord[], scope: OverviewScope) {
@@ -78,14 +118,62 @@ export function journeyMatchesOverviewScope(
   return journey.ticketIds.some((ticketId) => ticketsById.get(ticketId)?.ticketType === scope);
 }
 
+function journeyMatchesOverviewYear(
+  journey: Journey,
+  ticketsById: Map<string, TicketRecord>,
+  scope: OverviewScope,
+  selectedYear: string,
+) {
+  const linkedTickets = journey.ticketIds
+    .map((ticketId) => ticketsById.get(ticketId))
+    .filter((ticket): ticket is TicketRecord => Boolean(ticket));
+
+  const relevantTickets = scope === "all"
+    ? linkedTickets
+    : linkedTickets.filter((ticket) => ticket.ticketType === scope);
+
+  if (!relevantTickets.length && scope !== "all") {
+    return false;
+  }
+
+  if (relevantTickets.some((ticket) => ticketMatchesOverviewYear(ticket, selectedYear))) {
+    return true;
+  }
+
+  if (!journeyDateRangeOverlapsOverviewYear(journey, selectedYear)) {
+    return false;
+  }
+
+  if (scope === "all") {
+    return true;
+  }
+
+  const datedRelevantTickets = relevantTickets.filter((ticket) => collectTicketOverviewYears(ticket).size > 0);
+  return datedRelevantTickets.length === 0;
+}
+
 export function deriveOverviewScopedSnapshot(
   journeys: Journey[],
   tickets: TicketRecord[],
   scope: OverviewScope,
+  selectedYear: OverviewYearFilter = "all",
 ): OverviewScopedSnapshot {
   const ticketsById = new Map(tickets.map((ticket) => [ticket.id, ticket]));
-  const scopedTickets = filterTicketsByOverviewScope(tickets, scope);
-  const scopedJourneys = journeys.filter((journey) => journeyMatchesOverviewScope(journey, ticketsById, scope));
+  const scopeMatchedTickets = filterTicketsByOverviewScope(tickets, scope);
+  const scopedTickets = selectedYear === "all"
+    ? scopeMatchedTickets
+    : scopeMatchedTickets.filter((ticket) => ticketMatchesOverviewYear(ticket, selectedYear));
+  const scopedJourneys = journeys.filter((journey) => {
+    if (!journeyMatchesOverviewScope(journey, ticketsById, scope)) {
+      return false;
+    }
+
+    if (selectedYear === "all") {
+      return true;
+    }
+
+    return journeyMatchesOverviewYear(journey, ticketsById, scope, selectedYear);
+  });
 
   return {
     scope,
@@ -173,62 +261,66 @@ export function buildOverviewFavoritePlaces(
 export function getOverviewEmptyStateCopy(
   scope: OverviewScope,
   kind: "records" | "journeys" | "tickets" | "map" | "focus" | "favorites",
+  selectedYear: OverviewYearFilter = "all",
 ) {
+  const hasSpecificYear = selectedYear !== "all";
+  const yearSuffix = hasSpecificYear ? ` for ${selectedYear}.` : "";
+
   if (kind === "records") {
     if (scope === "flight") {
-      return "No flight records in this scope.";
+      return hasSpecificYear ? `No flight records${yearSuffix}` : "No flight records in this scope.";
     }
     if (scope === "train") {
-      return "No rail records in this scope.";
+      return hasSpecificYear ? `No rail records${yearSuffix}` : "No rail records in this scope.";
     }
-    return "No travel records yet.";
+    return hasSpecificYear ? `No records${yearSuffix}` : "No travel records yet.";
   }
 
   if (kind === "journeys") {
     if (scope === "flight") {
-      return "No flight journeys in this scope.";
+      return hasSpecificYear ? `No flight journeys${yearSuffix}` : "No flight journeys in this scope.";
     }
     if (scope === "train") {
-      return "No rail journeys in this scope.";
+      return hasSpecificYear ? `No rail journeys${yearSuffix}` : "No rail journeys in this scope.";
     }
-    return "No journeys yet.";
+    return hasSpecificYear ? `No journeys${yearSuffix}` : "No journeys yet.";
   }
 
   if (kind === "tickets") {
     if (scope === "flight") {
-      return "No flight tickets in this scope.";
+      return hasSpecificYear ? `No flight tickets${yearSuffix}` : "No flight tickets in this scope.";
     }
     if (scope === "train") {
-      return "No rail tickets in this scope.";
+      return hasSpecificYear ? `No rail tickets${yearSuffix}` : "No rail tickets in this scope.";
     }
-    return "No tickets yet.";
+    return hasSpecificYear ? `No tickets${yearSuffix}` : "No tickets yet.";
   }
 
   if (kind === "map") {
     if (scope === "flight") {
-      return "No flight routes in this scope.";
+      return hasSpecificYear ? `No flight routes${yearSuffix}` : "No flight routes in this scope.";
     }
     if (scope === "train") {
-      return "No rail routes in this scope.";
+      return hasSpecificYear ? `No rail routes${yearSuffix}` : "No rail routes in this scope.";
     }
-    return "No travel records yet.";
+    return hasSpecificYear ? `No routes${yearSuffix}` : "No travel records yet.";
   }
 
   if (kind === "focus") {
     if (scope === "flight") {
-      return "No flight records in this scope.";
+      return hasSpecificYear ? `No flight records${yearSuffix}` : "No flight records in this scope.";
     }
     if (scope === "train") {
-      return "No rail records in this scope.";
+      return hasSpecificYear ? `No rail records${yearSuffix}` : "No rail records in this scope.";
     }
-    return "No travel records yet.";
+    return hasSpecificYear ? `No records${yearSuffix}` : "No travel records yet.";
   }
 
   if (scope === "flight") {
-    return "No flight places in this scope.";
+    return hasSpecificYear ? `No flight places${yearSuffix}` : "No flight places in this scope.";
   }
   if (scope === "train") {
-    return "No rail places in this scope.";
+    return hasSpecificYear ? `No rail places${yearSuffix}` : "No rail places in this scope.";
   }
-  return "No favorite places yet.";
+  return hasSpecificYear ? `No places${yearSuffix}` : "No favorite places yet.";
 }

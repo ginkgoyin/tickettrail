@@ -504,3 +504,67 @@ They are based on current repository docs/checklists and should be expanded from
 - Task: Make Overview scope behavior consistent for `All`, `Flights`, and `Rail` without changing the approved layout.
 - Action: Extracted Overview data helpers, switched scoped favorite places to ticket-derived data, and aligned snapshot/fallback behavior with the approved transport-scope rules.
 - Result: The Overview shell now uses a clearer scope model while keeping mixed journeys whole and documenting the remaining cost/day limitations honestly.
+
+---
+
+## Entry: Overview Year Filter And Combined Scope Logic
+
+- Date: 2026-07-15
+- Task ID: `OVERVIEW-YEAR-FILTER-001`
+- Area: Overview filtering / scope composition / dashboard helper logic
+- Status: Implemented
+- Problem / requirement:
+  - Overview could only infer one active year implicitly.
+  - Users needed to switch Overview between `All years` and specific years without breaking the existing `All / Flights / Rail` transport scope model.
+- Why it mattered:
+  - A travel archive dashboard needs a fast way to revisit a past year without losing the transport-scoped perspective.
+- User decision / product constraint:
+  - Keep `All / Flights / Rail` as a transport scope matcher, not a journey splitter.
+  - Mixed journeys can still appear in both `Flights` and `Rail`.
+  - Scoped travel days remain full matching journey days, and scoped cost overlap remains an acknowledged limitation.
+- Prompt / Codex task framing:
+  - Add a compact year selector near the Overview scope controls, keep the layout stable, and push the year-plus-scope logic into Overview helpers instead of back into `HomePage.tsx`.
+- Alternatives considered:
+  - leaving the year implicit
+  - adding a large filter panel
+  - slicing mixed journeys into transport-only fragments
+- Final approach:
+  - derive descending available years from Overview ticket/journey data
+  - default to current calendar year when data exists, otherwise latest available year
+  - combine selected year with transport scope across tickets, journeys, map payload, highlights, and favorite places
+- Implementation summary:
+  - extended `src/lib/overviewData.ts` with available-year/default-year helpers and combined scope-plus-year filtering
+  - fixed the concrete-year bug by matching Overview years from real trip dates rather than `createdAt` / `updatedAt` metadata
+  - updated `src/pages/HomePage.tsx` to render a compact `All years / year` selector beside the transport toggle
+  - removed the redundant separate yearly summary module so `Total overview` is the only summary panel
+  - added targeted overview helper tests and kept the existing scoped Overview semantics intact
+- Files / modules changed:
+  - `src/lib/overviewData.ts`
+  - `src/pages/HomePage.tsx`
+  - `src/styles.css`
+  - `tests/overviewData.test.ts`
+  - Overview docs/checklist/task tracking
+- Tests / validation:
+  - `npm.cmd run test -- tests/overviewData.test.ts`
+  - `npm.cmd run test -- tests/placeGrouping.test.ts`
+  - `npm.cmd run test -- tests/journeySummary.test.ts`
+  - `npm.cmd run build`
+  - `git diff --check`
+- Manual verification:
+  - Pending desktop verification of year selector placement, combined year+transport behavior, scoped empty states, and the cleaner layout after removing the extra yearly summary module.
+- Risks / tradeoffs:
+  - Mixed-trip scoped cost can still overlap because cost is not transport-sliced.
+  - Journey matching intentionally stays simple and does not attempt complex per-segment date slicing.
+- Follow-up optimization ideas:
+  - later card-alignment polish
+  - shared `MAP-ROUTE-STYLING-001` route styling work
+- Interview talking points:
+  - combining two different filter dimensions without lying about data precision
+  - extracting page-specific derivation into reusable helpers to prevent UI files from becoming logic-heavy again
+
+### STAR Summary
+
+- Situation: The redesigned Overview could scope by transport, but year switching was still implicit and not user-controlled.
+- Task: Add a year selector that composes with the transport toggle while preserving whole-journey semantics.
+- Action: Added Overview-specific year derivation and combined scope helpers, wired a compact selector into the page, and extended tests around year+scope behavior.
+- Result: Overview can now switch between `All years` and specific years without rewriting journey cards into fragmented transport slices.

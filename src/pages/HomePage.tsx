@@ -2,7 +2,6 @@
 import { listJourneys } from "../lib/journeyService";
 import {
   buildJourneySummaryBase,
-  buildJourneySummaryCalendar,
   sortJourneysByStartDate,
   type JourneySummaryBase,
 } from "../lib/journeySummary";
@@ -10,12 +9,14 @@ import { getTicketDetail } from "../lib/ticketService";
 import {
   buildOverviewFavoritePlaces,
   countUniqueOverviewTicketPlaces,
-  deriveActiveOverviewYear,
+  deriveAvailableOverviewYears,
+  deriveDefaultOverviewYear,
   deriveOverviewScopedSnapshot,
   getOverviewEmptyStateCopy,
   getOverviewScopeLabel,
   getOverviewTicketDayCount,
   type OverviewScope,
+  type OverviewYearFilter,
 } from "../lib/overviewData";
 import type { Journey } from "../types/journey";
 import type {
@@ -33,6 +34,8 @@ const OVERVIEW_SCOPE_OPTIONS: Array<{ label: string; value: OverviewScope }> = [
   { label: "Flights", value: "flight" },
   { label: "Rail", value: "train" },
 ];
+
+const OVERVIEW_ALL_YEARS = "all" satisfies OverviewYearFilter;
 
 interface HomePageProps {
   tickets: TicketRecord[];
@@ -249,6 +252,7 @@ function buildRecentTickets(tickets: TicketRecord[]) {
 
 export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
   const [scope, setScope] = useState<OverviewScope>("all");
+  const [selectedYearFilter, setSelectedYearFilter] = useState<OverviewYearFilter | null>(null);
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [journeysLoading, setJourneysLoading] = useState(true);
   const [journeyError, setJourneyError] = useState("");
@@ -330,9 +334,33 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
   const todayKey = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString().slice(0, 16);
 
+  const availableOverviewYears = useMemo(
+    () => deriveAvailableOverviewYears(journeys, tickets),
+    [journeys, tickets],
+  );
+  const defaultOverviewYear = useMemo(
+    () => deriveDefaultOverviewYear(availableOverviewYears, currentCalendarYear),
+    [availableOverviewYears, currentCalendarYear],
+  );
+
+  useEffect(() => {
+    setSelectedYearFilter((current) => {
+      if (current === OVERVIEW_ALL_YEARS) {
+        return current;
+      }
+      if (current && availableOverviewYears.includes(current)) {
+        return current;
+      }
+      return defaultOverviewYear;
+    });
+  }, [availableOverviewYears, defaultOverviewYear]);
+
+  const selectedOverviewYear = selectedYearFilter ?? defaultOverviewYear;
+  const overviewYearOptions = availableOverviewYears.length ? availableOverviewYears : [defaultOverviewYear];
+
   const { scopedTickets, scopedJourneys } = useMemo(
-    () => deriveOverviewScopedSnapshot(journeys, tickets, scope),
-    [journeys, scope, tickets],
+    () => deriveOverviewScopedSnapshot(journeys, tickets, scope, selectedOverviewYear),
+    [journeys, scope, selectedOverviewYear, tickets],
   );
   const scopedTicketIds = useMemo(() => new Set(scopedTickets.map((ticket) => ticket.id)), [scopedTickets]);
   const scopedMapDetails = useMemo(
@@ -348,17 +376,6 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
     () => (upcomingTickets.length ? upcomingTickets : recentTickets).slice(0, 4),
     [recentTickets, upcomingTickets],
   );
-  const activeOverviewYear = useMemo(
-    () => deriveActiveOverviewYear(scopedJourneys, scopedTickets, currentCalendarYear),
-    [currentCalendarYear, scopedJourneys, scopedTickets],
-  );
-  const scopedYearTickets = useMemo(
-    () => scopedTickets.filter((ticket) => {
-      const dateValue = safeText(ticket.departureTimeLocal).trim() || safeText(ticket.createdAt).trim();
-      return dateValue.startsWith(`${activeOverviewYear}-`);
-    }),
-    [activeOverviewYear, scopedTickets],
-  );
   const overviewMap = useMemo(() => buildOverviewMapPayload(scopedMapDetails), [scopedMapDetails]);
 
   const summaryBase = useMemo(() => {
@@ -366,16 +383,8 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
       return null;
     }
 
-    return buildJourneySummaryBase(scopedJourneys, scopedTickets, activeOverviewYear);
-  }, [activeOverviewYear, scopedJourneys, scopedTickets]);
-
-  const yearSummary = useMemo(() => {
-    if (!summaryBase) {
-      return null;
-    }
-
-    return buildJourneySummaryCalendar(summaryBase, activeOverviewYear);
-  }, [activeOverviewYear, summaryBase]);
+    return buildJourneySummaryBase(scopedJourneys, scopedTickets, defaultOverviewYear);
+  }, [defaultOverviewYear, scopedJourneys, scopedTickets]);
 
   const focusJourney = upcomingJourneys[0] ?? sortedJourneys[0] ?? null;
   const focusTicket = focusJourney ? null : upcomingTickets[0] ?? recentTickets[0] ?? null;
@@ -395,33 +404,41 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
     [scopedJourneys.length, scopedTickets, summaryBase],
   );
 
-  const thisYearHighlights = useMemo(
-    () => ({
-      journeyCount: yearSummary?.selectedYearJourneys ?? 0,
-      travelDays: yearSummary?.selectedYearTravelDays ?? 0,
-      ticketCount: scopedYearTickets.length,
-      placeCount: countUniqueOverviewTicketPlaces(scopedYearTickets),
-    }),
-    [scopedYearTickets, yearSummary],
-  );
 
   return (
     <section className="overview-home">
       <div className="overview-topbar">
         <h2>Overview</h2>
-        <div aria-label="Overview transport scope" className="overview-scope-toggle analytics-toggle-group" role="tablist">
-          {OVERVIEW_SCOPE_OPTIONS.map((option) => (
-            <button
-              aria-selected={scope === option.value}
-              className={`theme-chip ${scope === option.value ? "active" : ""}`}
-              key={option.value}
-              onClick={() => setScope(option.value)}
-              role="tab"
-              type="button"
+        <div className="overview-topbar-controls">
+          <label className="overview-year-filter" htmlFor="overview-year-filter">
+            <span className="sr-only">Overview year filter</span>
+            <select
+              id="overview-year-filter"
+              onChange={(event) => setSelectedYearFilter(event.target.value as OverviewYearFilter)}
+              value={selectedOverviewYear}
             >
-              {option.label}
-            </button>
-          ))}
+              <option value={OVERVIEW_ALL_YEARS}>All years</option>
+              {overviewYearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div aria-label="Overview transport scope" className="overview-scope-toggle analytics-toggle-group" role="tablist">
+            {OVERVIEW_SCOPE_OPTIONS.map((option) => (
+              <button
+                aria-selected={scope === option.value}
+                className={`theme-chip ${scope === option.value ? "active" : ""}`}
+                key={option.value}
+                onClick={() => setScope(option.value)}
+                role="tab"
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -492,7 +509,7 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             </div>
           ) : (
             <div className="overview-empty-state compact">
-              <strong>{getOverviewEmptyStateCopy(scope, "map")}</strong>
+              <strong>{getOverviewEmptyStateCopy(scope, "map", selectedOverviewYear)}</strong>
               <p>{scope === "all" ? "Add tickets to start building the archive." : "Switch scope or add more matching tickets."}</p>
             </div>
           )}
@@ -514,7 +531,7 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             </div>
           ) : (
             <div className="overview-empty-state compact">
-              <strong>{getOverviewEmptyStateCopy(scope, "favorites")}</strong>
+              <strong>{getOverviewEmptyStateCopy(scope, "favorites", selectedOverviewYear)}</strong>
               <p>{scope === "all" ? "Places will gather here once journeys or ticket routes are available." : "Scoped favorite places come from matching ticket endpoints."}</p>
             </div>
           )}
@@ -522,28 +539,35 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
       </section>
 
       <section className="overview-dashboard-row">
-        <section className="panel overview-section overview-list-panel overview-dashboard-main overview-year-section">
+        <section className="panel overview-section overview-list-panel overview-dashboard-main overview-journeys-section">
           <div className="overview-title-row">
-            <h3>{activeOverviewYear}</h3>
+            <h3>Recent journeys</h3>
+            {scope !== "all" ? <span className="overview-section-meta">Whole journeys in scope</span> : null}
           </div>
-          <div className="overview-highlight-strip">
-            <article className="overview-highlight-chip">
-              <span>Journeys</span>
-              <strong>{formatCount(thisYearHighlights.journeyCount)}</strong>
-            </article>
-            <article className="overview-highlight-chip">
-              <span>Travel days</span>
-              <strong>{formatCount(thisYearHighlights.travelDays)}</strong>
-            </article>
-            <article className="overview-highlight-chip">
-              <span>Tickets</span>
-              <strong>{formatCount(thisYearHighlights.ticketCount)}</strong>
-            </article>
-            <article className="overview-highlight-chip">
-              <span>Places</span>
-              <strong>{thisYearHighlights.placeCount ? formatCount(thisYearHighlights.placeCount) : "--"}</strong>
-            </article>
-          </div>
+          {recentJourneys.length ? (
+            <div className="overview-list-shell">
+              {recentJourneys.map((journey) => (
+                <article className="overview-list-row" key={journey.id}>
+                  <div>
+                    <strong>{journey.title}</strong>
+                    <p>{formatJourneyDateRange(journey)}</p>
+                  </div>
+                  <div className="overview-list-side">
+                    <span>{journey.destination?.trim() || `${formatCount(journey.ticketIds.length)} tickets`}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : journeysLoading ? (
+            <div className="overview-empty-state compact">
+              <strong>Loading journeys...</strong>
+            </div>
+          ) : (
+            <div className="overview-empty-state compact">
+              <strong>{getOverviewEmptyStateCopy(scope, "journeys", selectedOverviewYear)}</strong>
+              <p>{journeyError || (scope === "all" ? "Journeys will appear here once tickets are grouped into trips." : "Matching whole journeys will appear here when this scope has linked trips.")}</p>
+            </div>
+          )}
         </section>
 
         <section className="panel overview-section overview-focus-section overview-dashboard-side">
@@ -580,71 +604,38 @@ export function HomePage({ tickets, onOpenTicket }: HomePageProps) {
             </article>
           ) : (
             <div className="overview-empty-state compact">
-              <strong>{getOverviewEmptyStateCopy(scope, "focus")}</strong>
+              <strong>{getOverviewEmptyStateCopy(scope, "focus", selectedOverviewYear)}</strong>
               <p>{scope === "all" ? "Add a journey or ticket to get started." : "No matching journey or ticket is ready in this scope."}</p>
             </div>
           )}
         </section>
       </section>
 
-      <section className="overview-dashboard-row">
-        <section className="panel overview-section overview-list-panel overview-dashboard-main overview-journeys-section">
-          <div className="overview-title-row">
-            <h3>Recent journeys</h3>
-            {scope !== "all" ? <span className="overview-section-meta">Whole journeys in scope</span> : null}
+      <section className="panel overview-section overview-list-panel overview-ticket-section">
+        <div className="overview-title-row">
+          <h3>Tickets</h3>
+          <span className="overview-section-meta">{upcomingTickets.length ? "Upcoming first" : "Recent first"}</span>
+        </div>
+        {recentScopedTickets.length ? (
+          <div className="overview-list-shell">
+            {recentScopedTickets.map((ticket) => (
+              <button className="overview-list-row overview-list-row-button" key={ticket.id} onClick={() => onOpenTicket(ticket.id)} type="button">
+                <div>
+                  <strong>{ticket.routeLabel}</strong>
+                  <p>{formatTicketDate(ticket)}</p>
+                </div>
+                <div className="overview-list-side">
+                  <span>{ticket.ticketType === "flight" ? "Flight" : "Rail"}</span>
+                </div>
+              </button>
+            ))}
           </div>
-          {recentJourneys.length ? (
-            <div className="overview-list-shell">
-              {recentJourneys.map((journey) => (
-                <article className="overview-list-row" key={journey.id}>
-                  <div>
-                    <strong>{journey.title}</strong>
-                    <p>{formatJourneyDateRange(journey)}</p>
-                  </div>
-                  <div className="overview-list-side">
-                    <span>{journey.destination?.trim() || `${formatCount(journey.ticketIds.length)} tickets`}</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : journeysLoading ? (
-            <div className="overview-empty-state compact">
-              <strong>Loading journeys...</strong>
-            </div>
-          ) : (
-            <div className="overview-empty-state compact">
-              <strong>{getOverviewEmptyStateCopy(scope, "journeys")}</strong>
-              <p>{journeyError || (scope === "all" ? "Journeys will appear here once tickets are grouped into trips." : "Matching whole journeys will appear here when this scope has linked trips.")}</p>
-            </div>
-          )}
-        </section>
-
-        <section className="panel overview-section overview-list-panel overview-dashboard-side overview-ticket-section">
-          <div className="overview-title-row">
-            <h3>Tickets</h3>
-            <span className="overview-section-meta">{upcomingTickets.length ? "Upcoming first" : "Recent first"}</span>
+        ) : (
+          <div className="overview-empty-state compact">
+            <strong>{getOverviewEmptyStateCopy(scope, "tickets", selectedOverviewYear)}</strong>
+            <p>{scope === "all" ? "Save a ticket to start filling the archive." : "Switch scope or save more matching tickets."}</p>
           </div>
-          {recentScopedTickets.length ? (
-            <div className="overview-list-shell">
-              {recentScopedTickets.map((ticket) => (
-                <button className="overview-list-row overview-list-row-button" key={ticket.id} onClick={() => onOpenTicket(ticket.id)} type="button">
-                  <div>
-                    <strong>{ticket.routeLabel}</strong>
-                    <p>{formatTicketDate(ticket)}</p>
-                  </div>
-                  <div className="overview-list-side">
-                    <span>{ticket.ticketType === "flight" ? "Flight" : "Rail"}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="overview-empty-state compact">
-              <strong>{getOverviewEmptyStateCopy(scope, "tickets")}</strong>
-              <p>{scope === "all" ? "Save a ticket to start filling the archive." : "Switch scope or save more matching tickets."}</p>
-            </div>
-          )}
-        </section>
+        )}
       </section>
     </section>
   );

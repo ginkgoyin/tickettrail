@@ -4,7 +4,7 @@
 
 This document records the audit and redesign direction for the `Overview` page.
 
-It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the runtime Overview rebuild work through `OVERVIEW-REDESIGN-004`.
+It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the runtime Overview rebuild work through `OVERVIEW-YEAR-FILTER-001B`.
 
 It does not:
 
@@ -317,11 +317,20 @@ Manual testing will be especially important for:
   - refine section-level data selectors, fallback behavior, and Overview-specific helpers without changing the approved information architecture
   - keep the transport toggle as a scope matcher, not a journey splitter
   - keep scoped journey cards whole while scoping ticket/map/favorite-place modules directly by transport
-- `MAP-ROUTE-STYLING-001`
-  - shared map route-line styling follow-up for color/thickness/repeated-route behavior
 - `OVERVIEW-REDESIGN-004`
   - rearrange the approved Overview modules into a denser desktop dashboard grid while keeping the `OVERVIEW-REDESIGN-003` scope behavior unchanged
-  - use the V1 compact row order: `Total overview`, then `Travel map + Favorite places`, then `This year + Tickets`, then `Recent journeys + What matters next`
+  - use the compact row order: `Total overview`, then `Travel map + Favorite places`, then `Recent journeys + What matters next`, with `Tickets` still visible in its own clean lower section
+- `OVERVIEW-YEAR-FILTER-001`
+  - add a compact Overview year selector that combines with `All / Flights / Rail`
+  - keep the transport toggle as a scope matcher, not a journey splitter, and let year-specific views filter journeys, tickets, map data, and favorite places together
+- `OVERVIEW-YEAR-FILTER-001A`
+  - fix concrete-year filtering so `2026`, `2025`, and future explicit years no longer behave like `All years`
+  - use real trip dates for year matching instead of `createdAt` / `updatedAt` metadata
+- `OVERVIEW-YEAR-FILTER-001B`
+  - remove the redundant separate yearly summary module from Overview
+  - keep `Total overview` as the single selected-year plus transport-scoped summary panel
+- `MAP-ROUTE-STYLING-001`
+  - shared map route-line styling follow-up for color/thickness/repeated-route behavior
 
 ## 9. Shared Map Styling Follow-up
 
@@ -375,6 +384,19 @@ Scope note:
   - the visible title now shows the active data year instead of hardcoded `This year`
   - the active year prefers the current calendar year when scoped data exists, otherwise it falls back to the latest year with records
   - the yearly summary strip is intentionally more compact and no longer needs to visually stretch to match a taller adjacent panel
-- `OVERVIEW-YEAR-FILTER-001` remains the future follow-up for a real Overview year selector.
-- This pass changes layout density and year-label presentation only; it does not change the transport-scope matching rules added in `OVERVIEW-REDESIGN-003`.
+- `OVERVIEW-YEAR-FILTER-001` now adds a compact year selector near the top Overview controls:
+  - options include `All years` plus descending available years derived from real ticket/journey dates
+  - default selection prefers the current calendar year when data exists, otherwise the latest year with records
+  - the selected year combines with `All / Flights / Rail` instead of replacing transport scope behavior
+- `OVERVIEW-YEAR-FILTER-001A` tightens the year filter semantics so concrete years no longer behave like `All years`:
+  - only `All years` shows all matching records
+  - concrete years now filter by real trip dates rather than `createdAt` / `updatedAt` metadata
+- `OVERVIEW-YEAR-FILTER-001B` removes the redundant separate yearly summary module:
+  - `Total overview` is now the only summary panel and follows the selected year plus transport scope
+  - the top year selector remains in place
+- Year-specific scoped views keep the existing 003 semantics:
+  - journey cards still render as whole journeys
+  - mixed journeys can still appear in both `Flights` and `Rail` if they contain matching tickets in the selected year
+  - scoped favorite places remain ticket-derived in transport-specific views
+  - scoped travel days still use full matching journey days rather than sliced transport-only day fragments
 - `MAP-ROUTE-STYLING-001` still remains separate from the Overview grid/layout work.

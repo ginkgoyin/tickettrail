@@ -478,14 +478,14 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed Overview checkpoint: `OVERVIEW-REDESIGN-004A`.
+Latest completed Overview checkpoint: `OVERVIEW-YEAR-FILTER-001B`.
 
-Recommended next task: `OVERVIEW-YEAR-FILTER-001` or `MAP-ROUTE-STYLING-001`, depending on whether the next pass stays on Overview or moves to shared map styling.
+Recommended next task: `MAP-ROUTE-STYLING-001` or a later Overview polish/alignment pass, depending on whether the next pass stays on shared map behavior or returns to layout refinement.
 
 The recommended next implementation order is now:
 
-1. keep `OVERVIEW-REDESIGN-004A` as the current Overview layout/year-summary baseline
-2. choose between `OVERVIEW-YEAR-FILTER-001` and `MAP-ROUTE-STYLING-001` for the next focused pass
+1. keep `OVERVIEW-YEAR-FILTER-001B` as the current Overview scope-plus-year baseline without the redundant yearly summary module
+2. choose between `MAP-ROUTE-STYLING-001` and a later Overview polish/alignment pass for the next focused iteration
 3. keep broader Overview redesign work separate from shared RouteMap styling changes
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
@@ -522,6 +522,10 @@ The recommended next implementation order is now:
 - Scoped total-cost display still uses the current journey-level source when available, so mixed-trip overlap is disclosed in the UI rather than hidden.
 - `OVERVIEW-REDESIGN-004` now compacts the page into a denser dashboard grid: `Total overview` full-width, `Travel map + Favorite places`, `This year + Tickets`, and `Recent journeys + What matters next`.
 - `OVERVIEW-REDESIGN-004` is a layout/density pass only; it does not change the `OVERVIEW-REDESIGN-003` transport-scope behavior.
+- `OVERVIEW-YEAR-FILTER-001` now adds a compact year selector near the Overview scope toggle and combines selected year with `All / Flights / Rail` filtering.
+- `OVERVIEW-YEAR-FILTER-001A` fixes the concrete-year filtering bug so only `All years` shows all records; concrete years now filter by real journey/ticket dates rather than `createdAt` / `updatedAt` metadata.
+- `OVERVIEW-YEAR-FILTER-001B` removes the redundant separate yearly summary module and keeps `Total overview` as the only summary panel for the selected year plus transport scope.
+- The year selector derives descending available years from current Overview data, defaults to current year when available, supports `All years`, and keeps mixed journeys whole instead of splitting them into transport fragments.
 - `MAP-ROUTE-STYLING-001` is now the separate shared follow-up for route-line color and repeated-route thickness behavior; do not mix it into the Overview grid/layout work.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
