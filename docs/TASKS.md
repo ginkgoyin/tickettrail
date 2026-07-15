@@ -531,6 +531,7 @@ The recommended next implementation order is now:
 - `MAP-ROUTE-STYLING-001` is now the implemented shared RouteMap styling baseline for flight-vs-rail color and binary repeated-route thickness; any later map polish should stay separate from Overview grid/layout work.
 - `OVERVIEW-REDESIGN-005` is now the lightweight MVP polish pass on top of the accepted Overview baseline: it tightens control alignment, reduces stretched panel spacing, keeps the map-plus-favorites row balanced, and does not change Overview scope/year/data semantics.
 - `DATA-HEALTH-FILTER-DESIGN-001` now records the first review-filter direction: design both Tickets and Journeys now, implement Tickets first later, keep missing attachment and missing cost out of `Needs review`, keep the first pass limited to stable ticket fields, and keep data-health reminders off Overview.
+- `UI-ICON-ENCODING-001` is now the shared safeguard against recurring mojibake UI symbols: touched help/close/trash affordances should use the internal SVG icon component, and user-visible inline status copy should prefer ASCII separators over fragile Unicode glyphs.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.

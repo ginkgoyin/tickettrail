@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { AppIcon } from "../components/AppIcon";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildJourneyRouteSummaryFromTickets,
@@ -1643,7 +1644,7 @@ export function JourneysPage({
                 <h3>Travel calendar</h3>
                 <div className="journey-summary-calendar-meta">
                   <span>
-                    {`${formatCountLabel(summaryCalendar.selectedYearJourneys, "journey")} · ${formatCountLabel(summaryCalendar.selectedYearTravelDays, "travel day")} in ${summaryYear}`}
+                    {`${formatCountLabel(summaryCalendar.selectedYearJourneys, "journey")} - ${formatCountLabel(summaryCalendar.selectedYearTravelDays, "travel day")} in ${summaryYear}`}
                   </span>
                 </div>
               </div>
@@ -2038,12 +2039,7 @@ export function JourneysPage({
             onClick={closeJourneyModal}
             type="button"
           >
-            <svg aria-hidden="true" className="modal-close-icon" viewBox="0 0 24 24">
-              <path
-                d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.59l3.9-3.9a1 1 0 1 1 1.4 1.42L13.41 12l3.9 3.9a1 1 0 0 1-1.42 1.4L12 13.41l-3.9 3.9a1 1 0 0 1-1.4-1.42l3.89-3.89-3.9-3.9a1 1 0 0 1 0-1.4Z"
-                fill="currentColor"
-              />
-            </svg>
+            <AppIcon className="modal-close-icon" name="close" size={20} />
           </button>
         </div>
 
@@ -2359,7 +2355,7 @@ export function JourneysPage({
                         className="section-help-trigger"
                         type="button"
                       >
-                        i
+                        <AppIcon className="section-help-icon" name="help" size={16} />
                       </button>
                       <div className="section-help-tooltip" role="tooltip">
                         Select zero or more existing tickets to link into this journey.
@@ -2899,12 +2895,7 @@ export function JourneysPage({
                   onClick={closeDeleteDialog}
                   type="button"
                 >
-            <svg aria-hidden="true" className="modal-close-icon" viewBox="0 0 24 24">
-              <path
-                d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.59l3.9-3.9a1 1 0 1 1 1.4 1.42L13.41 12l3.9 3.9a1 1 0 0 1-1.42 1.4L12 13.41l-3.9 3.9a1 1 0 0 1-1.4-1.42l3.89-3.89-3.9-3.9a1 1 0 0 1 0-1.4Z"
-                fill="currentColor"
-              />
-            </svg>
+            <AppIcon className="modal-close-icon" name="close" size={20} />
           </button>
               </div>
 

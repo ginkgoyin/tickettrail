@@ -209,7 +209,7 @@ function describeLookupCandidate(candidate: FlightLookupCandidate) {
   const arrivalTimeLabel = candidate.arrivalTimeLocal
     ? candidate.arrivalTimeLocal.slice(11, 16)
     : "time pending";
-  return `${candidate.departure.code} -> ${candidate.arrival.code} · ${departureTimeLabel} - ${arrivalTimeLabel}`;
+  return `${candidate.departure.code} -> ${candidate.arrival.code} - ${departureTimeLabel} - ${arrivalTimeLabel}`;
 }
 
 export function TicketForm({

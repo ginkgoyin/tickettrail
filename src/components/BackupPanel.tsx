@@ -116,7 +116,7 @@ export function BackupPanel({
         <div className="backup-highlight">
           <strong>{copy.backupReadiness}</strong>
           <span>{readiness.databaseExists ? copy.databaseAvailable : copy.databaseMissing}</span>
-          <small>{`${readiness.ticketCount} ${copy.tickets} · ${readiness.attachmentCount} ${copy.attachments}`}</small>
+          <small>{`${readiness.ticketCount} ${copy.tickets} - ${readiness.attachmentCount} ${copy.attachments}`}</small>
         </div>
       ) : null}
 

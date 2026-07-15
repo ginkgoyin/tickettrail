@@ -1622,6 +1622,10 @@ html {
   font-size: 0.92rem;
 }
 
+.section-help-icon {
+  display: block;
+}
+
 .section-help-trigger:hover,
 .section-help-trigger:focus-visible {
   border-color: rgba(112, 212, 255, 0.28);

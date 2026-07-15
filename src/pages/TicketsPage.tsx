@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { Dashboard } from "../components/Dashboard";
+import { AppIcon } from "../components/AppIcon";
 import { SmartImport } from "../components/SmartImport";
 import { TicketForm } from "../components/TicketForm";
 import { TicketList, type TicketListView } from "../components/TicketList";
@@ -219,12 +220,7 @@ export function TicketsPage({
             onClick={handleCancelComposer}
             type="button"
           >
-            <svg aria-hidden="true" className="modal-close-icon" viewBox="0 0 24 24">
-              <path
-                d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.59l3.9-3.9a1 1 0 1 1 1.4 1.42L13.41 12l3.9 3.9a1 1 0 0 1-1.42 1.4L12 13.41l-3.9 3.9a1 1 0 0 1-1.4-1.42l3.89-3.89-3.9-3.9a1 1 0 0 1 0-1.4Z"
-                fill="currentColor"
-              />
-            </svg>
+            <AppIcon className="modal-close-icon" name="close" size={20} />
           </button>
         </div>
 
@@ -298,12 +294,7 @@ export function TicketsPage({
               title={t("deleteTicket")}
               type="button"
             >
-              <svg aria-hidden="true" className="ticket-delete-icon" viewBox="0 0 24 24">
-                <path
-                  d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v8h-2V9Zm4 0h2v8h-2V9ZM7 9h2v8H7V9Zm1 11a2 2 0 0 1-2-2V8h12v10a2 2 0 0 1-2 2H8Z"
-                  fill="currentColor"
-                />
-              </svg>
+              <AppIcon className="ticket-delete-icon" name="trash" size={18} />
             </button>
           </div>
         </div>

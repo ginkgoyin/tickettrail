@@ -8,6 +8,7 @@ import { HomePage } from "./pages/HomePage";
 import { JourneysPage } from "./pages/JourneysPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TicketsPage } from "./pages/TicketsPage";
+import { AppIcon } from "./components/AppIcon";
 import {
   getMessage,
   I18nProvider,
@@ -852,7 +853,8 @@ export default function App() {
                 className="section-help-trigger"
                 type="button"
               >
-                éˆ?              </button>
+                <AppIcon className="section-help-icon" name="help" size={16} />
+              </button>
               <span className="section-help-tooltip" id={`section-help-${activeSection}`} role="tooltip">
                 {meta.copy}
               </span>

@@ -94,7 +94,7 @@ function formatLocationWithTerminal(
   const formattedTerminal = normalizedTerminal.toUpperCase().startsWith("T")
     ? normalizedTerminal.replace(/^T\s*/i, "T ")
     : `T ${normalizedTerminal}`;
-  return `${base} · ${formattedTerminal}`;
+  return `${base} - ${formattedTerminal}`;
 }
 
 function getStatusLabel(status: TicketStatus, upcomingLabel: string, completedLabel: string, archivedLabel: string) {
@@ -325,7 +325,7 @@ function buildTransferLabel(previousSegment: DetailDisplaySegment, nextSegment: 
   const nextDeparture = Date.parse(safeText(nextSegment.departureTimeLocal));
 
   if (Number.isFinite(previousArrival) && Number.isFinite(nextDeparture) && nextDeparture >= previousArrival) {
-    return `Transfer at ${transferLocation} · ${formatDuration(nextDeparture - previousArrival)}`;
+    return `Transfer at ${transferLocation} - ${formatDuration(nextDeparture - previousArrival)}`;
   }
 
   return `Transfer at ${transferLocation}`;
