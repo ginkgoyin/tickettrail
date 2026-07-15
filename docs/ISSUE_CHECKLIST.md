@@ -359,9 +359,13 @@
   - Priority: `Medium`
 
 - `MAP-ROUTE-STYLING-001`
-  - Add shared route-line styling rules so rail and flight routes use different colors, all lines are thinner than the current style, and repeated routes use a simple binary thicker-than-once rule.
-  - Status: `Open / future implementation`
-  - Priority: `Medium`
+  - Implement shared RouteMap styling so rail and flight routes use different colors, all lines are thinner than before, and repeated routes use a simple binary thicker-than-once rule.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Flight and rail routes now use different line colors in the shared map renderer.
+    - One-off routes use a thinner baseline line than before, while repeated routes use one thicker style regardless of whether they appear 2 or 5 times.
+    - Reverse-direction duplicates are counted as the same repeated route by endpoint pair.
+  - Priority: `High`
 
 - `EXPORT-PATH-001`
   - Settings should show the current export/download folder and provide a button to open that folder.

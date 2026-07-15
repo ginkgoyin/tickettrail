@@ -478,15 +478,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed Overview checkpoint: `OVERVIEW-YEAR-FILTER-001B`.
+Latest completed shared map checkpoint: `MAP-ROUTE-STYLING-001`.
 
-Recommended next task: `MAP-ROUTE-STYLING-001` or a later Overview polish/alignment pass, depending on whether the next pass stays on shared map behavior or returns to layout refinement.
+Recommended next task: a later Overview polish/alignment pass or another focused map/UI refinement, now that the shared route styling baseline is in place.
 
 The recommended next implementation order is now:
 
 1. keep `OVERVIEW-YEAR-FILTER-001B` as the current Overview scope-plus-year baseline without the redundant yearly summary module
-2. choose between `MAP-ROUTE-STYLING-001` and a later Overview polish/alignment pass for the next focused iteration
-3. keep broader Overview redesign work separate from shared RouteMap styling changes
+2. keep `MAP-ROUTE-STYLING-001` as the shared route-color and binary repeated-line thickness baseline
+3. choose the next focused iteration between Overview polish/alignment and any later map refinement beyond the shared styling layer
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
@@ -526,7 +526,7 @@ The recommended next implementation order is now:
 - `OVERVIEW-YEAR-FILTER-001A` fixes the concrete-year filtering bug so only `All years` shows all records; concrete years now filter by real journey/ticket dates rather than `createdAt` / `updatedAt` metadata.
 - `OVERVIEW-YEAR-FILTER-001B` removes the redundant separate yearly summary module and keeps `Total overview` as the only summary panel for the selected year plus transport scope.
 - The year selector derives descending available years from current Overview data, defaults to current year when available, supports `All years`, and keeps mixed journeys whole instead of splitting them into transport fragments.
-- `MAP-ROUTE-STYLING-001` is now the separate shared follow-up for route-line color and repeated-route thickness behavior; do not mix it into the Overview grid/layout work.
+- `MAP-ROUTE-STYLING-001` is now the implemented shared RouteMap styling baseline for flight-vs-rail color and binary repeated-route thickness; any later map polish should stay separate from Overview grid/layout work.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.

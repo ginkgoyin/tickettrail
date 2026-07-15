@@ -331,6 +331,7 @@ Manual testing will be especially important for:
   - keep `Total overview` as the single selected-year plus transport-scoped summary panel
 - `MAP-ROUTE-STYLING-001`
   - shared map route-line styling follow-up for color/thickness/repeated-route behavior
+  - implemented shared route colors for flight vs rail, thinner baseline lines, and binary repeated-route thickness
 
 ## 9. Shared Map Styling Follow-up
 

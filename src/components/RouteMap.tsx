@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl, { LngLatBounds } from "maplibre-gl";
 import type { MapPointPayload, MapRoutePayload, MapSegmentPayload } from "../types/ticket";
+import { deriveRouteSegmentStyles } from "../lib/routeMapStyling";
 
 interface RouteMapProps {
   route: MapRoutePayload;
@@ -11,10 +12,8 @@ interface RouteMapProps {
   variant?: "summary" | "detail";
 }
 
-// Current non-journey-total maps intentionally use a single route color.
-// Future journey-total views can introduce grouped journey colors later.
-const CURRENT_ROUTE_COLOR = "#1ca4da";
-const CURRENT_ROUTE_GLOW = "rgba(28, 164, 218, 0.28)";
+const DEFAULT_ENDPOINT_COLOR = "#d7effa";
+const DEFAULT_ENDPOINT_STROKE_COLOR = "#ffffff";
 const CURRENT_ROUTE_LABEL_COLOR = "#e9f8ff";
 
 function isFiniteNumber(value: unknown): value is number {
@@ -396,22 +395,38 @@ export function RouteMap({
         return;
       }
 
+      const segmentStyles = deriveRouteSegmentStyles(activeSegments);
+      const styleBySegmentIndex = new Map(
+        segmentStyles.map((style) => [style.segmentIndex, style]),
+      );
+
       lineSource.setData({
         type: "FeatureCollection",
-        features: activeSegments.map((segment) => ({
-          type: "Feature",
-          properties: {
-            segmentIndex: segment.segmentIndex,
-            ticketId: segment.ticketId || "",
-          },
-          geometry: {
-            type: "LineString",
-            coordinates: [
-              [segment.origin.longitude!, segment.origin.latitude!],
-              [segment.destination.longitude!, segment.destination.latitude!],
-            ],
-          },
-        })),
+        features: activeSegments.map((segment) => {
+          const segmentStyle = styleBySegmentIndex.get(segment.segmentIndex);
+
+          return {
+            type: "Feature",
+            properties: {
+              segmentIndex: segment.segmentIndex,
+              ticketId: segment.ticketId || "",
+              transportType: segment.transportType,
+              routeCount: segmentStyle?.routeCount ?? 1,
+              routeKey: segmentStyle?.routeKey ?? "",
+              lineColor: segmentStyle?.lineColor ?? "#9db4c0",
+              lineGlowColor: segmentStyle?.lineGlowColor ?? "rgba(157, 180, 192, 0.20)",
+              lineWidth: segmentStyle?.lineWidth ?? 2.25,
+              glowWidth: segmentStyle?.glowWidth ?? 5.5,
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [segment.origin.longitude!, segment.origin.latitude!],
+                [segment.destination.longitude!, segment.destination.latitude!],
+              ],
+            },
+          };
+        }),
       });
       const endpointRecords = buildEndpointRecords(route, activeSegments, points);
       endpointLookupRef.current = new Map(
@@ -456,9 +471,9 @@ export function RouteMap({
           "line-join": "round",
         },
         paint: {
-          "line-color": CURRENT_ROUTE_GLOW,
-          "line-width": 10,
-          "line-opacity": 0.4,
+          "line-color": ["get", "lineGlowColor"],
+          "line-width": ["get", "glowWidth"],
+          "line-opacity": 0.34,
         },
       });
 
@@ -471,9 +486,9 @@ export function RouteMap({
           "line-join": "round",
         },
         paint: {
-          "line-color": CURRENT_ROUTE_COLOR,
-          "line-width": 4,
-          "line-opacity": 0.92,
+          "line-color": ["get", "lineColor"],
+          "line-width": ["get", "lineWidth"],
+          "line-opacity": 0.94,
         },
       });
       map.addLayer({
@@ -492,8 +507,8 @@ export function RouteMap({
             6,
             6,
           ],
-          "circle-color": CURRENT_ROUTE_COLOR,
-          "circle-stroke-color": "#ffffff",
+          "circle-color": DEFAULT_ENDPOINT_COLOR,
+          "circle-stroke-color": DEFAULT_ENDPOINT_STROKE_COLOR,
           "circle-stroke-width": 3,
         },
       });

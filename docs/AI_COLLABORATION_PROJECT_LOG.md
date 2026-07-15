@@ -568,3 +568,53 @@ They are based on current repository docs/checklists and should be expanded from
 - Task: Add a year selector that composes with the transport toggle while preserving whole-journey semantics.
 - Action: Added Overview-specific year derivation and combined scope helpers, wired a compact selector into the page, and extended tests around year+scope behavior.
 - Result: Overview can now switch between `All years` and specific years without rewriting journey cards into fragmented transport slices.
+
+---
+
+## Entry: Shared Map Route Styling Baseline
+
+- Date: 2026-07-15
+- Task ID: `MAP-ROUTE-STYLING-001`
+- Area: Shared RouteMap styling / transport differentiation / repeated-route rendering
+- Status: Implemented
+- Problem / requirement:
+  - The redesigned Overview made the archive map more prominent, but route lines still used one heavy style that did not distinguish flight from rail or repeated routes.
+- Why it mattered:
+  - The map needed to read as archive context rather than a dense route-debug surface.
+- User decision / product constraint:
+  - Flight and rail routes should use different colors.
+  - All route lines should be thinner than before.
+  - Repeated routes should use one binary thicker style instead of scaling line width by full count.
+- Final approach:
+  - Extract route styling into a small pure helper.
+  - Use transport-aware line colors and order-insensitive endpoint-pair keys for repeated-route detection.
+- Implementation summary:
+  - Added `src/lib/routeMapStyling.ts` for transport palette and repeated-route style derivation.
+  - Updated `src/components/RouteMap.tsx` to render data-driven line color and line width per segment.
+  - Added targeted tests for transport colors, reverse-direction duplicate handling, and binary repeated thickness.
+- Files / modules changed:
+  - `src/components/RouteMap.tsx`
+  - `src/lib/routeMapStyling.ts`
+  - `tests/routeMapStyling.test.ts`
+  - supporting docs/checklists
+- Tests / validation:
+  - `npm.cmd run test -- tests/routeMapStyling.test.ts`
+  - `npm.cmd run test -- tests/overviewData.test.ts`
+  - `npm.cmd run test -- tests/placeGrouping.test.ts`
+  - `npm.cmd run test -- tests/journeySummary.test.ts`
+  - `npm.cmd run build`
+- Manual verification:
+  - Pending desktop verification of mixed flight/rail coloring and repeated-line thickness in shared map views.
+- Risks / tradeoffs:
+  - Repeated-route detection is currently based on order-insensitive endpoint pairs in the rendered payload rather than deeper semantic route grouping.
+- Follow-up optimization ideas:
+  - Later map refinements can tune endpoint dot styling or add broader route semantics without changing the baseline rule set.
+- Interview talking points:
+  - Converting visual styling requirements into a reusable render helper with explicit tradeoffs around what counts as the same route.
+
+### STAR Summary
+
+- Situation: The shared map renderer still used one heavy route style even after Overview became a more map-centric dashboard.
+- Task: Differentiate flight and rail visually and make repeated routes easier to read without turning the map into a noisy analytics tool.
+- Action: Extracted route-style derivation, applied transport-aware colors, and introduced binary repeated-route thickness using endpoint-pair matching.
+- Result: Shared maps now read more cleanly across Overview and detail views while keeping the styling logic testable and centralized.
