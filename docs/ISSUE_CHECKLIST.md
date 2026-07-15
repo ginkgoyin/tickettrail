@@ -367,6 +367,15 @@
     - Reverse-direction duplicates are counted as the same repeated route by endpoint pair.
   - Priority: `High`
 
+- `OVERVIEW-REDESIGN-005`
+  - Apply a lightweight visual polish pass so the current Overview feels cleaner and less stretched without changing scope, year, or map data behavior.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - Top controls are tighter and more cleanly aligned.
+    - Snapshot, focus, favorite-place, journey, and ticket rows are more compact with less empty internal space.
+    - The current Overview arrangement remains intact, and the removed yearly summary module does not return.
+  - Priority: `Medium`
+
 - `EXPORT-PATH-001`
   - Settings should show the current export/download folder and provide a button to open that folder.
   - Status: `Implemented / needs manual verification`

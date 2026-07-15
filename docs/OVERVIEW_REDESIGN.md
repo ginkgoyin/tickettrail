@@ -4,7 +4,7 @@
 
 This document records the audit and redesign direction for the `Overview` page.
 
-It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the runtime Overview rebuild work through `OVERVIEW-YEAR-FILTER-001B`.
+It records the design checkpoints for `OVERVIEW-REDESIGN-001` and `OVERVIEW-REDESIGN-001A`, plus the runtime Overview rebuild work through `OVERVIEW-REDESIGN-005`.
 
 It does not:
 
@@ -332,6 +332,9 @@ Manual testing will be especially important for:
 - `MAP-ROUTE-STYLING-001`
   - shared map route-line styling follow-up for color/thickness/repeated-route behavior
   - implemented shared route colors for flight vs rail, thinner baseline lines, and binary repeated-route thickness
+- `OVERVIEW-REDESIGN-005`
+  - apply a lightweight visual polish pass so the current Overview feels like a cleaner MVP home page without changing scope, year, or map-coordinate behavior
+  - tighten module heights, top-control alignment, row density, and compact list/stat spacing while keeping the current dashboard arrangement intact
 
 ## 9. Shared Map Styling Follow-up
 
@@ -401,3 +404,7 @@ Scope note:
   - scoped favorite places remain ticket-derived in transport-specific views
   - scoped travel days still use full matching journey days rather than sliced transport-only day fragments
 - `MAP-ROUTE-STYLING-001` still remains separate from the Overview grid/layout work.
+- `OVERVIEW-REDESIGN-005` is now the lightweight polish pass on top of the accepted Overview baseline:
+  - keeps the current arrangement and selected-year transport-scope behavior unchanged
+  - reduces stretched panel feel with tighter section padding, shorter stat/list rows, and more compact focus-card spacing
+  - keeps `Travel map` as the larger left module beside `Favorite places` while making the top controls cleaner and denser
