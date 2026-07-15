@@ -480,14 +480,15 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 Latest completed Overview/UI checkpoint: `OVERVIEW-REDESIGN-005`.
 
-Recommended next task: manual visual verification of the polished Overview baseline, then choose the next focused iteration between deeper Overview redesign polish and later map/UI refinement.
+Recommended next task: `DATA-HEALTH-FILTER-001`, starting with a pure Ticket `Needs review` helper and tests using only stable ticket-field checks before any Tickets list UI filter is added.
 
 The recommended next implementation order is now:
 
 1. keep `OVERVIEW-YEAR-FILTER-001B` as the current Overview scope-plus-year baseline without the redundant yearly summary module
 2. keep `MAP-ROUTE-STYLING-001` as the shared route-color and binary repeated-line thickness baseline
 3. keep `OVERVIEW-REDESIGN-005` as the current lightweight Overview polish baseline before any larger redesign pass
-4. choose the next focused iteration between deeper Overview visual polish and any later map refinement beyond the shared styling layer
+4. use `DATA-HEALTH-FILTER-DESIGN-001` as the accepted design checkpoint for Tickets/Journeys review filtering, with Tickets first and Overview excluded
+5. implement `DATA-HEALTH-FILTER-001` as a pure Ticket review-reason helper plus tests before adding list UI
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
@@ -529,6 +530,7 @@ The recommended next implementation order is now:
 - The year selector derives descending available years from current Overview data, defaults to current year when available, supports `All years`, and keeps mixed journeys whole instead of splitting them into transport fragments.
 - `MAP-ROUTE-STYLING-001` is now the implemented shared RouteMap styling baseline for flight-vs-rail color and binary repeated-route thickness; any later map polish should stay separate from Overview grid/layout work.
 - `OVERVIEW-REDESIGN-005` is now the lightweight MVP polish pass on top of the accepted Overview baseline: it tightens control alignment, reduces stretched panel spacing, keeps the map-plus-favorites row balanced, and does not change Overview scope/year/data semantics.
+- `DATA-HEALTH-FILTER-DESIGN-001` now records the first review-filter direction: design both Tickets and Journeys now, implement Tickets first later, keep missing attachment and missing cost out of `Needs review`, keep the first pass limited to stable ticket fields, and keep data-health reminders off Overview.
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.
