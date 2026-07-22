@@ -478,30 +478,29 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest design checkpoint: `SETTINGS-DATA-BACKUP-DESIGN-001`.
+Latest implementation checkpoint: `SETTINGS-DATA-BACKUP-001`.
 
-Recommended next task: `SETTINGS-DATA-BACKUP-001`.
+Recommended next task: `SETTINGS-EXPORT-FOLDER-001`.
 
 Recommended next task scope:
 
-- rename/restructure `Settings > Export` into `Settings > Data & Backup`
-- make local data location read-only as `Local data`
-- provide or preserve `Open data folder` direction if available
-- keep existing local backup/export/import actions
-- add a future WebDAV placeholder only
+- keep `Settings > Data & Backup` as the accepted local-first baseline
+- add a configurable export output folder only
+- provide `Open folder`, `Choose folder`, and `Reset to Downloads`
+- persist export output preference safely without moving the live database
 - do not implement WebDAV yet
 - do not implement account login
 - do not implement real-time sync
 - do not move the database
-- do not change backup/restore behavior yet
+- do not change local backup/archive bundle behavior semantics yet
 
 The recommended next implementation order is now:
 
-1. use `SETTINGS-DATA-BACKUP-DESIGN-001` as the accepted local-first design baseline for `Settings > Data & Backup`
-2. implement `SETTINGS-DATA-BACKUP-001` as the first Settings restructure pass without WebDAV runtime behavior
-3. follow with `SETTINGS-EXPORT-FOLDER-001` to make the export output folder configurable without touching live database storage
-4. use `ARCHIVE-BUNDLE-REVIEW-001` to confirm exactly what current archive export/import includes for computer-to-computer migration
-5. keep `WEBDAV-BACKUP-DESIGN-001`, `WEBDAV-BACKUP-001`, and `WEBDAV-AUTO-BACKUP-001` as later backup-only follow-ups after the local-first Settings checkpoint lands
+1. keep `SETTINGS-DATA-BACKUP-001` as the landed local-first Settings baseline
+2. implement `SETTINGS-EXPORT-FOLDER-001` to make the export output folder configurable without touching live database storage
+3. use `ARCHIVE-BUNDLE-REVIEW-001` to confirm exactly what current archive export/import includes for computer-to-computer migration
+4. use `WEBDAV-BACKUP-DESIGN-001` to turn the accepted backup/restore direction into an implementation-ready WebDAV plan
+5. keep `WEBDAV-BACKUP-001` and `WEBDAV-AUTO-BACKUP-001` as later backup-only follow-ups after the local-first Settings line is stable
 
 - `DATA-HEALTH-FILTER-001` is paused for now and can resume later after the `Settings > Data & Backup` line reaches a checkpoint.
 
@@ -547,7 +546,8 @@ The recommended next implementation order is now:
 - `OVERVIEW-REDESIGN-005` is now the lightweight MVP polish pass on top of the accepted Overview baseline: it tightens control alignment, reduces stretched panel spacing, keeps the map-plus-favorites row balanced, and does not change Overview scope/year/data semantics.
 - `DATA-HEALTH-FILTER-DESIGN-001` now records the first review-filter direction: design both Tickets and Journeys now, implement Tickets first later, keep missing attachment and missing cost out of `Needs review`, keep the first pass limited to stable ticket fields, and keep data-health reminders off Overview.
 - `UI-ICON-ENCODING-001` is now the shared safeguard against recurring mojibake UI symbols: touched help/close/trash affordances should use the internal SVG icon component, and user-visible inline status copy should prefer ASCII separators over fragile Unicode glyphs.
-- `SETTINGS-DATA-BACKUP-DESIGN-001` now defines the next local-first Settings direction: evolve `Settings > Export` into `Data & Backup`, keep the live database local, keep data location read-only, treat WebDAV as user-provided backup storage rather than sync, and keep account/merge/conflict flows out of the current MVP.
+- `SETTINGS-DATA-BACKUP-DESIGN-001` now defines the accepted local-first Settings direction: evolve `Settings > Export` into `Data & Backup`, keep the live database local, keep data location read-only, treat WebDAV as user-provided backup storage rather than sync, and keep account/merge/conflict flows out of the current MVP.
+- `SETTINGS-DATA-BACKUP-001` now implements the first Settings restructure pass: `Data & Backup` keeps the current local backup/archive actions, exposes the app-data folder as read-only local data, preserves export-folder display, and leaves WebDAV as a future placeholder only.
 
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.

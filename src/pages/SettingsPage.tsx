@@ -1,6 +1,12 @@
 import { useEffect, useState, type ComponentProps } from "react";
 import { BackupPanel } from "../components/BackupPanel";
-import { getExportFolderInfo, openExportFolder, type ExportFolderInfo } from "../lib/ticketService";
+import {
+  getExportFolderInfo,
+  getLocalDataFolderInfo,
+  openExportFolder,
+  openLocalDataFolder,
+  type ExportFolderInfo,
+} from "../lib/ticketService";
 import {
   getFlightDataSourceConfig,
   saveFlightDataSourceConfig,
@@ -45,9 +51,13 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
   const [exportFolderInfo, setExportFolderInfo] = useState<ExportFolderInfo | null>(null);
   const [exportFolderBusy, setExportFolderBusy] = useState(false);
   const [exportFolderStatus, setExportFolderStatus] = useState("");
+  const [localDataFolderInfo, setLocalDataFolderInfo] = useState<ExportFolderInfo | null>(null);
+  const [localDataFolderBusy, setLocalDataFolderBusy] = useState(false);
+  const [localDataFolderStatus, setLocalDataFolderStatus] = useState("");
+  const [bundlePath, setBundlePath] = useState("");
   const settingsTabs: Array<{ value: SettingsSubview; label: string }> = [
     { value: "appearance", label: t("appearance") },
-    { value: "export", label: t("export") },
+    { value: "export", label: t("dataAndBackup") },
     { value: "about", label: t("about") },
   ];
 
@@ -113,6 +123,32 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
       isMounted = false;
     };
   }, [t]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLocalDataFolderInfo = async () => {
+      try {
+        const info = await getLocalDataFolderInfo();
+        if (!isMounted) {
+          return;
+        }
+
+        setLocalDataFolderInfo(info);
+        setLocalDataFolderStatus("");
+      } catch {
+        if (isMounted) {
+          setLocalDataFolderStatus("Failed to resolve the local TicketTrail data folder.");
+        }
+      }
+    };
+
+    void loadLocalDataFolderInfo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleUpdateFlightDataSourceProvider = (provider: FlightDataSourceProvider) => {
     setFlightDataSourceConfig((current) => ({
@@ -206,6 +242,25 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
     }
   };
 
+  const handleOpenLocalDataFolder = async () => {
+    setLocalDataFolderBusy(true);
+    setLocalDataFolderStatus("");
+
+    try {
+      const info = await openLocalDataFolder();
+      setLocalDataFolderInfo(info);
+      setLocalDataFolderStatus("Local TicketTrail data folder opened.");
+    } catch (error) {
+      setLocalDataFolderStatus(
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to open the local TicketTrail data folder.",
+      );
+    } finally {
+      setLocalDataFolderBusy(false);
+    }
+  };
+
   const appearanceView = (
     <section className="section-stack">
       <div className="panel settings-intro-card">
@@ -250,35 +305,99 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
   const exportView = (
     <section className="section-stack">
       <div className="panel settings-intro-card">
-        <h3>{t("backupAndExport")}</h3>
+        <h3>Data & Backup</h3>
         <p className="hero-copy">
-          Backup and export-related preferences now live under Settings. The existing backup workflow
-          remains available here, and stub exports now show the current default download folder for
-          desktop use.
+          TicketTrail is local-first. Keep your working archive on this computer, use archive bundle
+          export/import to move to another computer, and treat WebDAV as future backup/restore rather
+          than real-time sync.
         </p>
       </div>
 
       <div className="content-grid settings-grid">
         <div className="panel-stack">
-          <BackupPanel {...backupPanelProps} />
-        </div>
-
-        <div className="panel-stack">
           <div className="panel settings-section-card">
-            <h3>{t("storage")}</h3>
+            <h3>Local data</h3>
             <div className="settings-option-list">
-              <div className="settings-option-card">
+              <div className="settings-option-card settings-option-card-block">
                 <div>
-                  <strong>Data storage location</strong>
+                  <strong>Current app data folder</strong>
                   <p className="hero-copy">
-                    Coming soon. Desktop data-path configuration is not available yet.
+                    TicketTrail keeps the working database and local files on this computer.
+                  </p>
+                  <p className="settings-helper-copy">
+                    {localDataFolderInfo?.path || "Path unavailable outside the desktop runtime."}
+                  </p>
+                  <p className="hero-copy">
+                    Changing the live data folder is not supported in this MVP.
                   </p>
                 </div>
-                <span className="ticket-status ticket-status-draft">{t("disabled")}</span>
+                <div className="settings-inline-controls">
+                  <button
+                    className="ghost-button"
+                    disabled={localDataFolderBusy || !localDataFolderInfo?.path}
+                    onClick={() => void handleOpenLocalDataFolder()}
+                    type="button"
+                  >
+                    {localDataFolderBusy ? t("openingFolder") : "Open data folder"}
+                  </button>
+                  <span className="ticket-status ticket-status-draft">Read only</span>
+                </div>
+              </div>
+            </div>
+            {localDataFolderStatus ? (
+              <p className="settings-status-message">{localDataFolderStatus}</p>
+            ) : null}
+          </div>
+
+          <div className="panel settings-section-card">
+            <h3>Move to another computer</h3>
+            <div className="settings-option-list">
+              <div className="settings-option-card settings-option-card-block">
+                <div>
+                  <strong>Archive bundle transfer</strong>
+                  <p className="hero-copy">
+                    Export a complete archive bundle from the old computer, then import it on the new one.
+                  </p>
+                  <p className="settings-helper-copy">
+                    Importing an archive bundle replaces the current local data, so create a backup first if needed.
+                  </p>
+                </div>
+                <div className="settings-inline-controls">
+                  <button
+                    className="ghost-button compact-button"
+                    disabled={backupPanelProps.isBusy}
+                    onClick={backupPanelProps.onExportArchiveBundle}
+                    type="button"
+                  >
+                    Export archive bundle
+                  </button>
+                </div>
+                <label className="settings-field">
+                  <span>Import archive bundle path</span>
+                  <div className="backup-import-panel">
+                    <input
+                      onChange={(event) => setBundlePath(event.target.value)}
+                      placeholder="Example: C:\Users\YourUser\Downloads\tickettrail-archive.zip"
+                      value={bundlePath}
+                    />
+                    <button
+                      className="ghost-button compact-button"
+                      disabled={backupPanelProps.isBusy || !bundlePath.trim()}
+                      onClick={() => backupPanelProps.onImportArchiveBundle(bundlePath.trim())}
+                      type="button"
+                    >
+                      Import archive bundle
+                    </button>
+                  </div>
+                </label>
               </div>
             </div>
           </div>
 
+          <BackupPanel {...backupPanelProps} />
+        </div>
+
+        <div className="panel-stack">
           <div className="panel settings-section-card">
             <h3>{t("defaultExportLocation")}</h3>
             <div className="settings-option-list">
@@ -289,7 +408,9 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
                   <p className="settings-helper-copy">
                     {exportFolderInfo?.path || t("exportFolderPathUnavailable")}
                   </p>
-                  <p className="hero-copy">{t("exportFolderDefaultFlowNote")}</p>
+                  <p className="hero-copy">
+                    This is where exported files are saved. It does not move the working database.
+                  </p>
                 </div>
                 <div className="settings-inline-controls">
                   <button
@@ -304,6 +425,28 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
               </div>
             </div>
             {exportFolderStatus ? <p className="settings-status-message">{exportFolderStatus}</p> : null}
+          </div>
+
+          <div className="panel settings-section-card">
+            <h3>Cloud backup - WebDAV</h3>
+            <div className="settings-option-list">
+              <div className="settings-option-card settings-option-card-block">
+                <div>
+                  <p className="hero-copy">
+                    Back up archive bundles to your own WebDAV storage in a future version.
+                  </p>
+                  <p className="settings-helper-copy">
+                    This will be backup and restore, not real-time sync. Restore will be manual and will replace local data.
+                  </p>
+                  <p className="settings-helper-copy">
+                    No TicketTrail account or server is required.
+                  </p>
+                </div>
+                <div className="settings-inline-controls">
+                  <span className="ticket-status ticket-status-draft">Future</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -387,6 +387,14 @@
   - Priority: `Medium`
 
 
+- `SETTINGS-DATA-BACKUP-001`
+  - Restructure `Settings > Export` into a clearer local-first `Data & Backup` page while preserving the current local backup/export/import actions.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - `Local data` is now read-only and can open the current desktop app-data folder.
+    - `Move to another computer` is now framed around archive bundle export/import without changing bundle behavior semantics.
+    - WebDAV appears only as a future backup/restore placeholder; no sync/account/runtime WebDAV work is included.
+  - Priority: `High`
 - `SETTINGS-DATA-BACKUP-DESIGN-001`
   - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.
   - Status: `Documented / design only`
@@ -956,7 +964,7 @@
   - Clean up the remaining candidate review artifact so key-collision rows no longer appear as safe auto-add work.
   - Status: `Implemented / conflict review cleanup`
   - Notes:
-    - `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亝鎹ｉ柣顓炴閵嗘帒顫濋敐鍛婵°倗濮烽崑鐐烘偋閻樻眹鈧線寮村杈┬㈤梻浣规偠閸庢椽宕滈敃鍌氭瀬闁告劦鍠楅悡銉╂煛閸ヮ煈娈斿ù婊堢畺濮婂搫效閸パ€鍋撳Δ鍛；闁规崘鍩栧畷鍙夌箾閹存瑥鐏╂鐐灪娣囧﹪顢涘┑鍥朵哗婵炲濮撮妶绋款潖閸濆娊铏规嫚閹绘帞顔愭繝纰樻閸嬪懘銆冩繝鍐х箚闁圭虎鍠栫粻鎶芥煙閹碱厼骞楅柛宥囨暬濮婃椽骞愭惔锝囩暤闂佺懓鍟跨粔鐢电博閻旂厧鍗抽柕蹇婃閹风粯绻涙潏鍓ф偧闁烩剝妫冨畷鐢稿礃椤旂晫鍘遍梺鎸庣箓缁绘帡骞冮懖鈺冪＜妞ゆ梻鈷堥悡鑲┾偓娈垮枙缁瑩銆佸鈧幃娆戔偓娑欘�?is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
+    - `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾惧綊鏌熼梻瀵割槮缁惧墽鎳撻—鍐偓锝庝簼閹癸綁鏌ｉ鐐搭棞闁靛棙甯掗～婵嬫晲閸涱剙顥氬┑掳鍊楁慨鐑藉磻閻愮儤鍋嬮柣妯荤湽閳ь兛绶氬鏉戭潩鏉堚敩銏ゆ⒒娴ｈ鍋犻柛搴㈡そ瀹曟粓鏁冮崒姘€梺鍛婂姦閸犳鎮￠妷鈺傜厸闁搞儺鐓堝▓鏂棵瑰鍫㈢暫婵﹤鎼晥闁搞儜鈧崑鎾澄旈崨顓狅紱闂佽宕橀崺鏍х暦閸欏绠鹃柟瀛樼懃閻忊晜顨ラ悙顏勭仾濞ｅ洤锕、娑樷攽閸ユ湹鍝楀┑鐐差嚟婵挳濡剁粙娆炬綎闁告繂濞婇搹瑙勫珰闁圭粯甯為鎰節绾版ɑ顫婇柛瀣嚇閵嗗啯绻濋崘褏绠氶梺鍦檸閸犳牜绮婚幎鑺ョ厵闁圭⒈鍘奸獮妤呮煕瀹ュ洦鏆慨濠冩そ楠炴劖鎯旈敐鍥╂殼闂備胶鎳撻崯璺ㄧ矓閻㈢數鍗氶柣鏃傚帶閸楁娊鏌曡箛濠冾€嗛柟椋庣帛缁绘稒娼忛崜褎鍋ч梺鐑╁墲濡啫鐣烽悽绋跨妞ゆ梻鏅崢閬嶆⒑閹稿海绠撶紒缁樺浮楠炲啴鎳栭埡鍐紲濡炪倖姊婚埛鍫ユ偂閼测斁鍋撳▓鍨灆缂侇喗鐟╅妴浣割潨閳ь剟骞冨▎鎴斿亾濞戞瑯锟?is now emitted as a key-conflict human-review row instead of `can_auto_add_place`.
     - The reviewed-safe source file excludes skipped conflict rows and keeps only the safe matches actually applied by regeneration.
   - Priority: `High`
 
@@ -967,7 +975,7 @@
     - Reviewed overrides now live in `data-sources/rail/rail-station-place-overrides.json` and apply only when `enabled = true` and `reviewStatus = approved`.
     - Generator-side validation now rejects duplicate/conflicting overrides, missing Place Catalog targets, and approved overrides that do not match any generated rail station.
     - Remaining hard cases are now prioritized in `docs/reviews/rail-place-override-priority.csv` for manual review.
-    - KUX and `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亝鎹ｉ柣顓炴閵嗘帒顫濋敐鍛婵°倗濮烽崑鐐烘偋閻樻眹鈧線寮村杈┬㈤梻浣规偠閸庢椽宕滈敃鍌氭瀬闁告劦鍠楅悡銉╂煛閸ヮ煈娈斿ù婊堢畺濮婂搫效閸パ€鍋撳Δ鍛；闁规崘鍩栧畷鍙夌箾閹存瑥鐏╂鐐灪娣囧﹪顢涘┑鍥朵哗婵炲濮撮妶绋款潖閸濆娊铏规嫚閹绘帞顔愭繝纰樻閸嬪懘銆冩繝鍐х箚闁圭虎鍠栫粻鎶芥煙閹碱厼骞楅柛宥囨暬濮婃椽骞愭惔锝囩暤闂佺懓鍟跨粔鐢电博閻旂厧鍗抽柕蹇婃閹风粯绻涙潏鍓ф偧闁烩剝妫冨畷鐢稿礃椤旂晫鍘遍梺鎸庣箓缁绘帡骞冮懖鈺冪＜妞ゆ梻鈷堥悡鑲┾偓娈垮枙缁瑩銆佸鈧幃娆戔偓娑欘�?remain explicit human-review cases and are not auto-resolved by this override layer.
+    - KUX and `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾惧綊鏌熼梻瀵割槮缁惧墽鎳撻—鍐偓锝庝簼閹癸綁鏌ｉ鐐搭棞闁靛棙甯掗～婵嬫晲閸涱剙顥氬┑掳鍊楁慨鐑藉磻閻愮儤鍋嬮柣妯荤湽閳ь兛绶氬鏉戭潩鏉堚敩銏ゆ⒒娴ｈ鍋犻柛搴㈡そ瀹曟粓鏁冮崒姘€梺鍛婂姦閸犳鎮￠妷鈺傜厸闁搞儺鐓堝▓鏂棵瑰鍫㈢暫婵﹤鎼晥闁搞儜鈧崑鎾澄旈崨顓狅紱闂佽宕橀崺鏍х暦閸欏绠鹃柟瀛樼懃閻忊晜顨ラ悙顏勭仾濞ｅ洤锕、娑樷攽閸ユ湹鍝楀┑鐐差嚟婵挳濡剁粙娆炬綎闁告繂濞婇搹瑙勫珰闁圭粯甯為鎰節绾版ɑ顫婇柛瀣嚇閵嗗啯绻濋崘褏绠氶梺鍦檸閸犳牜绮婚幎鑺ョ厵闁圭⒈鍘奸獮妤呮煕瀹ュ洦鏆慨濠冩そ楠炴劖鎯旈敐鍥╂殼闂備胶鎳撻崯璺ㄧ矓閻㈢數鍗氶柣鏃傚帶閸楁娊鏌曡箛濠冾€嗛柟椋庣帛缁绘稒娼忛崜褎鍋ч梺鐑╁墲濡啫鐣烽悽绋跨妞ゆ梻鏅崢閬嶆⒑閹稿海绠撶紒缁樺浮楠炲啴鎳栭埡鍐紲濡炪倖姊婚埛鍫ユ偂閼测斁鍋撳▓鍨灆缂侇喗鐟╅妴浣割潨閳ь剟骞冨▎鎴斿亾濞戞瑯锟?remain explicit human-review cases and are not auto-resolved by this override layer.
   - Priority: `High`
 
 - `RAIL-STATION-PLACE-OVERRIDE-001A`
@@ -975,7 +983,7 @@
   - Status: `Implemented / first human review batch prepared`
   - Notes:
     - The first worksheet now lives at `docs/reviews/rail-place-override-batch-001.csv`.
-    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亝鎹ｉ柣顓炴閵嗘帒顫濋敐鍛婵°倗濮烽崑鐐烘偋閻樻眹鈧線寮村杈┬㈤梻浣规偠閸庢椽宕滈敃鍌氭瀬闁告劦鍠楅悡銉╂煛閸ヮ煈娈斿ù婊堢畺濮婂搫效閸パ€鍋撳Δ鍛；闁规崘鍩栧畷鍙夌箾閹存瑥鐏╂鐐灪娣囧﹪顢涘┑鍥朵哗婵炲濮撮妶绋款潖閸濆娊铏规嫚閹绘帞顔愭繝纰樻閸嬪懘銆冩繝鍐х箚闁圭虎鍠栫粻鎶芥煙閹碱厼骞楅柛宥囨暬濮婃椽骞愭惔锝囩暤闂佺懓鍟跨粔鐢电博閻旂厧鍗抽柕蹇婃閹风粯绻涙潏鍓ф偧闁烩剝妫冨畷鐢稿礃椤旂晫鍘遍梺鎸庣箓缁绘帡骞冮懖鈺冪＜妞ゆ梻鈷堥悡鑲┾偓娈垮枙缁瑩銆佸鈧幃娆戔偓娑欘�?key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
+    - The batch intentionally stays small and includes the user-reported `KUX / ?????` case, the `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾惧綊鏌熼梻瀵割槮缁惧墽鎳撻—鍐偓锝庝簼閹癸綁鏌ｉ鐐搭棞闁靛棙甯掗～婵嬫晲閸涱剙顥氬┑掳鍊楁慨鐑藉磻閻愮儤鍋嬮柣妯荤湽閳ь兛绶氬鏉戭潩鏉堚敩銏ゆ⒒娴ｈ鍋犻柛搴㈡そ瀹曟粓鏁冮崒姘€梺鍛婂姦閸犳鎮￠妷鈺傜厸闁搞儺鐓堝▓鏂棵瑰鍫㈢暫婵﹤鎼晥闁搞儜鈧崑鎾澄旈崨顓狅紱闂佽宕橀崺鏍х暦閸欏绠鹃柟瀛樼懃閻忊晜顨ラ悙顏勭仾濞ｅ洤锕、娑樷攽閸ユ湹鍝楀┑鐐差嚟婵挳濡剁粙娆炬綎闁告繂濞婇搹瑙勫珰闁圭粯甯為鎰節绾版ɑ顫婇柛瀣嚇閵嗗啯绻濋崘褏绠氶梺鍦檸閸犳牜绮婚幎鑺ョ厵闁圭⒈鍘奸獮妤呮煕瀹ュ洦鏆慨濠冩そ楠炴劖鎯旈敐鍥╂殼闂備胶鎳撻崯璺ㄧ矓閻㈢數鍗氶柣鏃傚帶閸楁娊鏌曡箛濠冾€嗛柟椋庣帛缁绘稒娼忛崜褎鍋ч梺鐑╁墲濡啫鐣烽悽绋跨妞ゆ梻鏅崢閬嶆⒑閹稿海绠撶紒缁樺浮楠炲啴鎳栭埡鍐紲濡炪倖姊婚埛鍫ユ偂閼测斁鍋撳▓鍨灆缂侇喗鐟╅妴浣割潨閳ь剟骞冨▎鎴斿亾濞戞瑯锟?key-conflict case, high-impact unresolved groups, ambiguous multi-candidate groups, and a few risky slug-only examples.
     - `data-sources/rail/rail-station-place-overrides.json` remains empty, so no reviewed override is applied by runtime generation yet.
   - Priority: `High`
 
@@ -983,7 +991,7 @@
   - Apply the first approved override batch only after explicit human review decisions are captured from the batch worksheet.
   - Status: `Open / paused pending documented granularity policy and reviewed override decisions`
   - Notes:
-    - Do not approve KUX, `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亝鎹ｉ柣顓炴閵嗘帒顫濋敐鍛婵°倗濮烽崑鐐烘偋閻樻眹鈧線寮村杈┬㈤梻浣规偠閸庢椽宕滈敃鍌氭瀬闁告劦鍠楅悡銉╂煛閸ヮ煈娈斿ù婊堢畺濮婂搫效閸パ€鍋撳Δ鍛；闁规崘鍩栧畷鍙夌箾閹存瑥鐏╂鐐灪娣囧﹪顢涘┑鍥朵哗婵炲濮撮妶绋款潖閸濆娊铏规嫚閹绘帞顔愭繝纰樻閸嬪懘銆冩繝鍐х箚闁圭虎鍠栫粻鎶芥煙閹碱厼骞楅柛宥囨暬濮婃椽骞愭惔锝囩暤闂佺懓鍟跨粔鐢电博閻旂厧鍗抽柕蹇婃閹风粯绻涙潏鍓ф偧闁烩剝妫冨畷鐢稿礃椤旂晫鍘遍梺鎸庣箓缁绘帡骞冮懖鈺冪＜妞ゆ梻鈷堥悡鑲┾偓娈垮枙缁瑩銆佸鈧幃娆戔偓娑欘�? or any risky slug-only mapping without explicit evidence and a reviewed decision.
+    - Do not approve KUX, `cn-qianan / 闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾惧綊鏌熼梻瀵割槮缁惧墽鎳撻—鍐偓锝庝簼閹癸綁鏌ｉ鐐搭棞闁靛棙甯掗～婵嬫晲閸涱剙顥氬┑掳鍊楁慨鐑藉磻閻愮儤鍋嬮柣妯荤湽閳ь兛绶氬鏉戭潩鏉堚敩銏ゆ⒒娴ｈ鍋犻柛搴㈡そ瀹曟粓鏁冮崒姘€梺鍛婂姦閸犳鎮￠妷鈺傜厸闁搞儺鐓堝▓鏂棵瑰鍫㈢暫婵﹤鎼晥闁搞儜鈧崑鎾澄旈崨顓狅紱闂佽宕橀崺鏍х暦閸欏绠鹃柟瀛樼懃閻忊晜顨ラ悙顏勭仾濞ｅ洤锕、娑樷攽閸ユ湹鍝楀┑鐐差嚟婵挳濡剁粙娆炬綎闁告繂濞婇搹瑙勫珰闁圭粯甯為鎰節绾版ɑ顫婇柛瀣嚇閵嗗啯绻濋崘褏绠氶梺鍦檸閸犳牜绮婚幎鑺ョ厵闁圭⒈鍘奸獮妤呮煕瀹ュ洦鏆慨濠冩そ楠炴劖鎯旈敐鍥╂殼闂備胶鎳撻崯璺ㄧ矓閻㈢數鍗氶柣鏃傚帶閸楁娊鏌曡箛濠冾€嗛柟椋庣帛缁绘稒娼忛崜褎鍋ч梺鐑╁墲濡啫鐣烽悽绋跨妞ゆ梻鏅崢閬嶆⒑閹稿海绠撶紒缁樺浮楠炲啴鎳栭埡鍐紲濡炪倖姊婚埛鍫ユ偂閼测斁鍋撳▓鍨灆缂侇喗鐟╅妴浣割潨閳ь剟骞冨▎鎴斿亾濞戞瑯锟? or any risky slug-only mapping without explicit evidence and a reviewed decision.
     - Any future reviewed override should represent the reviewed map/coordinate place, not a forced Journey/Summary grouping key.
   - Priority: `High`
 

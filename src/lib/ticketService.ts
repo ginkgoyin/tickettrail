@@ -86,7 +86,7 @@ function normalizeLookupValue(value: string | null | undefined) {
 }
 
 function normalizeStationNameKey(value: string | null | undefined) {
-  return normalizeLookupValue(value).replace(/站$/u, "");
+  return normalizeLookupValue(value).replace(/绔?/u, "");
 }
 
 function buildStationMergeKey(entry: Pick<LocationDirectoryEntry, "code" | "nameZh" | "nameEn">) {
@@ -518,6 +518,26 @@ function buildSegmentCount(ticket: TicketDraft) {
 
 function supportsTauri() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export async function getLocalDataFolderInfo(): Promise<ExportFolderInfo> {
+  if (supportsTauri()) {
+    return invoke<ExportFolderInfo>("get_local_data_folder_info");
+  }
+
+  return {
+    path: "",
+    resolutionKind: "appData",
+    isExact: false,
+  };
+}
+
+export async function openLocalDataFolder(): Promise<ExportFolderInfo> {
+  if (supportsTauri()) {
+    return invoke<ExportFolderInfo>("open_local_data_folder");
+  }
+
+  throw new Error("Opening the local data folder is only available in the desktop app.");
 }
 
 export async function getExportFolderInfo(): Promise<ExportFolderInfo> {

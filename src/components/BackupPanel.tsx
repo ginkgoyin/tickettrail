@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useI18n } from "../lib/i18n";
 import type { BackupReadiness, BackupRecord } from "../types/ticket";
 
@@ -34,83 +33,47 @@ export function BackupPanel({
   isBusy,
   statusMessage,
   onCreateBackup,
-  onExportArchiveBundle,
-  onImportArchiveBundle,
   onRestoreBackup,
   onExportBackup,
 }: BackupPanelProps) {
   const { language } = useI18n();
   const latestBackup = backups[0];
-  const [bundlePath, setBundlePath] = useState("");
   const copy = {
-    createBackup: language === "zh" ? "åˆ›å»ºå¤‡ä»½" : "Create backup",
-    exportArchiveBundle: language === "zh" ? "å¯¼å‡ºæ•´åº“åŒ…" : "Export archive bundle",
-    description:
+    localBackups: language === "zh" ? "±¾µØ±¸·İ" : "Local backups",
+    localBackupsCopy:
       language === "zh"
-        ? "å¤‡ä»½ä¼šä¿å­˜å½“å‰ SQLite æ•°æ®åº“å’Œé™„ä»¶ç›®å½•ã€‚æ¢å¤å¤‡ä»½æˆ–å¯¼å…¥æ•´åº“åŒ…åï¼Œå½“å‰ç¥¨æ®å’Œé™„ä»¶ä¼šè¢«å¤‡ä»½å†…å®¹è¦†ç›–ã€‚"
-        : "Backups include the current SQLite database and attachment directory. Restoring a backup or importing an archive bundle will overwrite the current tickets and attachments.",
-    importArchivePath: language === "zh" ? "å¯¼å…¥æ•´åº“åŒ…è·¯å¾„" : "Import archive bundle path",
-    importArchivePlaceholder:
-      language === "zh"
-        ? "ä¾‹å¦‚ï¼šC:\\Users\\YourUser\\Downloads\\tickettrail-archive.zip"
-        : "Example: C:\\Users\\YourUser\\Downloads\\tickettrail-archive.zip",
-    importArchiveBundle: language === "zh" ? "å¯¼å…¥æ•´åº“åŒ…" : "Import archive bundle",
-    backupReadiness: language === "zh" ? "å¤‡ä»½å‰æ ¡éªŒ" : "Backup readiness",
-    databaseAvailable: language === "zh" ? "æ•°æ®åº“æ–‡ä»¶å¯ç”¨" : "Database file available",
-    databaseMissing: language === "zh" ? "æ•°æ®åº“æ–‡ä»¶ä¸å­˜åœ¨" : "Database file missing",
-    latestBackup: language === "zh" ? "æœ€è¿‘ä¸€æ¬¡å¤‡ä»½" : "Latest backup",
-    noBackupsYet: language === "zh" ? "è¿˜æ²¡æœ‰å¤‡ä»½" : "No backups yet",
+        ? "ÔÚ½øĞĞ´ó¸Ä¶¯¡¢µ¼Èë»ò»Ö¸´Ç°£¬ÏÈ´´½¨Ò»¸ö±¾µØ±¸·İ¡£"
+        : "Create a local backup before major edits, imports, or restores.",
+    createBackup: language === "zh" ? "´´½¨±¸·İ" : "Create backup",
+    backupReadiness: language === "zh" ? "±¸·İ¾ÍĞ÷¼ì²é" : "Backup readiness",
+    databaseAvailable: language === "zh" ? "Êı¾İ¿âÎÄ¼ş¿ÉÓÃ" : "Database file available",
+    databaseMissing: language === "zh" ? "Êı¾İ¿âÎÄ¼şÈ±Ê§" : "Database file missing",
+    latestBackup: language === "zh" ? "×î½üÒ»´Î±¸·İ" : "Latest backup",
+    noBackupsYet: language === "zh" ? "»¹Ã»ÓĞ±¸·İ" : "No backups yet",
     noBackupsHint:
       language === "zh"
-        ? "å»ºè®®åœ¨å¼€å§‹é•¿æœŸå½•å…¥å‰å…ˆåˆ›å»ºç¬¬ä¸€ä»½å¤‡ä»½ã€‚"
+        ? "½¨ÒéÔÚ¿ªÊ¼³¤ÆÚÂ¼ÈëÇ°ÏÈ´´½¨µÚÒ»·İ±¸·İ¡£"
         : "Create the first backup before you start long-term ticket entry.",
-    tickets: language === "zh" ? "å¼ ç¥¨" : "ticket(s)",
-    attachments: language === "zh" ? "ä¸ªé™„ä»¶" : "attachment(s)",
-    exportBackup: language === "zh" ? "å¯¼å‡ºå¤‡ä»½" : "Export backup",
-    restoreBackup: language === "zh" ? "æ¢å¤è¿™ä¸ªå¤‡ä»½" : "Restore this backup",
+    tickets: language === "zh" ? "ÕÅÆ±" : "ticket(s)",
+    attachments: language === "zh" ? "¸ö¸½¼ş" : "attachment(s)",
+    exportBackup: language === "zh" ? "µ¼³ö±¸·İ" : "Export backup",
+    restoreBackup: language === "zh" ? "»Ö¸´Õâ¸ö±¸·İ" : "Restore this backup",
   } as const;
 
   return (
     <section className="panel backup-panel">
       <div className="panel-heading">
         <div>
-          <h3>Backups</h3>
+          <h3>{copy.localBackups}</h3>
         </div>
         <div className="backup-card-actions">
           <button className="ghost-button compact-button" disabled={isBusy} onClick={onCreateBackup} type="button">
             {copy.createBackup}
           </button>
-          <button
-            className="ghost-button compact-button"
-            disabled={isBusy}
-            onClick={onExportArchiveBundle}
-            type="button"
-          >
-            {copy.exportArchiveBundle}
-          </button>
         </div>
       </div>
 
-      <p className="backup-copy">{copy.description}</p>
-
-      <div className="backup-import-panel">
-        <label>
-          {copy.importArchivePath}
-          <input
-            onChange={(event) => setBundlePath(event.target.value)}
-            placeholder={copy.importArchivePlaceholder}
-            value={bundlePath}
-          />
-        </label>
-        <button
-          className="ghost-button compact-button"
-          disabled={isBusy || !bundlePath.trim()}
-          onClick={() => onImportArchiveBundle(bundlePath.trim())}
-          type="button"
-        >
-          {copy.importArchiveBundle}
-        </button>
-      </div>
+      <p className="backup-copy">{copy.localBackupsCopy}</p>
 
       {readiness ? (
         <div className="backup-highlight">

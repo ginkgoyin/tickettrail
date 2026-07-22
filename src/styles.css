@@ -1744,6 +1744,25 @@ html {
 .backup-status {
   color: var(--text-soft);
 }
+.backup-subsection {
+  display: grid;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.backup-subsection-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.backup-subsection-header h4 {
+  margin: 0;
+}
+
 
 .backup-status {
   margin: 0;

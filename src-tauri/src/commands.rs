@@ -207,6 +207,18 @@ pub fn open_export_folder(app: AppHandle) -> Result<ExportFolderPayload, String>
 }
 
 #[command]
+pub fn get_local_data_folder_info(app: AppHandle) -> Result<ExportFolderPayload, String> {
+    resolve_local_data_folder_info(&app)
+}
+
+#[command]
+pub fn open_local_data_folder(app: AppHandle) -> Result<ExportFolderPayload, String> {
+    let data_folder = resolve_local_data_folder_info(&app)?;
+    open_folder_in_os(&PathBuf::from(&data_folder.path))?;
+    Ok(data_folder)
+}
+
+#[command]
 pub fn get_flight_data_source_config(app: AppHandle) -> Result<FlightDataSourceConfigPayload, String> {
     Ok(public_flight_data_source_config(&load_effective_flight_data_source_config(&app)?))
 }
@@ -312,6 +324,19 @@ fn resolve_export_folder_info(app: &AppHandle) -> Result<ExportFolderPayload, St
         path: path.to_string_lossy().to_string(),
         resolution_kind: resolution_kind.into(),
         is_exact: false,
+    })
+}
+
+fn resolve_local_data_folder_info(app: &AppHandle) -> Result<ExportFolderPayload, String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| "Unable to resolve the local TicketTrail data folder on this device.".to_string())?;
+
+    Ok(ExportFolderPayload {
+        path: path.to_string_lossy().to_string(),
+        resolution_kind: "appData".into(),
+        is_exact: true,
     })
 }
 
