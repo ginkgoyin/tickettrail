@@ -618,3 +618,27 @@ They are based on current repository docs/checklists and should be expanded from
 - Task: Differentiate flight and rail visually and make repeated routes easier to read without turning the map into a noisy analytics tool.
 - Action: Extracted route-style derivation, applied transport-aware colors, and introduced binary repeated-route thickness using endpoint-pair matching.
 - Result: Shared maps now read more cleanly across Overview and detail views while keeping the styling logic testable and centralized.
+
+## 2026-07-22 - SETTINGS-DATA-BACKUP-DESIGN-001
+
+- Area: Settings information architecture / backup product direction / future WebDAV backup model
+- Status: Design checkpoint only
+- Problem / requirement:
+  - Settings export/backup still read like placeholders and did not clearly explain local data, migration between computers, or a future cloud-backup model.
+  - The product needed a clear local-first direction without overclaiming sync.
+- User decision / product constraint:
+  - TicketTrail should remain local-first for the MVP.
+  - WebDAV should be framed as user-provided backup/restore, not real-time sync, merge, or first-party account infrastructure.
+  - The app should not let users move the live database location in the MVP.
+- Final approach:
+  - Defined a new `Settings > Data & Backup` model with sections for local data, moving to another computer, local backups, export folder, and future WebDAV backup.
+  - Recorded WebDAV as manual backup/restore first, with optional future auto-upload and destructive manual restore.
+- Implementation summary:
+  - Added `docs/SETTINGS_DATA_BACKUP_DESIGN.md`.
+  - Updated checklist/task tracking to point future implementation toward a local-first backup model.
+- Risks / tradeoffs:
+  - WebDAV remains unimplemented and needs later security, secret-storage, and restore-safety design before code work begins.
+  - True account sync remains intentionally out of scope.
+- Interview talking points:
+  - Making a deliberate local-first product cut instead of overbuilding sync.
+  - Separating backup/restore from multi-device merge semantics to reduce user risk and implementation complexity.

@@ -478,17 +478,32 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest completed Overview/UI checkpoint: `OVERVIEW-REDESIGN-005`.
+Latest design checkpoint: `SETTINGS-DATA-BACKUP-DESIGN-001`.
 
-Recommended next task: `DATA-HEALTH-FILTER-001`, starting with a pure Ticket `Needs review` helper and tests using only stable ticket-field checks before any Tickets list UI filter is added.
+Recommended next task: `SETTINGS-DATA-BACKUP-001`.
+
+Recommended next task scope:
+
+- rename/restructure `Settings > Export` into `Settings > Data & Backup`
+- make local data location read-only as `Local data`
+- provide or preserve `Open data folder` direction if available
+- keep existing local backup/export/import actions
+- add a future WebDAV placeholder only
+- do not implement WebDAV yet
+- do not implement account login
+- do not implement real-time sync
+- do not move the database
+- do not change backup/restore behavior yet
 
 The recommended next implementation order is now:
 
-1. keep `OVERVIEW-YEAR-FILTER-001B` as the current Overview scope-plus-year baseline without the redundant yearly summary module
-2. keep `MAP-ROUTE-STYLING-001` as the shared route-color and binary repeated-line thickness baseline
-3. keep `OVERVIEW-REDESIGN-005` as the current lightweight Overview polish baseline before any larger redesign pass
-4. use `DATA-HEALTH-FILTER-DESIGN-001` as the accepted design checkpoint for Tickets/Journeys review filtering, with Tickets first and Overview excluded
-5. implement `DATA-HEALTH-FILTER-001` as a pure Ticket review-reason helper plus tests before adding list UI
+1. use `SETTINGS-DATA-BACKUP-DESIGN-001` as the accepted local-first design baseline for `Settings > Data & Backup`
+2. implement `SETTINGS-DATA-BACKUP-001` as the first Settings restructure pass without WebDAV runtime behavior
+3. follow with `SETTINGS-EXPORT-FOLDER-001` to make the export output folder configurable without touching live database storage
+4. use `ARCHIVE-BUNDLE-REVIEW-001` to confirm exactly what current archive export/import includes for computer-to-computer migration
+5. keep `WEBDAV-BACKUP-DESIGN-001`, `WEBDAV-BACKUP-001`, and `WEBDAV-AUTO-BACKUP-001` as later backup-only follow-ups after the local-first Settings checkpoint lands
+
+- `DATA-HEALTH-FILTER-001` is paused for now and can resume later after the `Settings > Data & Backup` line reaches a checkpoint.
 
 - The current Journey service boundary should remain UI-agnostic; do not wire Journey runtime screens until the first list/create pass is scoped.
 - `dateMode = auto` should continue deriving Journey dates from linked tickets inside the backend/service layer rather than the placeholder Journeys UI.
@@ -532,6 +547,8 @@ The recommended next implementation order is now:
 - `OVERVIEW-REDESIGN-005` is now the lightweight MVP polish pass on top of the accepted Overview baseline: it tightens control alignment, reduces stretched panel spacing, keeps the map-plus-favorites row balanced, and does not change Overview scope/year/data semantics.
 - `DATA-HEALTH-FILTER-DESIGN-001` now records the first review-filter direction: design both Tickets and Journeys now, implement Tickets first later, keep missing attachment and missing cost out of `Needs review`, keep the first pass limited to stable ticket fields, and keep data-health reminders off Overview.
 - `UI-ICON-ENCODING-001` is now the shared safeguard against recurring mojibake UI symbols: touched help/close/trash affordances should use the internal SVG icon component, and user-visible inline status copy should prefer ASCII separators over fragile Unicode glyphs.
+- `SETTINGS-DATA-BACKUP-DESIGN-001` now defines the next local-first Settings direction: evolve `Settings > Export` into `Data & Backup`, keep the live database local, keep data location read-only, treat WebDAV as user-provided backup storage rather than sync, and keep account/merge/conflict flows out of the current MVP.
+
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
 - Main bundle size should still be watched in future follow-up work because `journeyPlace.ts` continues to statically import the large airport and rail endpoint datasets.

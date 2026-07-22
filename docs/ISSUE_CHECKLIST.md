@@ -386,6 +386,17 @@
     - Row-level UI should explain the reason, for example `Needs review - Missing departure time`.
   - Priority: `Medium`
 
+
+- `SETTINGS-DATA-BACKUP-DESIGN-001`
+  - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.
+  - Status: `Documented / design only`
+  - Notes:
+    - TicketTrail stays local-first: WebDAV is designed as user-provided backup storage, not active database sync.
+    - The current MVP should not let users move the SQLite/app-data location; local data path should stay read-only with `Open data folder`.
+    - Future WebDAV restore should remain manual and destructive/full-overwrite by default, with a strong prompt to create a local backup first.
+    - First-party account sync, real-time sync, merge, and conflict resolution remain explicitly out of scope.
+  - Priority: `High`
+
 - `EXPORT-PATH-001`
   - Settings should show the current export/download folder and provide a button to open that folder.
   - Status: `Implemented / needs manual verification`
