@@ -642,3 +642,26 @@ They are based on current repository docs/checklists and should be expanded from
 - Interview talking points:
   - Making a deliberate local-first product cut instead of overbuilding sync.
   - Separating backup/restore from multi-device merge semantics to reduce user risk and implementation complexity.
+
+## 2026-07-22 - ARCHIVE-BUNDLE-REVIEW-001
+
+- Area: Archive bundle format / desktop migration safety / future WebDAV backup baseline
+- Status: Audit checkpoint only
+- Problem / requirement:
+  - Settings now frames archive bundle export/import as the current migration path, but the project did not yet have a clear record of what the bundle actually contains or how destructive import behaves.
+- User decision / product constraint:
+  - Audit the current export/import path first.
+  - Do not change archive behavior yet.
+  - Use the findings to decide whether the current bundle can become the future WebDAV backup payload.
+- Final approach:
+  - Traced the full desktop path from Settings and frontend service wiring into the Tauri commands and Rust backup/archive helpers.
+  - Recorded current payload contents, restore behavior, safety gaps, and WebDAV suitability in a dedicated review doc.
+- Implementation summary:
+  - Added docs/ARCHIVE_BUNDLE_REVIEW.md.
+  - Updated checklist/task tracking so the next follow-up moves to archive import safety and bundle metadata rather than treating the current payload as already hardened.
+- Risks / tradeoffs:
+  - Current import is still destructive and lacks automatic safety backup, rollback, and richer manifest metadata.
+  - The current bundle is reasonable for cautious manual migration tests but is not yet a polished WebDAV backup contract.
+- Interview talking points:
+  - Auditing an existing backup/migration path before building cloud backup on top of it.
+  - Distinguishing ��works in principle�� from ��safe enough to productize�� in a local-first desktop app.

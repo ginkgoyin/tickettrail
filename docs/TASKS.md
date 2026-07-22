@@ -478,29 +478,27 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest implementation checkpoint: `SETTINGS-DATA-BACKUP-001`.
+Latest audit checkpoint: `ARCHIVE-BUNDLE-REVIEW-001`.
 
-Recommended next task: `SETTINGS-EXPORT-FOLDER-001`.
+Recommended next task: `ARCHIVE-IMPORT-SAFETY-001`.
 
 Recommended next task scope:
 
-- keep `Settings > Data & Backup` as the accepted local-first baseline
-- add a configurable export output folder only
-- provide `Open folder`, `Choose folder`, and `Reset to Downloads`
-- persist export output preference safely without moving the live database
+- validate archive bundle contents before destructive import
+- create a local safety backup before import when feasible
+- define and document failure/rollback behavior clearly
+- keep archive import as a local overwrite flow rather than sync/merge
 - do not implement WebDAV yet
-- do not implement account login
-- do not implement real-time sync
 - do not move the database
-- do not change local backup/archive bundle behavior semantics yet
+- do not change Settings UI in the same task unless safety copy must be clarified
 
 The recommended next implementation order is now:
 
-1. keep `SETTINGS-DATA-BACKUP-001` as the landed local-first Settings baseline
-2. implement `SETTINGS-EXPORT-FOLDER-001` to make the export output folder configurable without touching live database storage
-3. use `ARCHIVE-BUNDLE-REVIEW-001` to confirm exactly what current archive export/import includes for computer-to-computer migration
-4. use `WEBDAV-BACKUP-DESIGN-001` to turn the accepted backup/restore direction into an implementation-ready WebDAV plan
-5. keep `WEBDAV-BACKUP-001` and `WEBDAV-AUTO-BACKUP-001` as later backup-only follow-ups after the local-first Settings line is stable
+1. implement `ARCHIVE-IMPORT-SAFETY-001` to make destructive import safer before broader migration claims
+2. implement `ARCHIVE-BUNDLE-MANIFEST-001` to add format/app/schema metadata to archive bundles
+3. implement `ARCHIVE-BUNDLE-TEST-001` to verify export/import on a second profile or clean machine path
+4. use `WEBDAV-BACKUP-DESIGN-001` after the bundle format and import-safety baseline are clearer
+5. keep `SETTINGS-EXPORT-FOLDER-001` as a later convenience improvement that does not block backup safety work
 
 - `DATA-HEALTH-FILTER-001` is paused for now and can resume later after the `Settings > Data & Backup` line reaches a checkpoint.
 
@@ -548,6 +546,7 @@ The recommended next implementation order is now:
 - `UI-ICON-ENCODING-001` is now the shared safeguard against recurring mojibake UI symbols: touched help/close/trash affordances should use the internal SVG icon component, and user-visible inline status copy should prefer ASCII separators over fragile Unicode glyphs.
 - `SETTINGS-DATA-BACKUP-DESIGN-001` now defines the accepted local-first Settings direction: evolve `Settings > Export` into `Data & Backup`, keep the live database local, keep data location read-only, treat WebDAV as user-provided backup storage rather than sync, and keep account/merge/conflict flows out of the current MVP.
 - `SETTINGS-DATA-BACKUP-001` now implements the first Settings restructure pass: `Data & Backup` keeps the current local backup/archive actions, exposes the app-data folder as read-only local data, preserves export-folder display, and leaves WebDAV as a future placeholder only.
+- `ARCHIVE-BUNDLE-REVIEW-001` now documents the current archive payload and restore path: bundles currently carry the SQLite database, attachments, and a small backup manifest, but import safety, rollback, and richer manifest metadata still need follow-up before WebDAV backup or strong migration claims.
 
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.
