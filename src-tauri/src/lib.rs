@@ -5,8 +5,8 @@ mod models;
 
 use commands::{
     add_ticket_attachment, create_backup, create_journey, create_stub_preview, create_ticket,
-    delete_journey, delete_ticket, delete_ticket_attachment, export_archive_bundle, export_backup,
-    get_backup_readiness, get_bootstrap_summary, get_export_folder_info,
+    delete_backup, delete_journey, delete_ticket, delete_ticket_attachment, export_archive_bundle,
+    export_backup, get_backup_readiness, get_bootstrap_summary, get_export_folder_info,
     get_flight_data_source_config, get_journey, get_local_data_folder_info, get_ticket_detail,
     import_archive_bundle, list_backups, list_journey_stops, list_journeys, list_tickets,
     lookup_flight_candidates, open_export_folder, open_local_data_folder, pick_archive_bundle_file,
@@ -48,6 +48,7 @@ pub fn run() {
             create_backup,
             get_backup_readiness,
             restore_backup,
+            delete_backup,
             export_backup,
             export_archive_bundle,
             import_archive_bundle,

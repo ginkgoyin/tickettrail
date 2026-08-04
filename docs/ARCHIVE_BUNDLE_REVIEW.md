@@ -2,6 +2,21 @@
 
 ## Update After `ARCHIVE-IMPORT-SAFETY-001`
 
+## Update After `BACKUP-HISTORY-UX-001`
+
+The local-backup UX has now been compacted and safety-scoped further:
+
+- `Settings > Data & Backup` no longer renders the full backup history inline
+- local backup history is now intended to open in a modal with pagination
+- local backups can now be deleted individually by backup id
+- backup deletion targets only the selected local backup folder under the app backup root
+- backup deletion does not delete live tickets, the live SQLite database, live attachments, or exported archive bundle zip files
+- local backup retention is now capped at 30 entries after successful backup creation
+- the newest backup created in the current operation is preserved during retention pruning
+
+This still does **not** change the archive bundle format.
+It also does **not** add rollback, checksums, schema/app-version validation, or WebDAV behavior yet.
+
 The current import flow has now been hardened in one limited safety pass:
 
 - archive import validates the extracted backup payload before destructive restore

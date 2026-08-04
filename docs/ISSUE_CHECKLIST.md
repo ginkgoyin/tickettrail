@@ -410,6 +410,15 @@
     - Import now creates a local safety backup before replacing the live database and attachments.
     - Rollback, schema/app-version validation, checksum validation, and failure cleanup remain future follow-up items.
   - Priority: `High`
+- `BACKUP-HISTORY-UX-001`
+  - Compact the local backup history UX, move full history into a modal, add delete actions, and cap retained local backups at 30.
+  - Status: `Implemented / needs manual verification`
+  - Notes:
+    - `Settings > Data & Backup` now shows a compact local-backup summary instead of an infinitely growing inline history list.
+    - Full backup history is now intended to open in a paginated modal and each backup can be exported, restored, or deleted there.
+    - Deletion targets only the selected local backup folder by backup id; it does not delete live data or exported archive bundle zip files.
+    - Automatic retention now prunes the oldest local backups beyond 30 after a new backup is created, while preserving the newly created backup from the same operation.
+  - Priority: `High`
 - `SETTINGS-DATA-BACKUP-DESIGN-001`
   - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.
   - Status: `Documented / design only`

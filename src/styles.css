@@ -1712,10 +1712,16 @@ html {
   letter-spacing: 0.1em;
 }
 
-.backup-panel,
-.backup-list {
+.backup-panel {
   display: grid;
   gap: 14px;
+}
+
+.backup-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-content: start;
 }
 
 .backup-import-panel {
@@ -1790,6 +1796,91 @@ html {
 .backup-card-meta span {
   color: var(--text-soft);
   font-size: 0.86rem;
+}
+
+.backup-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.backup-history-modal {
+  width: min(1360px, calc(100vw - 64px));
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 32px);
+}
+
+.backup-history-body {
+  min-height: calc(100vh - 180px);
+  padding-bottom: 24px;
+  align-content: start;
+}
+
+.backup-history-empty {
+  padding: 20px;
+}
+
+.backup-history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.backup-card-actions-end {
+  justify-content: flex-end;
+}
+
+.backup-history-modal .tickets-modal-header {
+  padding: 24px 28px 18px;
+}
+
+.backup-history-modal .tickets-modal-body {
+  padding: 20px 28px 28px;
+}
+
+.ghost-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-soft);
+}
+
+.ghost-icon-button:hover,
+.ghost-icon-button:focus-visible {
+  outline: none;
+  border-color: rgba(112, 212, 255, 0.34);
+  color: var(--text);
+  background: rgba(112, 212, 255, 0.08);
+}
+
+.backup-delete-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.modal-shell.tickets-modal.backup-delete-modal {
+  width: min(560px, 100%);
+}
+
+.backup-delete-modal .backup-delete-body {
+  padding: 28px 36px 36px;
+}
+
+.backup-delete-summary span,
+.backup-delete-meta span {
+  color: var(--text-soft);
+}
+
+.backup-delete-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
 .import-actions {
@@ -3989,5 +4080,20 @@ textarea {
     right: 16px;
     left: 16px;
     width: auto;
+  }
+}
+
+@media (max-width: 1080px) {
+  .backup-list {
+    grid-template-columns: 1fr;
+  }
+
+  .backup-history-modal {
+    width: min(100%, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+  }
+
+  .backup-history-body {
+    min-height: auto;
   }
 }

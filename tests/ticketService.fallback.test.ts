@@ -3,6 +3,7 @@ import {
   buildRouteMapSegments,
   createBackup,
   createTicket,
+  deleteBackup,
   deleteTicket,
   exportArchiveBundle,
   exportBackup,
@@ -114,6 +115,29 @@ describe("ticketService web fallback", () => {
     expect(restoredTickets[0]?.code).toBe(first.code);
   });
 
+  it("caps fallback backups at thirty newest entries", async () => {
+    await createTicket(buildDraft());
+
+    for (let index = 0; index < 32; index += 1) {
+      await createBackup();
+    }
+
+    const backups = await listBackups();
+    expect(backups).toHaveLength(30);
+  });
+
+  it("deletes fallback backups by id", async () => {
+    await createTicket(buildDraft());
+    const first = await createBackup();
+    const second = await createBackup();
+
+    await deleteBackup(first.id);
+
+    const backups = await listBackups();
+    expect(backups).toHaveLength(1);
+    expect(backups[0]?.id).toBe(second.id);
+  });
+
   it("reports backup readiness from localStorage fallback", async () => {
     await createTicket(buildDraft());
     const readiness = await getBackupReadiness();
@@ -136,6 +160,7 @@ describe("ticketService web fallback", () => {
 
   it("throws clear errors for missing fallback backup records", async () => {
     await expect(restoreBackup("missing-backup")).rejects.toThrow("Backup record not found.");
+    await expect(deleteBackup("missing-backup")).rejects.toThrow("Backup record not found.");
     await expect(exportBackup("missing-backup")).rejects.toThrow("Backup record not found.");
   });
 

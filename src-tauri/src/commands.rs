@@ -193,6 +193,11 @@ pub fn restore_backup(app: AppHandle, backup_id: String) -> Result<(), String> {
 }
 
 #[command]
+pub fn delete_backup(app: AppHandle, backup_id: String) -> Result<(), String> {
+    db::delete_backup(&app, &backup_id)
+}
+
+#[command]
 pub fn export_backup(app: AppHandle, backup_id: String) -> Result<String, String> {
     db::export_backup(&app, &backup_id)
 }

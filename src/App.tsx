@@ -22,6 +22,7 @@ import {
   createTicket,
   deleteTicket,
   deleteTicketAttachment,
+  deleteBackup,
   exportArchiveBundle,
   exportBackup,
   getBackupReadiness,
@@ -669,7 +670,6 @@ export default function App() {
       );
     });
   };
-
   const handleCreateBackup = async () => {
     setBackupBusy(true);
     setErrorMessage("");
@@ -678,10 +678,13 @@ export default function App() {
 
     try {
       const nextBackup = await createBackup();
-      const readiness = await getBackupReadiness();
+      const [nextBackups, readiness] = await Promise.all([
+        listBackups(),
+        getBackupReadiness(),
+      ]);
       setBackupNotice(`Backup created: ${nextBackup.label}`);
       startTransition(() => {
-        setBackups((current) => [nextBackup, ...current.filter((item) => item.id !== nextBackup.id)]);
+        setBackups(nextBackups);
         setBackupReadiness(readiness);
         setBackupStatusMessage(`Backup created: ${nextBackup.label}`);
       });
@@ -734,6 +737,31 @@ export default function App() {
     }
   };
 
+  const handleDeleteBackup = async (backupId: string) => {
+    setBackupBusy(true);
+    setErrorMessage("");
+    setBackupStatusMessage("");
+    setBackupNotice("");
+
+    try {
+      await deleteBackup(backupId);
+      const [nextBackups, readiness] = await Promise.all([
+        listBackups(),
+        getBackupReadiness(),
+      ]);
+      setBackupNotice("Backup deleted.");
+      startTransition(() => {
+        setBackups(nextBackups);
+        setBackupReadiness(readiness);
+        setBackupStatusMessage("Backup deleted.");
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to delete backup.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   const handleExportBackup = async (backupId: string) => {
     setBackupBusy(true);
     setErrorMessage("");
@@ -761,6 +789,14 @@ export default function App() {
 
     try {
       const archivePath = await exportArchiveBundle();
+      const [nextBackups, readiness] = await Promise.all([
+        listBackups(),
+        getBackupReadiness(),
+      ]);
+      startTransition(() => {
+        setBackups(nextBackups);
+        setBackupReadiness(readiness);
+      });
       setArchiveTransferNotice({
         kind: "success",
         title: "Archive bundle exported",
@@ -806,10 +842,10 @@ export default function App() {
         setDetailVersion((current) => current + 1);
       });
       setArchiveTransferNotice({
-  kind: "success",
-  title: "Archive bundle imported",
-  message: "Local data was replaced and a safety backup was created first.",
-});
+        kind: "success",
+        title: "Archive bundle imported",
+        message: "Local data was replaced and a safety backup was created first.",
+      });
     } catch (error) {
       setArchiveTransferNotice({
         kind: "error",
@@ -978,23 +1014,24 @@ export default function App() {
               />
             )
           : (
-                <SettingsPage
-                  archiveTransferNotice={archiveTransferNotice}
-                  backupPanelProps={{
-                    backups,
-                    readiness: backupReadiness,
-                    isBusy: backupBusy,
-                    onCreateBackup: handleCreateBackup,
-                    onExportArchiveBundle: handleExportArchiveBundle,
-                    onImportArchiveBundle: handleImportArchiveBundle,
-                    onExportBackup: handleExportBackup,
-                    onRestoreBackup: handleRestoreBackup,
-                    statusMessage: backupNotice || backupStatusMessage,
-                  }}
-                  initialSubview={activeSection === "exports" ? "export" : "appearance"}
-                  onDismissArchiveTransferNotice={() => setArchiveTransferNotice(null)}
-                />
-              );
+              <SettingsPage
+                archiveTransferNotice={archiveTransferNotice}
+                backupPanelProps={{
+                  backups,
+                  readiness: backupReadiness,
+                  isBusy: backupBusy,
+                  onCreateBackup: handleCreateBackup,
+                  onExportArchiveBundle: handleExportArchiveBundle,
+                  onImportArchiveBundle: handleImportArchiveBundle,
+                  onExportBackup: handleExportBackup,
+                  onRestoreBackup: handleRestoreBackup,
+                  onDeleteBackup: handleDeleteBackup,
+                  statusMessage: backupNotice || backupStatusMessage,
+                }}
+                initialSubview={activeSection === "exports" ? "export" : "appearance"}
+                onDismissArchiveTransferNotice={() => setArchiveTransferNotice(null)}
+              />
+            );
 
   return (
     <div className="app-shell">

@@ -33,6 +33,7 @@ const LEGACY_JOURNEYS_TABLE: &str = "journeys";
 const LEGACY_SEGMENTS_TABLE: &str = "segments";
 const TICKET_ITINERARIES_TABLE: &str = "ticket_itineraries";
 const TICKET_SEGMENTS_TABLE: &str = "ticket_segments";
+const MAX_RETAINED_LOCAL_BACKUPS: usize = 30;
 
 #[derive(Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -259,7 +260,7 @@ struct NormalizedJourneyStopMutation {
     user_edited: bool,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BackupManifest {
     id: String,
@@ -274,6 +275,11 @@ struct ValidatedBackupPayload {
     database_path: PathBuf,
     attachments_path: PathBuf,
     attachments_present: bool,
+}
+
+struct LocalBackupEntry {
+    dir_path: PathBuf,
+    manifest: BackupManifest,
 }
 
 pub fn search_airlines(app: &AppHandle, query: &str) -> Result<Vec<AirlinePayload>, String> {
@@ -367,34 +373,17 @@ pub fn search_locations(
 
 pub fn list_backups(app: &AppHandle) -> Result<Vec<BackupRecordPayload>, String> {
     let backup_root = backup_root_dir(app)?;
-    if !backup_root.exists() {
-        return Ok(Vec::new());
-    }
-
-    let mut backups = Vec::new();
-    for entry in fs::read_dir(&backup_root).map_err(|err| err.to_string())? {
-        let entry = entry.map_err(|err| err.to_string())?;
-        if !entry.file_type().map_err(|err| err.to_string())?.is_dir() {
-            continue;
-        }
-
-        let manifest_path = entry.path().join("backup.json");
-        if !manifest_path.exists() {
-            continue;
-        }
-
-        let manifest_text = fs::read_to_string(&manifest_path).map_err(|err| err.to_string())?;
-        let manifest = serde_json::from_str::<BackupManifest>(&manifest_text)
-            .map_err(|err| err.to_string())?;
-        backups.push(BackupRecordPayload {
-            id: manifest.id,
-            label: manifest.label,
-            created_at: manifest.created_at,
-            ticket_count: manifest.ticket_count,
-            attachment_count: manifest.attachment_count,
-            database_size_bytes: manifest.database_size_bytes,
-        });
-    }
+    let mut backups = scan_local_backup_entries(&backup_root)?
+        .into_iter()
+        .map(|entry| BackupRecordPayload {
+            id: entry.manifest.id,
+            label: entry.manifest.label,
+            created_at: entry.manifest.created_at,
+            ticket_count: entry.manifest.ticket_count,
+            attachment_count: entry.manifest.attachment_count,
+            database_size_bytes: entry.manifest.database_size_bytes,
+        })
+        .collect::<Vec<_>>();
 
     backups.sort_by(|left, right| right.created_at.cmp(&left.created_at));
     Ok(backups)
@@ -415,8 +404,13 @@ fn create_backup_with_label(
 
     let created_at = Utc::now().to_rfc3339();
     let created_at_dt = DateTime::parse_from_rfc3339(&created_at).map_err(|err| err.to_string())?;
-    let backup_id = format!("backup-{}", created_at_dt.format("%Y%m%d-%H%M%S"));
-    let backup_dir = backup_root_dir(app)?.join(&backup_id);
+    let backup_id = format!(
+        "backup-{}-{}",
+        created_at_dt.format("%Y%m%d-%H%M%S-%3f"),
+        Uuid::new_v4().simple()
+    );
+    let backup_root = backup_root_dir(app)?;
+    let backup_dir = backup_root.join(&backup_id);
     fs::create_dir_all(&backup_dir).map_err(|err| err.to_string())?;
 
     let db_source = database_path(app)?;
@@ -446,14 +440,24 @@ fn create_backup_with_label(
     let manifest_text = serde_json::to_string_pretty(&manifest).map_err(|err| err.to_string())?;
     fs::write(backup_dir.join("backup.json"), manifest_text).map_err(|err| err.to_string())?;
 
-    Ok(BackupRecordPayload {
-        id: manifest.id,
-        label: manifest.label,
-        created_at: manifest.created_at,
+    let payload = BackupRecordPayload {
+        id: manifest.id.clone(),
+        label: manifest.label.clone(),
+        created_at: manifest.created_at.clone(),
         ticket_count: manifest.ticket_count,
         attachment_count: manifest.attachment_count,
         database_size_bytes: manifest.database_size_bytes,
-    })
+    };
+
+    if let Err(error) = prune_local_backups(&backup_root, &manifest.id, MAX_RETAINED_LOCAL_BACKUPS)
+    {
+        eprintln!(
+            "warning: local backup retention pruning failed after creating {}: {}",
+            manifest.id, error
+        );
+    }
+
+    Ok(payload)
 }
 
 pub fn get_backup_readiness(app: &AppHandle) -> Result<BackupReadinessPayload, String> {
@@ -472,6 +476,11 @@ pub fn get_backup_readiness(app: &AppHandle) -> Result<BackupReadinessPayload, S
 pub fn restore_backup(app: &AppHandle, backup_id: &str) -> Result<(), String> {
     let backup_dir = backup_root_dir(app)?.join(backup_id);
     restore_from_backup_dir(app, &backup_dir)
+}
+
+pub fn delete_backup(app: &AppHandle, backup_id: &str) -> Result<(), String> {
+    let backup_root = backup_root_dir(app)?;
+    delete_backup_dir_by_id(&backup_root, backup_id)
 }
 
 pub fn export_backup(app: &AppHandle, backup_id: &str) -> Result<String, String> {
@@ -2775,6 +2784,71 @@ fn attachment_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(data_dir.join("attachments"))
 }
 
+fn scan_local_backup_entries(backup_root: &Path) -> Result<Vec<LocalBackupEntry>, String> {
+    if !backup_root.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut backups = Vec::new();
+    for entry in fs::read_dir(backup_root).map_err(|err| err.to_string())? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        if !entry.file_type().map_err(|err| err.to_string())?.is_dir() {
+            continue;
+        }
+
+        let dir_path = entry.path();
+        let manifest_path = dir_path.join("backup.json");
+        if !manifest_path.exists() {
+            continue;
+        }
+
+        let manifest_text = fs::read_to_string(&manifest_path).map_err(|err| err.to_string())?;
+        let manifest = serde_json::from_str::<BackupManifest>(&manifest_text)
+            .map_err(|err| err.to_string())?;
+        backups.push(LocalBackupEntry { dir_path, manifest });
+    }
+
+    Ok(backups)
+}
+
+fn delete_backup_dir_by_id(backup_root: &Path, backup_id: &str) -> Result<(), String> {
+    let backups = scan_local_backup_entries(backup_root)?;
+    let target = backups
+        .into_iter()
+        .find(|entry| entry.manifest.id == backup_id)
+        .ok_or_else(|| format!("Backup {} was not found.", backup_id))?;
+
+    fs::remove_dir_all(&target.dir_path).map_err(|err| err.to_string())
+}
+
+fn prune_local_backups(
+    backup_root: &Path,
+    preserve_backup_id: &str,
+    max_retained: usize,
+) -> Result<(), String> {
+    let mut backups = scan_local_backup_entries(backup_root)?;
+    if backups.len() <= max_retained {
+        return Ok(());
+    }
+
+    backups.sort_by(|left, right| left.manifest.created_at.cmp(&right.manifest.created_at));
+
+    let mut overflow = backups.len().saturating_sub(max_retained);
+    for backup in backups {
+        if overflow == 0 {
+            break;
+        }
+        if backup.manifest.id == preserve_backup_id {
+            continue;
+        }
+
+        fs::remove_dir_all(&backup.dir_path).map_err(|err| err.to_string())?;
+        overflow -= 1;
+    }
+
+    Ok(())
+}
+
 fn backup_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
     Ok(data_dir.join("backups"))
@@ -3452,17 +3526,17 @@ fn normalize_lookup_value(value: Option<&str>) -> String {
 mod tests {
     use super::{
         build_effective_segments, build_ticket_detail, clear_journey_stop_ticket_references,
-        compare_optional_date, delete_journey_related_rows,
+        compare_optional_date, delete_backup_dir_by_id, delete_journey_related_rows,
         derive_journey_date_range_from_linked_tickets, ensure_journey_schema_columns,
         fallback_coordinates, load_journey_stops, lookup_generated_airport_coordinates,
         lookup_rail_station_city_coordinates, migrate_legacy_ticket_journey_tables,
         normalize_companion_names, normalize_journey_cost_exchange_rate,
         normalize_journey_stop_mutations, normalize_lookup_value, normalize_to_utc,
-        replace_journey_stop_rows, resolve_map_point, sanitize_file_name, seed_location_directory,
-        sort_linked_journey_ticket_records, table_exists, table_has_column,
-        validate_backup_payload, validate_draft, BackupManifest, JourneyStopMutationPayload,
-        LinkedJourneyTicketRecord, TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
-        TicketSegmentPayload, SCHEMA_SQL,
+        prune_local_backups, replace_journey_stop_rows, resolve_map_point, sanitize_file_name,
+        scan_local_backup_entries, seed_location_directory, sort_linked_journey_ticket_records,
+        table_exists, table_has_column, validate_backup_payload, validate_draft, BackupManifest,
+        JourneyStopMutationPayload, LinkedJourneyTicketRecord, TicketDraftPayload,
+        TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
     use std::{env, fs, path::PathBuf};
@@ -3569,17 +3643,33 @@ mod tests {
         dir
     }
 
-    fn write_backup_manifest(dir: &PathBuf, attachment_count: usize) {
+    fn write_backup_manifest_with(
+        dir: &PathBuf,
+        backup_id: &str,
+        label: &str,
+        created_at: &str,
+        attachment_count: usize,
+    ) {
         let manifest = BackupManifest {
-            id: "backup-test".to_string(),
-            label: "Backup Test".to_string(),
-            created_at: "2026-07-22T00:00:00Z".to_string(),
+            id: backup_id.to_string(),
+            label: label.to_string(),
+            created_at: created_at.to_string(),
             ticket_count: 2,
             attachment_count,
             database_size_bytes: 128,
         };
         let text = serde_json::to_string_pretty(&manifest).expect("should serialize test manifest");
         fs::write(dir.join("backup.json"), text).expect("should write backup manifest");
+    }
+
+    fn write_backup_manifest(dir: &PathBuf, attachment_count: usize) {
+        write_backup_manifest_with(
+            dir,
+            "backup-test",
+            "Backup Test",
+            "2026-07-22T00:00:00Z",
+            attachment_count,
+        );
     }
     fn insert_test_journey(conn: &Connection, journey_id: &str) {
         conn.execute(
@@ -3727,6 +3817,85 @@ mod tests {
         assert!(error.contains("attachments/"));
 
         fs::remove_dir_all(dir).expect("should clean temp dir");
+    }
+
+    #[test]
+    fn delete_backup_dir_by_id_removes_only_matching_backup_directory() {
+        let root = create_temp_backup_dir();
+        let first_dir = root.join("backup-1-dir");
+        let second_dir = root.join("backup-2-dir");
+        fs::create_dir_all(&first_dir).expect("should create first backup dir");
+        fs::create_dir_all(&second_dir).expect("should create second backup dir");
+        write_backup_manifest_with(
+            &first_dir,
+            "backup-1",
+            "Backup 1",
+            "2026-08-01T00:00:00Z",
+            0,
+        );
+        write_backup_manifest_with(
+            &second_dir,
+            "backup-2",
+            "Backup 2",
+            "2026-08-02T00:00:00Z",
+            0,
+        );
+
+        delete_backup_dir_by_id(&root, "backup-1").expect("should delete matching backup dir");
+
+        assert!(!first_dir.exists());
+        assert!(second_dir.exists());
+
+        fs::remove_dir_all(root).expect("should clean temp dir");
+    }
+
+    #[test]
+    fn delete_backup_dir_by_id_rejects_unknown_backup_id() {
+        let root = create_temp_backup_dir();
+        let only_dir = root.join("backup-1-dir");
+        fs::create_dir_all(&only_dir).expect("should create backup dir");
+        write_backup_manifest_with(&only_dir, "backup-1", "Backup 1", "2026-08-01T00:00:00Z", 0);
+
+        let error = delete_backup_dir_by_id(&root, "missing-backup")
+            .expect_err("should reject unknown backup id");
+        assert!(error.contains("Backup missing-backup was not found."));
+        assert!(only_dir.exists());
+
+        fs::remove_dir_all(root).expect("should clean temp dir");
+    }
+
+    #[test]
+    fn prune_local_backups_keeps_at_most_thirty_and_preserves_new_backup() {
+        let root = create_temp_backup_dir();
+
+        for index in 0..32 {
+            let backup_id = format!("backup-{index:02}");
+            let backup_dir = root.join(format!("dir-{index:02}"));
+            fs::create_dir_all(&backup_dir).expect("should create backup dir");
+            write_backup_manifest_with(
+                &backup_dir,
+                &backup_id,
+                &format!("Backup {index:02}"),
+                &format!("2026-08-{day:02}T00:00:00Z", day = index + 1),
+                0,
+            );
+        }
+
+        prune_local_backups(&root, "backup-31", 30).expect("should prune older backups");
+
+        let remaining = scan_local_backup_entries(&root).expect("should list remaining backups");
+        assert_eq!(remaining.len(), 30);
+        assert!(remaining
+            .iter()
+            .any(|entry| entry.manifest.id == "backup-31"));
+        assert!(!remaining
+            .iter()
+            .any(|entry| entry.manifest.id == "backup-00"));
+        assert!(!remaining
+            .iter()
+            .any(|entry| entry.manifest.id == "backup-01"));
+
+        fs::remove_dir_all(root).expect("should clean temp dir");
     }
 
     #[test]

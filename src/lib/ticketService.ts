@@ -23,6 +23,7 @@ import type {
 const STORAGE_KEY = "tickettrail.web-fallback.tickets";
 const ATTACHMENT_STORAGE_KEY = "tickettrail.web-fallback.attachments";
 const BACKUP_STORAGE_KEY = "tickettrail.web-fallback.backups";
+const MAX_FALLBACK_BACKUPS = 30;
 const AIRLINE_SEED = airlineSeedData as AirlineDirectoryEntry[];
 const LEGACY_LOCATION_SEED = locationSeedData as LocationDirectoryEntry[];
 
@@ -86,7 +87,7 @@ function normalizeLookupValue(value: string | null | undefined) {
 }
 
 function normalizeStationNameKey(value: string | null | undefined) {
-  return normalizeLookupValue(value).replace(/缁?/u, "");
+  return normalizeLookupValue(value).replace(/缂?/u, "");
 }
 
 function buildStationMergeKey(entry: Pick<LocationDirectoryEntry, "code" | "nameZh" | "nameEn">) {
@@ -638,7 +639,10 @@ function readFallbackBackups(): WebFallbackBackupSnapshot[] {
 
 function writeFallbackBackups(backups: WebFallbackBackupSnapshot[]) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(backups));
+    window.localStorage.setItem(
+      BACKUP_STORAGE_KEY,
+      JSON.stringify(backups.slice(0, MAX_FALLBACK_BACKUPS)),
+    );
   }
 }
 
@@ -1004,7 +1008,7 @@ export async function createBackup(): Promise<BackupRecord> {
   const attachments = readFallbackAttachments();
   const createdAt = new Date().toISOString();
   const nextBackup: WebFallbackBackupSnapshot = {
-    id: `backup-${Date.now()}`,
+    id: `backup-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     label: `Backup ${createdAt.slice(0, 19).replace("T", " ")}`,
     createdAt,
     ticketCount: tickets.length,
@@ -1047,6 +1051,21 @@ export async function restoreBackup(backupId: string): Promise<void> {
 
   writeFallbackTickets(backup.tickets);
   writeFallbackAttachments(backup.attachments);
+}
+
+export async function deleteBackup(backupId: string): Promise<void> {
+  if (supportsTauri()) {
+    await invoke("delete_backup", { backupId });
+    return;
+  }
+
+  const backups = readFallbackBackups();
+  const nextBackups = backups.filter((item) => item.id !== backupId);
+  if (nextBackups.length === backups.length) {
+    throw new Error("Backup record not found.");
+  }
+
+  writeFallbackBackups(nextBackups);
 }
 
 export async function exportBackup(backupId: string): Promise<string> {
