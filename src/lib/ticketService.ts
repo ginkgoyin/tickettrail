@@ -86,7 +86,7 @@ function normalizeLookupValue(value: string | null | undefined) {
 }
 
 function normalizeStationNameKey(value: string | null | undefined) {
-  return normalizeLookupValue(value).replace(/绔?/u, "");
+  return normalizeLookupValue(value).replace(/缁?/u, "");
 }
 
 function buildStationMergeKey(entry: Pick<LocationDirectoryEntry, "code" | "nameZh" | "nameEn">) {
@@ -558,6 +558,14 @@ export async function openExportFolder(): Promise<ExportFolderInfo> {
   }
 
   throw new Error("Opening the export folder is only available in the desktop app.");
+}
+
+export async function pickArchiveBundleFile(): Promise<string | null> {
+  if (supportsTauri()) {
+    return invoke<string | null>("pick_archive_bundle_file");
+  }
+
+  throw new Error("Choosing an archive bundle file is only available in the desktop app.");
 }
 
 function readFallbackTickets(): TicketRecord[] {

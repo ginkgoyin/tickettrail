@@ -1,5 +1,17 @@
 # ARCHIVE_BUNDLE_REVIEW
 
+## Update After `ARCHIVE-IMPORT-SAFETY-001`
+
+The current import flow has now been hardened in one limited safety pass:
+
+- archive import validates the extracted backup payload before destructive restore
+- archive import creates a local safety backup before overwrite
+- if safety backup creation fails, import aborts before local data is modified
+- if restore fails after the safety backup is created, the safety backup remains available in normal local backup history
+
+This does **not** change the archive bundle format.
+It also does **not** add rollback, checksums, schema/app-version validation, or WebDAV behavior yet.
+
 ## Purpose
 
 This review records what the current `Export archive bundle` and `Import archive bundle`
@@ -168,14 +180,22 @@ It does not currently include any additional archive-only metadata such as:
 3. calls `locate_backup_dir(import_root)`
 4. restores from that located backup directory through `restore_from_backup_dir`
 
-### What `locate_backup_dir` validates
+### Archive validation before overwrite
 
-Current validation is minimal:
+Import now performs a small pre-restore validation pass after extraction:
 
-- accept the extraction root directly if `backup.json` exists there
-- otherwise accept the first child directory containing `backup.json`
-- otherwise fail with:
-  - `Could not locate a valid backup manifest inside the archive bundle.`
+- `locate_backup_dir` still finds the extracted backup directory through `backup.json`
+- validation then requires `backup.json`
+- validation requires `tickettrail.sqlite3`
+- validation parses the current `backup.json` shape and therefore requires:
+  - `id`
+  - `label`
+  - `createdAt`
+  - `ticketCount`
+  - `attachmentCount`
+  - `databaseSizeBytes`
+- `attachments/` may be absent only when `attachmentCount = 0`
+- if validation fails, import stops before local data is overwritten
 
 ### Current destructive behavior
 
@@ -184,28 +204,25 @@ Import currently behaves as a destructive local restore:
 - it overwrites the live database with the bundled database
 - it removes and replaces the live attachments directory
 
-### What import does not currently do
+### What import still does not do
 
-Current import does **not**:
+Current import still does **not**:
 
-- create a safety backup first
 - validate manifest schema/version compatibility
-- validate ticket/attachment counts before overwrite
 - validate checksums
 - perform transactional rollback across database plus attachments
-- clean up extracted imports afterward in the reviewed code path
+- guarantee extracted import-folder cleanup on failure
 - prompt for restart
 
 ### Current UI warning accuracy
 
-The current UI warning is broadly accurate:
+The current UI warning is now clearer:
 
-- it warns that import overwrites the current database and attachments
+- it warns that import validates the archive first
+- it warns that a safety backup is created before overwrite
+- it warns that import still replaces the current database and attachments
 
-However, it is still incomplete because it does not mention:
-
-- no automatic safety backup is created first
-- no rollback is guaranteed if restore fails mid-process
+The remaining gap is that the UI still does not promise rollback, because rollback is not implemented in this safety pass.
 
 ## What Data Is Preserved Today
 
@@ -301,7 +318,7 @@ Before using the current bundle as the future WebDAV payload, add:
 - No schema version recorded in the bundle
 - No app version recorded in the bundle
 - No checksum/integrity validation
-- No automatic safety backup before destructive import
+- No rollback across database replacement and attachment replacement
 - No rollback across database replacement and attachment replacement
 - No proof that all local config outside DB/attachments is preserved
 - Import temp extraction cleanup is unclear in the current code path
@@ -322,11 +339,11 @@ Add richer archive/backup manifest metadata:
 
 ### `ARCHIVE-IMPORT-SAFETY-001`
 
-Improve destructive import safety:
+Implemented:
 
-- validate manifest before overwrite
+- validate basic archive payload structure before overwrite
 - create a local safety backup before import
-- define rollback expectations or explicit non-rollback behavior
+- return clearer failure messaging when restore fails after the safety backup is created
 
 ### `ARCHIVE-BUNDLE-TEST-001`
 

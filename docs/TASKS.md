@@ -478,27 +478,26 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest audit checkpoint: `ARCHIVE-BUNDLE-REVIEW-001`.
+Latest implementation checkpoint: `ARCHIVE-IMPORT-SAFETY-001`.
 
-Recommended next task: `ARCHIVE-IMPORT-SAFETY-001`.
+Recommended next task: `ARCHIVE-BUNDLE-MANIFEST-001`.
 
 Recommended next task scope:
 
-- validate archive bundle contents before destructive import
-- create a local safety backup before import when feasible
-- define and document failure/rollback behavior clearly
-- keep archive import as a local overwrite flow rather than sync/merge
-- do not implement WebDAV yet
+- add richer archive/backup manifest metadata such as backup format version, app version, and schema version
+- keep the current archive bundle as a zip wrapper around the backup payload
+- do not change import from local overwrite to sync/merge
+- keep WebDAV unimplemented until the manifest baseline is clearer
 - do not move the database
-- do not change Settings UI in the same task unless safety copy must be clarified
+- keep Settings UI changes minimal unless manifest status copy must be clarified
 
 The recommended next implementation order is now:
 
-1. implement `ARCHIVE-IMPORT-SAFETY-001` to make destructive import safer before broader migration claims
-2. implement `ARCHIVE-BUNDLE-MANIFEST-001` to add format/app/schema metadata to archive bundles
-3. implement `ARCHIVE-BUNDLE-TEST-001` to verify export/import on a second profile or clean machine path
-4. use `WEBDAV-BACKUP-DESIGN-001` after the bundle format and import-safety baseline are clearer
-5. keep `SETTINGS-EXPORT-FOLDER-001` as a later convenience improvement that does not block backup safety work
+1. implement `ARCHIVE-BUNDLE-MANIFEST-001` to add format/app/schema metadata to archive bundles before broader migration claims
+2. implement `ARCHIVE-BUNDLE-TEST-001` to verify export/import on a second profile or clean machine path
+3. use `WEBDAV-BACKUP-DESIGN-001` after the bundle format and import-safety baseline are clearer
+4. keep `SETTINGS-EXPORT-FOLDER-001` as a later convenience improvement that does not block backup safety work
+5. keep `DATA-HEALTH-FILTER-001` paused until the archive/data-backup line reaches the next checkpoint
 
 - `DATA-HEALTH-FILTER-001` is paused for now and can resume later after the `Settings > Data & Backup` line reaches a checkpoint.
 
@@ -546,7 +545,7 @@ The recommended next implementation order is now:
 - `UI-ICON-ENCODING-001` is now the shared safeguard against recurring mojibake UI symbols: touched help/close/trash affordances should use the internal SVG icon component, and user-visible inline status copy should prefer ASCII separators over fragile Unicode glyphs.
 - `SETTINGS-DATA-BACKUP-DESIGN-001` now defines the accepted local-first Settings direction: evolve `Settings > Export` into `Data & Backup`, keep the live database local, keep data location read-only, treat WebDAV as user-provided backup storage rather than sync, and keep account/merge/conflict flows out of the current MVP.
 - `SETTINGS-DATA-BACKUP-001` now implements the first Settings restructure pass: `Data & Backup` keeps the current local backup/archive actions, exposes the app-data folder as read-only local data, preserves export-folder display, and leaves WebDAV as a future placeholder only.
-- `ARCHIVE-BUNDLE-REVIEW-001` now documents the current archive payload and restore path: bundles currently carry the SQLite database, attachments, and a small backup manifest, but import safety, rollback, and richer manifest metadata still need follow-up before WebDAV backup or strong migration claims.
+- `ARCHIVE-BUNDLE-REVIEW-001` now documents the current archive payload and restore path, and `ARCHIVE-IMPORT-SAFETY-001` now adds pre-restore payload validation plus a local safety backup before destructive import. Rollback, richer manifest metadata, and failure cleanup still need follow-up before WebDAV backup or strong migration claims.
 
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.

@@ -1,10 +1,12 @@
 import { useEffect, useState, type ComponentProps } from "react";
+import { AppIcon } from "../components/AppIcon";
 import { BackupPanel } from "../components/BackupPanel";
 import {
   getExportFolderInfo,
   getLocalDataFolderInfo,
   openExportFolder,
   openLocalDataFolder,
+  pickArchiveBundleFile,
   type ExportFolderInfo,
 } from "../lib/ticketService";
 import {
@@ -20,8 +22,14 @@ type BackupPanelProps = ComponentProps<typeof BackupPanel>;
 type SettingsSubview = "appearance" | "export" | "about";
 
 interface SettingsPageProps {
+  archiveTransferNotice: {
+    kind: "success" | "error";
+    title: string;
+    message: string;
+  } | null;
   backupPanelProps: BackupPanelProps;
   initialSubview?: SettingsSubview;
+  onDismissArchiveTransferNotice: () => void;
 }
 
 function formatSavedAt(value: string) {
@@ -36,7 +44,12 @@ function formatSavedAt(value: string) {
   }).format(new Date(timestamp));
 }
 
-export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }: SettingsPageProps) {
+export function SettingsPage({
+  archiveTransferNotice,
+  backupPanelProps,
+  initialSubview = "appearance",
+  onDismissArchiveTransferNotice,
+}: SettingsPageProps) {
   const { language, setLanguage, t } = useI18n();
   const [subview, setSubview] = useState<SettingsSubview>(initialSubview);
   const [flightDataSourceConfig, setFlightDataSourceConfig] = useState<FlightDataSourceConfig>({
@@ -55,6 +68,7 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
   const [localDataFolderBusy, setLocalDataFolderBusy] = useState(false);
   const [localDataFolderStatus, setLocalDataFolderStatus] = useState("");
   const [bundlePath, setBundlePath] = useState("");
+  const [archiveBundlePickerBusy, setArchiveBundlePickerBusy] = useState(false);
   const settingsTabs: Array<{ value: SettingsSubview; label: string }> = [
     { value: "appearance", label: t("appearance") },
     { value: "export", label: t("dataAndBackup") },
@@ -242,6 +256,22 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
     }
   };
 
+  const handleChooseArchiveBundleFile = async () => {
+    setArchiveBundlePickerBusy(true);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+
+    try {
+      const selectedPath = await pickArchiveBundleFile();
+      if (selectedPath) {
+        setBundlePath(selectedPath);
+      }
+    } finally {
+      setArchiveBundlePickerBusy(false);
+    }
+  };
+
   const handleOpenLocalDataFolder = async () => {
     setLocalDataFolderBusy(true);
     setLocalDataFolderStatus("");
@@ -359,7 +389,7 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
                     Export a complete archive bundle from the old computer, then import it on the new one.
                   </p>
                   <p className="settings-helper-copy">
-                    Importing an archive bundle replaces the current local data, so create a backup first if needed.
+                    Importing an archive bundle validates the payload first, creates a local safety backup, and then replaces the current local data.
                   </p>
                 </div>
                 <div className="settings-inline-controls">
@@ -371,6 +401,14 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
                   >
                     Export archive bundle
                   </button>
+                  <button
+                    className="ghost-button compact-button"
+                    disabled={exportFolderBusy}
+                    onClick={() => void handleOpenExportFolder()}
+                    type="button"
+                  >
+                    {exportFolderBusy ? t("openingFolder") : "Open backup folder"}
+                  </button>
                 </div>
                 <label className="settings-field">
                   <span>Import archive bundle path</span>
@@ -380,6 +418,14 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
                       placeholder="Example: C:\Users\YourUser\Downloads\tickettrail-archive.zip"
                       value={bundlePath}
                     />
+                    <button
+                      className="ghost-button compact-button"
+                      disabled={backupPanelProps.isBusy || archiveBundlePickerBusy}
+                      onClick={() => void handleChooseArchiveBundleFile()}
+                      type="button"
+                    >
+                      {archiveBundlePickerBusy ? "Choosing..." : "Choose file"}
+                    </button>
                     <button
                       className="ghost-button compact-button"
                       disabled={backupPanelProps.isBusy || !bundlePath.trim()}
@@ -453,6 +499,26 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
     </section>
   );
 
+  const archiveTransferToast = archiveTransferNotice ? (
+    <div
+      aria-live={archiveTransferNotice.kind === "error" ? "assertive" : "polite"}
+      className={`settings-toast settings-toast-${archiveTransferNotice.kind}`}
+      role={archiveTransferNotice.kind === "error" ? "alert" : "status"}
+    >
+      <div className="settings-toast-copy">
+        <strong>{archiveTransferNotice.title}</strong>
+        <p>{archiveTransferNotice.message}</p>
+      </div>
+      <button
+        aria-label="Dismiss archive transfer notice"
+        className="settings-toast-close"
+        onClick={onDismissArchiveTransferNotice}
+        type="button"
+      >
+        <AppIcon name="close" size={16} />
+      </button>
+    </div>
+  ) : null;
   const aboutView = (
     <section className="section-stack">
       <div className="panel settings-intro-card">
@@ -606,6 +672,8 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
   );
 
   return (
+    <>
+      {archiveTransferToast}
     <section className="section-stack settings-page">
       <div className="journeys-subview-bar">
         <div className="tickets-tab-group" aria-label="Settings subviews" role="tablist">
@@ -626,5 +694,6 @@ export function SettingsPage({ backupPanelProps, initialSubview = "appearance" }
 
       {subview === "appearance" ? appearanceView : subview === "export" ? exportView : aboutView}
     </section>
+    </>
   );
 }

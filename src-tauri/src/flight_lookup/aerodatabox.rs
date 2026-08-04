@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use chrono::{DateTime, NaiveDateTime};
 use reqwest::blocking::{Client, Response};
-use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue};
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use reqwest::{StatusCode, Url};
 use serde::Deserialize;
 
@@ -102,7 +102,9 @@ pub fn lookup_candidates(
                 "AeroDataBox is selected, but no local API key is configured yet.",
                 Some(PROVIDER_AERODATABOX),
                 false,
-                Some("Save a local AeroDataBox API key in Settings before using the live provider."),
+                Some(
+                    "Save a local AeroDataBox API key in Settings before using the live provider.",
+                ),
             )
         })?;
 
@@ -126,7 +128,11 @@ pub fn lookup_candidates(
         })?;
 
     let response = client
-        .get(build_lookup_url(gateway_config.base_url, flight_number, lookup_date)?)
+        .get(build_lookup_url(
+            gateway_config.base_url,
+            flight_number,
+            lookup_date,
+        )?)
         .headers(build_headers(gateway_config, api_key)?)
         .send()
         .map_err(|_| {
@@ -189,8 +195,7 @@ pub fn lookup_candidates(
         ));
     }
 
-    if response.status() == StatusCode::BAD_REQUEST
-    {
+    if response.status() == StatusCode::BAD_REQUEST {
         let status = response.status();
         let headers = response.headers().clone();
         let body = response
@@ -199,10 +204,7 @@ pub fn lookup_candidates(
 
         eprintln!(
             "[AeroDataBox lookup failed] status={} flight_number={} lookup_date={} body={}",
-            status,
-            flight_number,
-            lookup_date,
-            body
+            status, flight_number, lookup_date, body
         );
 
         eprintln!(
@@ -351,10 +353,7 @@ fn build_headers(
     );
 
     if let Some(host) = gateway.rapid_api_host {
-        headers.insert(
-            "X-RapidAPI-Host",
-            HeaderValue::from_static(host),
-        );
+        headers.insert("X-RapidAPI-Host", HeaderValue::from_static(host));
     }
 
     Ok(headers)
@@ -424,8 +423,18 @@ fn map_candidate(
     index: usize,
     flight: AerodataboxFlight,
 ) -> FlightLookupCandidatePayload {
-    let departure_code = airport_code(flight.departure.as_ref().and_then(|value| value.airport.as_ref()));
-    let arrival_code = airport_code(flight.arrival.as_ref().and_then(|value| value.airport.as_ref()));
+    let departure_code = airport_code(
+        flight
+            .departure
+            .as_ref()
+            .and_then(|value| value.airport.as_ref()),
+    );
+    let arrival_code = airport_code(
+        flight
+            .arrival
+            .as_ref()
+            .and_then(|value| value.airport.as_ref()),
+    );
 
     let departure_quality = flight
         .departure
@@ -449,7 +458,10 @@ fn map_candidate(
         provider_label: AERODATABOX_PROVIDER_LABEL.into(),
         source_note: AERODATABOX_SOURCE_NOTE.into(),
         carrier_name: trim_or_fallback(
-            flight.airline.as_ref().and_then(|value| value.name.as_deref()),
+            flight
+                .airline
+                .as_ref()
+                .and_then(|value| value.name.as_deref()),
             "Unknown airline",
         ),
         code: normalize_code(flight.number.as_deref(), fallback_flight_number),
@@ -473,7 +485,10 @@ fn map_candidate(
         },
         arrival: FlightLookupLocationPayload {
             name: airport_name(
-                flight.arrival.as_ref().and_then(|value| value.airport.as_ref()),
+                flight
+                    .arrival
+                    .as_ref()
+                    .and_then(|value| value.airport.as_ref()),
                 &arrival_code,
             ),
             code: arrival_code,
@@ -500,7 +515,12 @@ fn map_candidate(
         ),
         departure_time_local: best_local_time(flight.departure.as_ref()),
         arrival_time_local: best_local_time(flight.arrival.as_ref()),
-        aircraft: trimmed_optional(flight.aircraft.as_ref().and_then(|value| value.model.as_deref())),
+        aircraft: trimmed_optional(
+            flight
+                .aircraft
+                .as_ref()
+                .and_then(|value| value.model.as_deref()),
+        ),
         flight_status: trimmed_optional(flight.status.as_deref()),
         confidence: build_confidence_note(departure_quality.as_deref(), arrival_quality.as_deref()),
     }
@@ -534,13 +554,18 @@ fn normalize_local_datetime(value: Option<&str>) -> Option<String> {
         .ok()
         .map(|value| value.format("%Y-%m-%dT%H:%M").to_string())
         .or_else(|| {
-            ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"]
-                .iter()
-                .find_map(|pattern| {
-                    NaiveDateTime::parse_from_str(trimmed, pattern)
-                        .ok()
-                        .map(|value| value.format("%Y-%m-%dT%H:%M").to_string())
-                })
+            [
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M",
+                "%Y-%m-%d %H:%M",
+            ]
+            .iter()
+            .find_map(|pattern| {
+                NaiveDateTime::parse_from_str(trimmed, pattern)
+                    .ok()
+                    .map(|value| value.format("%Y-%m-%dT%H:%M").to_string())
+            })
         })
 }
 

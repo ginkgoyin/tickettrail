@@ -1,9 +1,10 @@
 use crate::models::{
-    AirlinePayload, BackupReadinessPayload, BackupRecordPayload, LocationDirectoryPayload,
-    JourneyCompanionPayload, JourneyMutationPayload, JourneyPayload, JourneyStopMutationPayload,
-    JourneyStopPayload, MapPointPayload, MapRoutePayload, MapViewportPayload, MapSegmentPayload,
-    StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload, TicketDetailPayload,
-    TicketDraftPayload, TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
+    AirlinePayload, BackupReadinessPayload, BackupRecordPayload, JourneyCompanionPayload,
+    JourneyMutationPayload, JourneyPayload, JourneyStopMutationPayload, JourneyStopPayload,
+    LocationDirectoryPayload, MapPointPayload, MapRoutePayload, MapSegmentPayload,
+    MapViewportPayload, StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
+    TicketDetailPayload, TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
+    TicketSegmentPayload,
 };
 use chrono::{DateTime, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -24,7 +25,8 @@ const SCHEMA_SQL: &str = include_str!("../../database/schema.sql");
 const AIRLINES_SEED_JSON: &str = include_str!("../../src/data/airlines.seed.json");
 const LOCATIONS_SEED_JSON: &str = include_str!("../../src/data/locations.seed.json");
 const GENERATED_AIRPORTS_JSON: &str = include_str!("../../src/data/airports.generated.json");
-const GENERATED_RAIL_STATIONS_JSON: &str = include_str!("../../src/data/rail-stations.generated.json");
+const GENERATED_RAIL_STATIONS_JSON: &str =
+    include_str!("../../src/data/rail-stations.generated.json");
 const PLACE_CATALOG_JSON: &str = include_str!("../../src/data/place-catalog.generated.json");
 const TRANSPORT_PLACE_JSON: &str = include_str!("../../src/data/transport-place.generated.json");
 const LEGACY_JOURNEYS_TABLE: &str = "journeys";
@@ -268,6 +270,12 @@ struct BackupManifest {
     database_size_bytes: u64,
 }
 
+struct ValidatedBackupPayload {
+    database_path: PathBuf,
+    attachments_path: PathBuf,
+    attachments_present: bool,
+}
+
 pub fn search_airlines(app: &AppHandle, query: &str) -> Result<Vec<AirlinePayload>, String> {
     let conn = open_connection(app)?;
     let trimmed = query.trim();
@@ -301,16 +309,21 @@ pub fn search_airlines(app: &AppHandle, query: &str) -> Result<Vec<AirlinePayloa
     let search_like = format!("%{}%", trimmed);
 
     let rows = if trimmed.is_empty() {
-        stmt.query_map([], parse_airline_row).map_err(|err| err.to_string())?
+        stmt.query_map([], parse_airline_row)
+            .map_err(|err| err.to_string())?
     } else {
         stmt.query_map(params![&search_like, trimmed], parse_airline_row)
             .map_err(|err| err.to_string())?
     };
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
 }
 
-pub fn search_locations(app: &AppHandle, query: &str) -> Result<Vec<LocationDirectoryPayload>, String> {
+pub fn search_locations(
+    app: &AppHandle,
+    query: &str,
+) -> Result<Vec<LocationDirectoryPayload>, String> {
     let conn = open_connection(app)?;
     let trimmed = query.trim();
 
@@ -348,7 +361,8 @@ pub fn search_locations(app: &AppHandle, query: &str) -> Result<Vec<LocationDire
             .map_err(|err| err.to_string())?
     };
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
 }
 
 pub fn list_backups(app: &AppHandle) -> Result<Vec<BackupRecordPayload>, String> {
@@ -370,8 +384,8 @@ pub fn list_backups(app: &AppHandle) -> Result<Vec<BackupRecordPayload>, String>
         }
 
         let manifest_text = fs::read_to_string(&manifest_path).map_err(|err| err.to_string())?;
-        let manifest =
-            serde_json::from_str::<BackupManifest>(&manifest_text).map_err(|err| err.to_string())?;
+        let manifest = serde_json::from_str::<BackupManifest>(&manifest_text)
+            .map_err(|err| err.to_string())?;
         backups.push(BackupRecordPayload {
             id: manifest.id,
             label: manifest.label,
@@ -387,6 +401,13 @@ pub fn list_backups(app: &AppHandle) -> Result<Vec<BackupRecordPayload>, String>
 }
 
 pub fn create_backup(app: &AppHandle) -> Result<BackupRecordPayload, String> {
+    create_backup_with_label(app, None)
+}
+
+fn create_backup_with_label(
+    app: &AppHandle,
+    custom_label: Option<String>,
+) -> Result<BackupRecordPayload, String> {
     let conn = open_connection(app)?;
     let ticket_count = list_tickets(app)?.len();
     let attachment_count = count_attachments(&conn)?;
@@ -411,9 +432,11 @@ pub fn create_backup(app: &AppHandle) -> Result<BackupRecordPayload, String> {
     let database_size_bytes = fs::metadata(&db_destination)
         .map_err(|err| err.to_string())?
         .len();
+    let label = custom_label
+        .unwrap_or_else(|| format!("Backup {}", created_at_dt.format("%Y-%m-%d %H:%M:%S")));
     let manifest = BackupManifest {
         id: backup_id.clone(),
-        label: format!("Backup {}", created_at_dt.format("%Y-%m-%d %H:%M:%S")),
+        label,
         created_at: created_at.clone(),
         ticket_count,
         attachment_count,
@@ -498,7 +521,29 @@ pub fn import_archive_bundle(app: &AppHandle, bundle_path: &str) -> Result<(), S
 
     expand_zip_to_directory(&archive_path, &import_root)?;
     let extracted_backup_dir = locate_backup_dir(&import_root)?;
-    restore_from_backup_dir(app, &extracted_backup_dir)
+    validate_backup_payload(&extracted_backup_dir)?;
+
+    let safety_backup = create_backup_with_label(
+        app,
+        Some(format!(
+            "Before archive import {}",
+            Utc::now().format("%Y-%m-%d %H:%M:%S")
+        )),
+    )
+    .map_err(|err| {
+        format!("Archive import aborted because the safety backup could not be created: {err}")
+    })?;
+
+    match restore_from_backup_dir(app, &extracted_backup_dir) {
+        Ok(()) => {
+            let _ = fs::remove_dir_all(&import_root);
+            Ok(())
+        }
+        Err(err) => Err(format!(
+            "Archive import failed after creating safety backup \"{}\" ({}). {}",
+            safety_backup.label, safety_backup.id, err
+        )),
+    }
 }
 
 pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String> {
@@ -511,7 +556,9 @@ pub fn list_tickets(app: &AppHandle) -> Result<Vec<TicketRecordPayload>, String>
         )
         .map_err(|err| err.to_string())?;
 
-    let rows = stmt.query_map([], parse_ticket_row).map_err(|err| err.to_string())?;
+    let rows = stmt
+        .query_map([], parse_ticket_row)
+        .map_err(|err| err.to_string())?;
 
     rows.map(|row| row.and_then(ticket_row_to_record))
         .collect::<Result<Vec<_>, _>>()
@@ -533,7 +580,9 @@ pub fn list_journeys(app: &AppHandle) -> Result<Vec<JourneyPayload>, String> {
         )
         .map_err(|err| err.to_string())?;
 
-    let rows = stmt.query_map([], parse_journey_row).map_err(|err| err.to_string())?;
+    let rows = stmt
+        .query_map([], parse_journey_row)
+        .map_err(|err| err.to_string())?;
     let journey_rows = rows
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| err.to_string())?;
@@ -550,7 +599,10 @@ pub fn get_journey(app: &AppHandle, journey_id: &str) -> Result<JourneyPayload, 
     journey_row_to_payload(&conn, row)
 }
 
-pub fn create_journey(app: &AppHandle, input: JourneyMutationPayload) -> Result<JourneyPayload, String> {
+pub fn create_journey(
+    app: &AppHandle,
+    input: JourneyMutationPayload,
+) -> Result<JourneyPayload, String> {
     let conn = open_connection(app)?;
     let normalized = normalize_journey_mutation(&conn, input)?;
     let journey_id = Uuid::new_v4().to_string();
@@ -589,7 +641,8 @@ pub fn create_journey(app: &AppHandle, input: JourneyMutationPayload) -> Result<
         replace_journey_ticket_links(&conn, &journey_id, &normalized.ticket_ids, &created_at)?;
         replace_journey_companions(&conn, &journey_id, &normalized.companion_names, &created_at)?;
 
-        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;")
+            .map_err(|err| err.to_string())?;
         get_journey_row(&conn, &journey_id)
     })();
 
@@ -650,9 +703,15 @@ pub fn update_journey(
         .map_err(|err| err.to_string())?;
 
         replace_journey_ticket_links(&conn, &existing.id, &normalized.ticket_ids, &updated_at)?;
-        replace_journey_companions(&conn, &existing.id, &normalized.companion_names, &updated_at)?;
+        replace_journey_companions(
+            &conn,
+            &existing.id,
+            &normalized.companion_names,
+            &updated_at,
+        )?;
 
-        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;")
+            .map_err(|err| err.to_string())?;
         get_journey_row(&conn, &existing.id)
     })();
 
@@ -684,7 +743,10 @@ pub fn delete_journey(app: &AppHandle, journey_id: &str) -> Result<(), String> {
     result
 }
 
-pub fn list_journey_stops(app: &AppHandle, journey_id: &str) -> Result<Vec<JourneyStopPayload>, String> {
+pub fn list_journey_stops(
+    app: &AppHandle,
+    journey_id: &str,
+) -> Result<Vec<JourneyStopPayload>, String> {
     let conn = open_connection(app)?;
     let _ = get_journey_row(&conn, journey_id)?;
     load_journey_stops(&conn, journey_id)
@@ -712,7 +774,8 @@ pub fn replace_journey_stops(
             params![&updated_at, journey_id],
         )
         .map_err(|err| err.to_string())?;
-        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;")
+            .map_err(|err| err.to_string())?;
         load_journey_stops(&conn, journey_id)
     })();
 
@@ -723,7 +786,10 @@ pub fn replace_journey_stops(
     result
 }
 
-pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<TicketRecordPayload, String> {
+pub fn create_ticket(
+    app: &AppHandle,
+    draft: TicketDraftPayload,
+) -> Result<TicketRecordPayload, String> {
     validate_draft(&draft)?;
 
     let effective_segments = build_effective_segments(&draft);
@@ -733,10 +799,14 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
     let last_segment = effective_segments
         .last()
         .ok_or_else(|| "At least one segment is required.".to_string())?;
-    let departure_time_utc =
-        normalize_to_utc(&first_segment.departure_time_local, &first_segment.departure.timezone)?;
-    let arrival_time_utc =
-        normalize_to_utc(&last_segment.arrival_time_local, &last_segment.arrival.timezone)?;
+    let departure_time_utc = normalize_to_utc(
+        &first_segment.departure_time_local,
+        &first_segment.departure.timezone,
+    )?;
+    let arrival_time_utc = normalize_to_utc(
+        &last_segment.arrival_time_local,
+        &last_segment.arrival.timezone,
+    )?;
     let created_at = Utc::now().to_rfc3339();
 
     let ticket_id = Uuid::new_v4().to_string();
@@ -776,7 +846,12 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
         )
         .map_err(|err| err.to_string())?;
 
-        insert_segments(&conn, &itinerary_id, &draft.ticket_type, &effective_segments)?;
+        insert_segments(
+            &conn,
+            &itinerary_id,
+            &draft.ticket_type,
+            &effective_segments,
+        )?;
 
         conn.execute(
             "INSERT INTO ticket_records (
@@ -796,7 +871,8 @@ pub fn create_ticket(app: &AppHandle, draft: TicketDraftPayload) -> Result<Ticke
         )
         .map_err(|err| err.to_string())?;
 
-        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;")
+            .map_err(|err| err.to_string())?;
 
         Ok(build_ticket_record(
             ticket_id,
@@ -831,10 +907,14 @@ pub fn update_ticket(
     let last_segment = effective_segments
         .last()
         .ok_or_else(|| "At least one segment is required.".to_string())?;
-    let departure_time_utc =
-        normalize_to_utc(&first_segment.departure_time_local, &first_segment.departure.timezone)?;
-    let arrival_time_utc =
-        normalize_to_utc(&last_segment.arrival_time_local, &last_segment.arrival.timezone)?;
+    let departure_time_utc = normalize_to_utc(
+        &first_segment.departure_time_local,
+        &first_segment.departure.timezone,
+    )?;
+    let arrival_time_utc = normalize_to_utc(
+        &last_segment.arrival_time_local,
+        &last_segment.arrival.timezone,
+    )?;
     let updated_at = Utc::now().to_rfc3339();
 
     let conn = open_connection(app)?;
@@ -879,9 +959,17 @@ pub fn update_ticket(
         )
         .map_err(|err| err.to_string())?;
 
-        conn.execute("DELETE FROM ticket_segments WHERE journey_id = ?1", [&itinerary_id])
-            .map_err(|err| err.to_string())?;
-        insert_segments(&conn, &itinerary_id, &draft.ticket_type, &effective_segments)?;
+        conn.execute(
+            "DELETE FROM ticket_segments WHERE journey_id = ?1",
+            [&itinerary_id],
+        )
+        .map_err(|err| err.to_string())?;
+        insert_segments(
+            &conn,
+            &itinerary_id,
+            &draft.ticket_type,
+            &effective_segments,
+        )?;
 
         conn.execute(
             "UPDATE ticket_records
@@ -903,7 +991,8 @@ pub fn update_ticket(
         )
         .map_err(|err| err.to_string())?;
 
-        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;")
+            .map_err(|err| err.to_string())?;
 
         Ok(build_ticket_record(
             existing_row.id,
@@ -959,11 +1048,16 @@ pub fn update_ticket_status(
              SET status = ?1,
                  updated_at_utc = ?2
              WHERE id = ?3",
-            params![journey_status_for_ticket_status(status), &updated_at, &itinerary_id],
+            params![
+                journey_status_for_ticket_status(status),
+                &updated_at,
+                &itinerary_id
+            ],
         )
         .map_err(|err| err.to_string())?;
 
-        conn.execute_batch("COMMIT;").map_err(|err| err.to_string())?;
+        conn.execute_batch("COMMIT;")
+            .map_err(|err| err.to_string())?;
 
         Ok(build_ticket_record(
             existing_row.id,
@@ -997,17 +1091,29 @@ pub fn delete_ticket(app: &AppHandle, ticket_id: &str) -> Result<(), String> {
         .map_err(|err| err.to_string())?;
 
     let result = (|| {
-        conn.execute("DELETE FROM ticket_attachments WHERE ticket_id = ?1", [ticket_id])
-            .map_err(|err| err.to_string())?;
-        conn.execute("DELETE FROM journey_tickets WHERE ticket_id = ?1", [ticket_id])
-            .map_err(|err| err.to_string())?;
+        conn.execute(
+            "DELETE FROM ticket_attachments WHERE ticket_id = ?1",
+            [ticket_id],
+        )
+        .map_err(|err| err.to_string())?;
+        conn.execute(
+            "DELETE FROM journey_tickets WHERE ticket_id = ?1",
+            [ticket_id],
+        )
+        .map_err(|err| err.to_string())?;
         clear_journey_stop_ticket_references(&conn, ticket_id)?;
         conn.execute("DELETE FROM ticket_records WHERE id = ?1", [ticket_id])
             .map_err(|err| err.to_string())?;
-        conn.execute("DELETE FROM ticket_segments WHERE journey_id = ?1", [&itinerary_id])
-            .map_err(|err| err.to_string())?;
-        conn.execute("DELETE FROM ticket_itineraries WHERE id = ?1", [&itinerary_id])
-            .map_err(|err| err.to_string())?;
+        conn.execute(
+            "DELETE FROM ticket_segments WHERE journey_id = ?1",
+            [&itinerary_id],
+        )
+        .map_err(|err| err.to_string())?;
+        conn.execute(
+            "DELETE FROM ticket_itineraries WHERE id = ?1",
+            [&itinerary_id],
+        )
+        .map_err(|err| err.to_string())?;
         conn.execute_batch("COMMIT;").map_err(|err| err.to_string())
     })();
 
@@ -1084,8 +1190,11 @@ pub fn delete_ticket_attachment(app: &AppHandle, attachment_id: &str) -> Result<
     let conn = open_connection(app)?;
     let attachment = get_attachment_row(&conn, attachment_id)?;
 
-    conn.execute("DELETE FROM ticket_attachments WHERE id = ?1", [attachment_id])
-        .map_err(|err| err.to_string())?;
+    conn.execute(
+        "DELETE FROM ticket_attachments WHERE id = ?1",
+        [attachment_id],
+    )
+    .map_err(|err| err.to_string())?;
     let updated_at = Utc::now().to_rfc3339();
     touch_ticket_updated_at(&conn, &attachment.ticket_id, &updated_at)?;
 
@@ -1094,7 +1203,12 @@ pub fn delete_ticket_attachment(app: &AppHandle, attachment_id: &str) -> Result<
     }
 
     let ticket_dir = attachment_ticket_dir(app, &attachment.ticket_id)?;
-    if ticket_dir.exists() && fs::read_dir(&ticket_dir).map_err(|err| err.to_string())?.next().is_none() {
+    if ticket_dir.exists()
+        && fs::read_dir(&ticket_dir)
+            .map_err(|err| err.to_string())?
+            .next()
+            .is_none()
+    {
         let _ = fs::remove_dir(ticket_dir);
     }
 
@@ -1120,21 +1234,31 @@ fn build_ticket_record(
     updated_at: String,
 ) -> TicketRecordPayload {
     let effective_segments = build_effective_segments(&draft);
-    let first_segment = effective_segments.first().cloned().unwrap_or_else(|| TicketSegmentPayload {
-        carrier_name: carrier_name.clone(),
-        code: code.clone(),
-        departure: draft.departure.clone(),
-        arrival: draft.arrival.clone(),
-        departure_terminal: draft.departure_terminal.clone(),
-        arrival_terminal: draft.arrival_terminal.clone(),
-        departure_time_local: draft.departure_time_local.clone(),
-        arrival_time_local: draft.arrival_time_local.clone(),
-        class_info: draft.class_info.clone(),
-        seat_info: draft.seat_info.clone(),
-        notes: draft.notes.clone(),
-    });
-    let last_segment = effective_segments.last().cloned().unwrap_or_else(|| first_segment.clone());
-    let route_label = format!("{} -> {}", first_segment.departure.name, last_segment.arrival.name);
+    let first_segment =
+        effective_segments
+            .first()
+            .cloned()
+            .unwrap_or_else(|| TicketSegmentPayload {
+                carrier_name: carrier_name.clone(),
+                code: code.clone(),
+                departure: draft.departure.clone(),
+                arrival: draft.arrival.clone(),
+                departure_terminal: draft.departure_terminal.clone(),
+                arrival_terminal: draft.arrival_terminal.clone(),
+                departure_time_local: draft.departure_time_local.clone(),
+                arrival_time_local: draft.arrival_time_local.clone(),
+                class_info: draft.class_info.clone(),
+                seat_info: draft.seat_info.clone(),
+                notes: draft.notes.clone(),
+            });
+    let last_segment = effective_segments
+        .last()
+        .cloned()
+        .unwrap_or_else(|| first_segment.clone());
+    let route_label = format!(
+        "{} -> {}",
+        first_segment.departure.name, last_segment.arrival.name
+    );
 
     TicketRecordPayload {
         id,
@@ -1236,7 +1360,9 @@ fn build_ticket_detail(
         estimate_distance_km(&origin, &destination)
     } else {
         segment_maps.iter().try_fold(0_u32, |sum, segment| {
-            segment.distance_hint_km.map(|distance| sum.saturating_add(distance))
+            segment
+                .distance_hint_km
+                .map(|distance| sum.saturating_add(distance))
         })
     };
 
@@ -1244,8 +1370,16 @@ fn build_ticket_detail(
         line_label: ticket.route_label.clone(),
         direction_hint: format!(
             "{} to {}",
-            ticket.departure.code.clone().unwrap_or_else(|| ticket.departure.name.clone()),
-            ticket.arrival.code.clone().unwrap_or_else(|| ticket.arrival.name.clone())
+            ticket
+                .departure
+                .code
+                .clone()
+                .unwrap_or_else(|| ticket.departure.name.clone()),
+            ticket
+                .arrival
+                .code
+                .clone()
+                .unwrap_or_else(|| ticket.arrival.name.clone())
         ),
         distance_hint_km,
         origin,
@@ -1340,7 +1474,12 @@ fn is_same_ticket_location(left: &TicketLocationPayload, right: &TicketLocationP
 fn build_segments_viewport(segments: &[MapSegmentPayload]) -> MapViewportPayload {
     let coordinates = segments
         .iter()
-        .flat_map(|segment| [usable_coordinates(&segment.origin), usable_coordinates(&segment.destination)])
+        .flat_map(|segment| {
+            [
+                usable_coordinates(&segment.origin),
+                usable_coordinates(&segment.destination),
+            ]
+        })
         .flatten()
         .collect::<Vec<_>>();
 
@@ -1432,10 +1571,16 @@ fn validate_segment(segment: &TicketSegmentPayload, index: usize) -> Result<(), 
         return Err(format!("Flight or train number is required for {}.", label));
     }
     if segment.departure.name.trim().is_empty() || segment.arrival.name.trim().is_empty() {
-        return Err(format!("Departure and arrival names are required for {}.", label));
+        return Err(format!(
+            "Departure and arrival names are required for {}.",
+            label
+        ));
     }
     if segment.departure.timezone.trim().is_empty() || segment.arrival.timezone.trim().is_empty() {
-        return Err(format!("Departure and arrival timezones are required for {}.", label));
+        return Err(format!(
+            "Departure and arrival timezones are required for {}.",
+            label
+        ));
     }
 
     normalize_to_utc(&segment.departure_time_local, &segment.departure.timezone)?;
@@ -1462,7 +1607,14 @@ fn validate_draft(draft: &TicketDraftPayload) -> Result<(), String> {
         0,
     )?;
 
-    for (index, segment) in (draft.segments.as_ref().map(|items| items.iter()).into_iter().flatten()).enumerate() {
+    for (index, segment) in (draft
+        .segments
+        .as_ref()
+        .map(|items| items.iter())
+        .into_iter()
+        .flatten())
+    .enumerate()
+    {
         validate_segment(segment, index + 1)?;
     }
 
@@ -1632,7 +1784,11 @@ fn normalize_journey_stop_mutations(
         let id = normalize_optional_text(stop.id.clone());
         if let Some(stop_id) = id.as_deref() {
             if !seen_ids.insert(stop_id.to_string()) {
-                return Err(format!("Journey stop {} reuses duplicate stop id {}.", index + 1, stop_id));
+                return Err(format!(
+                    "Journey stop {} reuses duplicate stop id {}.",
+                    index + 1,
+                    stop_id
+                ));
             }
         }
 
@@ -1645,7 +1801,10 @@ fn normalize_journey_stop_mutations(
         }
 
         if stop.sort_order < 0 {
-            return Err(format!("Journey stop {} sort order must be 0 or greater.", index + 1));
+            return Err(format!(
+                "Journey stop {} sort order must be 0 or greater.",
+                index + 1
+            ));
         }
 
         let arrival_ticket_id = normalize_optional_text(stop.arrival_ticket_id.clone());
@@ -1696,8 +1855,8 @@ fn load_linked_journey_ticket_records(
         let effective_segments = build_effective_segments(&draft);
         let first_segment = effective_segments.first();
         let last_segment = effective_segments.last();
-        let start_date = first_segment
-            .and_then(|segment| extract_date_portion(&segment.departure_time_local));
+        let start_date =
+            first_segment.and_then(|segment| extract_date_portion(&segment.departure_time_local));
         let end_date = last_segment
             .and_then(|segment| extract_date_portion(&segment.arrival_time_local))
             .or_else(|| {
@@ -1736,7 +1895,10 @@ fn derive_journey_date_range_from_linked_tickets(
 fn sort_linked_journey_ticket_records(ticket_records: &mut [LinkedJourneyTicketRecord]) {
     ticket_records.sort_by(|left, right| {
         compare_optional_date(left.start_date.as_deref(), right.start_date.as_deref())
-            .then(compare_optional_date(left.end_date.as_deref(), right.end_date.as_deref()))
+            .then(compare_optional_date(
+                left.end_date.as_deref(),
+                right.end_date.as_deref(),
+            ))
             .then(left.created_at.cmp(&right.created_at))
             .then(left.ticket_id.cmp(&right.ticket_id))
     });
@@ -1769,14 +1931,22 @@ fn replace_journey_ticket_links(
     ticket_ids: &[String],
     created_at: &str,
 ) -> Result<(), String> {
-    conn.execute("DELETE FROM journey_tickets WHERE journey_id = ?1", [journey_id])
-        .map_err(|err| err.to_string())?;
+    conn.execute(
+        "DELETE FROM journey_tickets WHERE journey_id = ?1",
+        [journey_id],
+    )
+    .map_err(|err| err.to_string())?;
 
     for ticket_id in ticket_ids {
         conn.execute(
             "INSERT INTO journey_tickets (id, journey_id, ticket_id, created_at)
              VALUES (?1, ?2, ?3, ?4)",
-            params![Uuid::new_v4().to_string(), journey_id, ticket_id, created_at],
+            params![
+                Uuid::new_v4().to_string(),
+                journey_id,
+                ticket_id,
+                created_at
+            ],
         )
         .map_err(|err| err.to_string())?;
     }
@@ -1790,14 +1960,22 @@ fn replace_journey_companions(
     companion_names: &[String],
     created_at: &str,
 ) -> Result<(), String> {
-    conn.execute("DELETE FROM journey_companions WHERE journey_id = ?1", [journey_id])
-        .map_err(|err| err.to_string())?;
+    conn.execute(
+        "DELETE FROM journey_companions WHERE journey_id = ?1",
+        [journey_id],
+    )
+    .map_err(|err| err.to_string())?;
 
     for companion_name in companion_names {
         conn.execute(
             "INSERT INTO journey_companions (id, journey_id, name, created_at)
              VALUES (?1, ?2, ?3, ?4)",
-            params![Uuid::new_v4().to_string(), journey_id, companion_name, created_at],
+            params![
+                Uuid::new_v4().to_string(),
+                journey_id,
+                companion_name,
+                created_at
+            ],
         )
         .map_err(|err| err.to_string())?;
     }
@@ -1830,8 +2008,11 @@ fn replace_journey_stop_rows(
         }
     }
 
-    conn.execute("DELETE FROM journey_stops WHERE journey_id = ?1", [journey_id])
-        .map_err(|err| err.to_string())?;
+    conn.execute(
+        "DELETE FROM journey_stops WHERE journey_id = ?1",
+        [journey_id],
+    )
+    .map_err(|err| err.to_string())?;
 
     for stop in stops {
         let stop_id = stop
@@ -1875,12 +2056,21 @@ fn replace_journey_stop_rows(
 }
 
 fn delete_journey_related_rows(conn: &Connection, journey_id: &str) -> Result<(), String> {
-    conn.execute("DELETE FROM journey_companions WHERE journey_id = ?1", [journey_id])
-        .map_err(|err| err.to_string())?;
-    conn.execute("DELETE FROM journey_tickets WHERE journey_id = ?1", [journey_id])
-        .map_err(|err| err.to_string())?;
-    conn.execute("DELETE FROM journey_stops WHERE journey_id = ?1", [journey_id])
-        .map_err(|err| err.to_string())?;
+    conn.execute(
+        "DELETE FROM journey_companions WHERE journey_id = ?1",
+        [journey_id],
+    )
+    .map_err(|err| err.to_string())?;
+    conn.execute(
+        "DELETE FROM journey_tickets WHERE journey_id = ?1",
+        [journey_id],
+    )
+    .map_err(|err| err.to_string())?;
+    conn.execute(
+        "DELETE FROM journey_stops WHERE journey_id = ?1",
+        [journey_id],
+    )
+    .map_err(|err| err.to_string())?;
 
     Ok(())
 }
@@ -1989,13 +2179,14 @@ fn parse_attachment_row(row: &Row<'_>) -> rusqlite::Result<AttachmentRowData> {
 }
 
 fn ticket_row_to_record(row: TicketRowData) -> rusqlite::Result<TicketRecordPayload> {
-    let draft = serde_json::from_str::<TicketDraftPayload>(&row.raw_payload_json).map_err(|err| {
-        rusqlite::Error::FromSqlConversionFailure(
-            row.raw_payload_json.len(),
-            rusqlite::types::Type::Text,
-            Box::new(err),
-        )
-    })?;
+    let draft =
+        serde_json::from_str::<TicketDraftPayload>(&row.raw_payload_json).map_err(|err| {
+            rusqlite::Error::FromSqlConversionFailure(
+                row.raw_payload_json.len(),
+                rusqlite::types::Type::Text,
+                Box::new(err),
+            )
+        })?;
 
     Ok(build_ticket_record(
         row.id,
@@ -2009,7 +2200,10 @@ fn ticket_row_to_record(row: TicketRowData) -> rusqlite::Result<TicketRecordPayl
     ))
 }
 
-fn journey_row_to_payload(conn: &Connection, row: JourneyRowData) -> Result<JourneyPayload, String> {
+fn journey_row_to_payload(
+    conn: &Connection,
+    row: JourneyRowData,
+) -> Result<JourneyPayload, String> {
     Ok(JourneyPayload {
         id: row.id.clone(),
         title: row.title,
@@ -2143,8 +2337,11 @@ fn list_ticket_attachments(
         .query_map([ticket_id], parse_attachment_row)
         .map_err(|err| err.to_string())?;
 
-    rows.map(|row| row.map_err(|err| err.to_string()).and_then(attachment_row_to_payload))
-        .collect()
+    rows.map(|row| {
+        row.map_err(|err| err.to_string())
+            .and_then(attachment_row_to_payload)
+    })
+    .collect()
 }
 
 fn load_journey_companions(
@@ -2175,7 +2372,10 @@ fn load_journey_companions(
         .map_err(|err| err.to_string())
 }
 
-fn load_journey_stop_rows(conn: &Connection, journey_id: &str) -> Result<Vec<JourneyStopRowData>, String> {
+fn load_journey_stop_rows(
+    conn: &Connection,
+    journey_id: &str,
+) -> Result<Vec<JourneyStopRowData>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT id, journey_id, place_name, place_key, country_code, arrival_date_time,
@@ -2195,7 +2395,10 @@ fn load_journey_stop_rows(conn: &Connection, journey_id: &str) -> Result<Vec<Jou
         .map_err(|err| err.to_string())
 }
 
-fn load_journey_stops(conn: &Connection, journey_id: &str) -> Result<Vec<JourneyStopPayload>, String> {
+fn load_journey_stops(
+    conn: &Connection,
+    journey_id: &str,
+) -> Result<Vec<JourneyStopPayload>, String> {
     Ok(load_journey_stop_rows(conn, journey_id)?
         .into_iter()
         .map(journey_stop_row_to_payload)
@@ -2246,8 +2449,8 @@ fn hydrate_linked_journey_ticket_record(
         let effective_segments = build_effective_segments(&draft);
         let first_segment = effective_segments.first();
         let last_segment = effective_segments.last();
-        record.start_date = first_segment
-            .and_then(|segment| extract_date_portion(&segment.departure_time_local));
+        record.start_date =
+            first_segment.and_then(|segment| extract_date_portion(&segment.departure_time_local));
         record.end_date = last_segment
             .and_then(|segment| extract_date_portion(&segment.arrival_time_local))
             .or_else(|| {
@@ -2258,7 +2461,11 @@ fn hydrate_linked_journey_ticket_record(
     Ok(record)
 }
 
-fn touch_ticket_updated_at(conn: &Connection, ticket_id: &str, updated_at: &str) -> Result<(), String> {
+fn touch_ticket_updated_at(
+    conn: &Connection,
+    ticket_id: &str,
+    updated_at: &str,
+) -> Result<(), String> {
     conn.execute(
         "UPDATE ticket_records
          SET updated_at_utc = ?1,
@@ -2316,7 +2523,12 @@ fn normalize_to_utc(value: &str, timezone: &str) -> Result<String, String> {
     let localized = match tz.from_local_datetime(&naive) {
         LocalResult::Single(time) => time,
         LocalResult::Ambiguous(earliest, _) => earliest,
-        LocalResult::None => return Err(format!("Could not resolve local time {} in {}", value, timezone)),
+        LocalResult::None => {
+            return Err(format!(
+                "Could not resolve local time {} in {}",
+                value, timezone
+            ))
+        }
     };
 
     Ok(localized.with_timezone(&Utc).to_rfc3339())
@@ -2330,7 +2542,8 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
 
     let conn = Connection::open(path).map_err(|err| err.to_string())?;
     migrate_legacy_ticket_journey_tables(&conn)?;
-    conn.execute_batch(SCHEMA_SQL).map_err(|err| err.to_string())?;
+    conn.execute_batch(SCHEMA_SQL)
+        .map_err(|err| err.to_string())?;
     ensure_journey_schema_columns(&conn)?;
     seed_airlines(&conn)?;
     seed_location_directory(&conn)?;
@@ -2387,18 +2600,14 @@ fn migrate_legacy_ticket_journey_tables(conn: &Connection) -> Result<(), String>
             conn.execute("DROP TABLE journeys", [])
                 .map_err(|err| err.to_string())?;
         } else {
-            conn.execute(
-                "ALTER TABLE journeys RENAME TO ticket_itineraries",
-                [],
-            )
-            .map_err(|err| err.to_string())?;
-
-            if table_exists(conn, LEGACY_SEGMENTS_TABLE)? && !table_exists(conn, TICKET_SEGMENTS_TABLE)? {
-                conn.execute(
-                    "ALTER TABLE segments RENAME TO ticket_segments",
-                    [],
-                )
+            conn.execute("ALTER TABLE journeys RENAME TO ticket_itineraries", [])
                 .map_err(|err| err.to_string())?;
+
+            if table_exists(conn, LEGACY_SEGMENTS_TABLE)?
+                && !table_exists(conn, TICKET_SEGMENTS_TABLE)?
+            {
+                conn.execute("ALTER TABLE segments RENAME TO ticket_segments", [])
+                    .map_err(|err| err.to_string())?;
             }
         }
 
@@ -2426,7 +2635,11 @@ fn table_exists(conn: &Connection, table_name: &str) -> Result<bool, String> {
     .map_err(|err| err.to_string())
 }
 
-fn table_has_column(conn: &Connection, table_name: &str, column_name: &str) -> Result<bool, String> {
+fn table_has_column(
+    conn: &Connection,
+    table_name: &str,
+    column_name: &str,
+) -> Result<bool, String> {
     let pragma = format!("PRAGMA table_info({})", table_name);
     let mut stmt = conn.prepare(&pragma).map_err(|err| err.to_string())?;
     let columns = stmt
@@ -2443,7 +2656,8 @@ fn table_has_column(conn: &Connection, table_name: &str, column_name: &str) -> R
 }
 
 fn seed_airlines(conn: &Connection) -> Result<(), String> {
-    let seeds: Vec<AirlineSeedEntry> = serde_json::from_str(AIRLINES_SEED_JSON).map_err(|err| err.to_string())?;
+    let seeds: Vec<AirlineSeedEntry> =
+        serde_json::from_str(AIRLINES_SEED_JSON).map_err(|err| err.to_string())?;
     let now = Utc::now().to_rfc3339();
 
     conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
@@ -2451,7 +2665,8 @@ fn seed_airlines(conn: &Connection) -> Result<(), String> {
 
     let result = (|| {
         for entry in seeds {
-            let aliases_json = serde_json::to_string(&entry.aliases).map_err(|err| err.to_string())?;
+            let aliases_json =
+                serde_json::to_string(&entry.aliases).map_err(|err| err.to_string())?;
             let id = format!("airline-{}", entry.iata_code.to_lowercase());
 
             conn.execute(
@@ -2503,7 +2718,8 @@ fn seed_location_directory(conn: &Connection) -> Result<(), String> {
 
     let result = (|| {
         for entry in seeds {
-            let aliases_json = serde_json::to_string(&entry.aliases).map_err(|err| err.to_string())?;
+            let aliases_json =
+                serde_json::to_string(&entry.aliases).map_err(|err| err.to_string())?;
 
             conn.execute(
                 "INSERT INTO location_directory (
@@ -2570,7 +2786,11 @@ fn export_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .download_dir()
         .or_else(|_| path_service.desktop_dir())
         .or_else(|_| path_service.document_dir())
-        .unwrap_or_else(|_| path_service.app_data_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        .unwrap_or_else(|_| {
+            path_service
+                .app_data_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+        });
     Ok(base_dir.join("TicketTrail Backups"))
 }
 
@@ -2579,9 +2799,11 @@ fn attachment_ticket_dir(app: &AppHandle, ticket_id: &str) -> Result<PathBuf, St
 }
 
 fn count_attachments(conn: &Connection) -> Result<usize, String> {
-    conn.query_row("SELECT COUNT(*) FROM ticket_attachments", [], |row| row.get::<_, i64>(0))
-        .map(|count| count.max(0) as usize)
-        .map_err(|err| err.to_string())
+    conn.query_row("SELECT COUNT(*) FROM ticket_attachments", [], |row| {
+        row.get::<_, i64>(0)
+    })
+    .map(|count| count.max(0) as usize)
+    .map_err(|err| err.to_string())
 }
 
 fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), String> {
@@ -2602,15 +2824,20 @@ fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn escape_powershell_single_quoted(path: &Path) -> String {
+    path.to_string_lossy().replace('\'', "''")
+}
+
 fn compress_directory_to_zip(source: &Path, destination: &Path) -> Result<(), String> {
+    let source_literal = escape_powershell_single_quoted(source);
+    let destination_literal = escape_powershell_single_quoted(destination);
+    let script = format!(
+        "$items = Get-ChildItem -LiteralPath '{}' -Force | Select-Object -ExpandProperty FullName; if (-not $items) {{ throw 'Source directory is empty and cannot be archived.' }}; Compress-Archive -Path $items -DestinationPath '{}' -Force",
+        source_literal, destination_literal
+    );
+
     let output = Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            "param([string]$Source,[string]$Destination) Compress-Archive -LiteralPath $Source -DestinationPath $Destination -Force",
-        ])
-        .arg(source.to_string_lossy().to_string())
-        .arg(destination.to_string_lossy().to_string())
+        .args(["-NoProfile", "-Command", script.as_str()])
         .output()
         .map_err(|err| err.to_string())?;
 
@@ -2627,14 +2854,15 @@ fn compress_directory_to_zip(source: &Path, destination: &Path) -> Result<(), St
 }
 
 fn expand_zip_to_directory(source: &Path, destination: &Path) -> Result<(), String> {
+    let source_literal = escape_powershell_single_quoted(source);
+    let destination_literal = escape_powershell_single_quoted(destination);
+    let script = format!(
+        "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
+        source_literal, destination_literal
+    );
+
     let output = Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            "param([string]$Source,[string]$Destination) Expand-Archive -LiteralPath $Source -DestinationPath $Destination -Force",
-        ])
-        .arg(source.to_string_lossy().to_string())
-        .arg(destination.to_string_lossy().to_string())
+        .args(["-NoProfile", "-Command", script.as_str()])
         .output()
         .map_err(|err| err.to_string())?;
 
@@ -2649,7 +2877,6 @@ fn expand_zip_to_directory(source: &Path, destination: &Path) -> Result<(), Stri
         })
     }
 }
-
 fn locate_backup_dir(import_root: &Path) -> Result<PathBuf, String> {
     let direct_manifest = import_root.join("backup.json");
     if direct_manifest.exists() {
@@ -2669,29 +2896,78 @@ fn locate_backup_dir(import_root: &Path) -> Result<PathBuf, String> {
     Err("Could not locate a valid backup manifest inside the archive bundle.".to_string())
 }
 
-fn restore_from_backup_dir(app: &AppHandle, backup_dir: &Path) -> Result<(), String> {
-    let backup_db = backup_dir.join("tickettrail.sqlite3");
-    if !backup_db.exists() {
+fn validate_backup_payload(backup_dir: &Path) -> Result<ValidatedBackupPayload, String> {
+    let manifest_path = backup_dir.join("backup.json");
+    if !manifest_path.exists() {
         return Err(format!(
-            "Backup database was not found in {}.",
+            "Archive validation failed: backup.json was not found in {}.",
             backup_dir.to_string_lossy()
         ));
     }
+
+    let manifest_text = fs::read_to_string(&manifest_path).map_err(|err| {
+        format!(
+            "Archive validation failed: could not read backup.json in {}. {}",
+            backup_dir.to_string_lossy(),
+            err
+        )
+    })?;
+    let manifest = serde_json::from_str::<BackupManifest>(&manifest_text).map_err(|err| {
+        format!(
+            "Archive validation failed: backup.json is invalid in {}. {}",
+            backup_dir.to_string_lossy(),
+            err
+        )
+    })?;
+
+    let database_path = backup_dir.join("tickettrail.sqlite3");
+    if !database_path.exists() {
+        return Err(format!(
+            "Archive validation failed: tickettrail.sqlite3 was not found in {}.",
+            backup_dir.to_string_lossy()
+        ));
+    }
+
+    let attachments_path = backup_dir.join("attachments");
+    let attachments_present = attachments_path.exists();
+    if attachments_present && !attachments_path.is_dir() {
+        return Err(format!(
+            "Archive validation failed: attachments exists in {} but is not a directory.",
+            backup_dir.to_string_lossy()
+        ));
+    }
+
+    if manifest.attachment_count > 0 && !attachments_present {
+        return Err(format!(
+            "Archive validation failed: backup.json reports {} attachment(s), but attachments/ is missing in {}.",
+            manifest.attachment_count,
+            backup_dir.to_string_lossy()
+        ));
+    }
+
+    Ok(ValidatedBackupPayload {
+        database_path,
+        attachments_path,
+        attachments_present,
+    })
+}
+
+fn restore_from_backup_dir(app: &AppHandle, backup_dir: &Path) -> Result<(), String> {
+    let validated = validate_backup_payload(backup_dir)?;
 
     let target_db = database_path(app)?;
     if let Some(parent) = target_db.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
-    fs::copy(&backup_db, &target_db).map_err(|err| err.to_string())?;
+    fs::copy(&validated.database_path, &target_db).map_err(|err| err.to_string())?;
 
     let target_attachments = attachment_root_dir(app)?;
     if target_attachments.exists() {
         fs::remove_dir_all(&target_attachments).map_err(|err| err.to_string())?;
     }
 
-    let backup_attachments = backup_dir.join("attachments");
-    if backup_attachments.exists() {
-        copy_dir_recursive(&backup_attachments, &target_attachments)?;
+    if validated.attachments_present {
+        copy_dir_recursive(&validated.attachments_path, &target_attachments)?;
     } else {
         fs::create_dir_all(&target_attachments).map_err(|err| err.to_string())?;
     }
@@ -2700,7 +2976,11 @@ fn restore_from_backup_dir(app: &AppHandle, backup_dir: &Path) -> Result<(), Str
     Ok(())
 }
 
-fn resolve_map_point(conn: &Connection, transport_type: &str, location: &TicketLocationPayload) -> MapPointPayload {
+fn resolve_map_point(
+    conn: &Connection,
+    transport_type: &str,
+    location: &TicketLocationPayload,
+) -> MapPointPayload {
     let resolution = resolve_coordinates(conn, transport_type, location);
 
     MapPointPayload {
@@ -2714,7 +2994,11 @@ fn resolve_map_point(conn: &Connection, transport_type: &str, location: &TicketL
     }
 }
 
-fn resolve_coordinates(conn: &Connection, transport_type: &str, location: &TicketLocationPayload) -> CoordinateResolution {
+fn resolve_coordinates(
+    conn: &Connection,
+    transport_type: &str,
+    location: &TicketLocationPayload,
+) -> CoordinateResolution {
     if let Some((latitude, longitude)) = lookup_coordinates(conn, location) {
         return CoordinateResolution {
             latitude: Some(latitude),
@@ -2791,7 +3075,11 @@ fn resolve_coordinates(conn: &Connection, transport_type: &str, location: &Ticke
         };
     }
 
-    let seed_source = if code.is_empty() { location.name.as_str() } else { code.as_str() };
+    let seed_source = if code.is_empty() {
+        location.name.as_str()
+    } else {
+        code.as_str()
+    };
     let (latitude, longitude) = fallback_coordinates(seed_source);
     CoordinateResolution {
         latitude: Some(latitude),
@@ -2801,7 +3089,9 @@ fn resolve_coordinates(conn: &Connection, transport_type: &str, location: &Ticke
     }
 }
 
-fn resolve_rail_station_coordinates(location: &TicketLocationPayload) -> Option<CoordinateResolution> {
+fn resolve_rail_station_coordinates(
+    location: &TicketLocationPayload,
+) -> Option<CoordinateResolution> {
     let station = lookup_generated_rail_station_metadata(location)?;
     let place_lookup = place_catalog_lookup();
 
@@ -2862,7 +3152,9 @@ fn resolve_rail_station_coordinates(location: &TicketLocationPayload) -> Option<
 fn lookup_rail_station_city_coordinates(location: &TicketLocationPayload) -> Option<(f64, f64)> {
     let resolution = resolve_rail_station_coordinates(location)?;
     match (resolution.latitude, resolution.longitude) {
-        (Some(latitude), Some(longitude)) if resolution.source == "place_catalog" => Some((latitude, longitude)),
+        (Some(latitude), Some(longitude)) if resolution.source == "place_catalog" => {
+            Some((latitude, longitude))
+        }
         _ => None,
     }
 }
@@ -2878,7 +3170,10 @@ fn lookup_generated_rail_station_metadata(
         }
     }
 
-    for term in [location.name.as_str(), location.code.as_deref().unwrap_or("")] {
+    for term in [
+        location.name.as_str(),
+        location.code.as_deref().unwrap_or(""),
+    ] {
         let normalized_term = normalize_lookup_value(Some(term));
         if normalized_term.is_empty() {
             continue;
@@ -2919,14 +3214,18 @@ fn build_generated_rail_station_lookup() -> GeneratedRailStationLookup {
         if let Some(code) = station.code.as_deref() {
             let normalized_code = normalize_lookup_value(Some(code));
             if !normalized_code.is_empty() {
-                by_code.entry(normalized_code).or_insert_with(|| metadata.clone());
+                by_code
+                    .entry(normalized_code)
+                    .or_insert_with(|| metadata.clone());
             }
         }
 
         for term in rail_station_lookup_terms(&station) {
             let normalized_term = normalize_lookup_value(Some(term.as_str()));
             if !normalized_term.is_empty() {
-                by_term.entry(normalized_term).or_insert_with(|| metadata.clone());
+                by_term
+                    .entry(normalized_term)
+                    .or_insert_with(|| metadata.clone());
             }
         }
     }
@@ -2968,7 +3267,8 @@ fn build_rail_transport_place_lookup() -> RailTransportPlaceLookup {
 
     for (code, entry) in transport_place_data.rail_stations {
         let normalized_code = normalize_lookup_value(Some(code.as_str()));
-        let normalized_place_key = normalize_lookup_value(entry.default_journey_place_key.as_deref());
+        let normalized_place_key =
+            normalize_lookup_value(entry.default_journey_place_key.as_deref());
         if !normalized_code.is_empty() && !normalized_place_key.is_empty() {
             by_code.insert(normalized_code, normalized_place_key);
         }
@@ -2982,7 +3282,8 @@ fn place_catalog_lookup() -> &'static PlaceCatalogLookup {
 }
 
 fn build_place_catalog_lookup() -> PlaceCatalogLookup {
-    let places: Vec<PlaceCatalogEntry> = serde_json::from_str(PLACE_CATALOG_JSON).unwrap_or_default();
+    let places: Vec<PlaceCatalogEntry> =
+        serde_json::from_str(PLACE_CATALOG_JSON).unwrap_or_default();
     let mut by_key = HashMap::new();
     let mut by_term = HashMap::new();
 
@@ -3032,9 +3333,9 @@ fn place_catalog_lookup_terms(place: &PlaceCatalogEntry) -> Vec<String> {
 }
 
 fn fallback_coordinates(seed_source: &str) -> (f64, f64) {
-    let seed = seed_source
-        .bytes()
-        .fold(0_u64, |acc, value| acc.wrapping_mul(131).wrapping_add(value as u64));
+    let seed = seed_source.bytes().fold(0_u64, |acc, value| {
+        acc.wrapping_mul(131).wrapping_add(value as u64)
+    });
 
     let latitude = ((seed % 12000) as f64 / 100.0) - 60.0;
     let longitude = (((seed / 97) % 34000) as f64 / 100.0) - 170.0;
@@ -3050,7 +3351,10 @@ fn lookup_generated_airport_coordinates(location: &TicketLocationPayload) -> Opt
         }
     }
 
-    for term in [location.name.as_str(), location.code.as_deref().unwrap_or("")] {
+    for term in [
+        location.name.as_str(),
+        location.code.as_deref().unwrap_or(""),
+    ] {
         let normalized_term = normalize_lookup_value(Some(term));
         if normalized_term.is_empty() {
             continue;
@@ -3086,14 +3390,18 @@ fn build_generated_airport_lookup() -> GeneratedAirportLookup {
         if let Some(code) = airport.code.as_deref() {
             let normalized_code = normalize_lookup_value(Some(code));
             if !normalized_code.is_empty() {
-                by_code.entry(normalized_code).or_insert((latitude, longitude));
+                by_code
+                    .entry(normalized_code)
+                    .or_insert((latitude, longitude));
             }
         }
 
         for term in airport_lookup_terms(&airport) {
             let normalized_term = normalize_lookup_value(Some(term.as_str()));
             if !normalized_term.is_empty() {
-                by_term.entry(normalized_term).or_insert((latitude, longitude));
+                by_term
+                    .entry(normalized_term)
+                    .or_insert((latitude, longitude));
             }
         }
     }
@@ -3143,19 +3451,22 @@ fn normalize_lookup_value(value: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_effective_segments, build_ticket_detail, clear_journey_stop_ticket_references, compare_optional_date,
-        delete_journey_related_rows, derive_journey_date_range_from_linked_tickets,
-        ensure_journey_schema_columns, fallback_coordinates, load_journey_stops,
-        lookup_generated_airport_coordinates, lookup_rail_station_city_coordinates,
-        migrate_legacy_ticket_journey_tables, normalize_companion_names,
-        normalize_journey_cost_exchange_rate, normalize_journey_stop_mutations, normalize_lookup_value,
-        normalize_to_utc, replace_journey_stop_rows, resolve_map_point, sanitize_file_name,
-        seed_location_directory, sort_linked_journey_ticket_records, table_exists, table_has_column,
-        validate_draft, JourneyStopMutationPayload, LinkedJourneyTicketRecord, SCHEMA_SQL,
-        TicketDraftPayload, TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
+        build_effective_segments, build_ticket_detail, clear_journey_stop_ticket_references,
+        compare_optional_date, delete_journey_related_rows,
+        derive_journey_date_range_from_linked_tickets, ensure_journey_schema_columns,
+        fallback_coordinates, load_journey_stops, lookup_generated_airport_coordinates,
+        lookup_rail_station_city_coordinates, migrate_legacy_ticket_journey_tables,
+        normalize_companion_names, normalize_journey_cost_exchange_rate,
+        normalize_journey_stop_mutations, normalize_lookup_value, normalize_to_utc,
+        replace_journey_stop_rows, resolve_map_point, sanitize_file_name, seed_location_directory,
+        sort_linked_journey_ticket_records, table_exists, table_has_column,
+        validate_backup_payload, validate_draft, BackupManifest, JourneyStopMutationPayload,
+        LinkedJourneyTicketRecord, TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
+        TicketSegmentPayload, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
-
+    use std::{env, fs, path::PathBuf};
+    use uuid::Uuid;
     fn sample_location(name: &str, code: Option<&str>, timezone: &str) -> TicketLocationPayload {
         TicketLocationPayload {
             name: name.to_string(),
@@ -3252,6 +3563,24 @@ mod tests {
         conn
     }
 
+    fn create_temp_backup_dir() -> PathBuf {
+        let dir = env::temp_dir().join(format!("tickettrail-backup-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&dir).expect("should create temp backup dir");
+        dir
+    }
+
+    fn write_backup_manifest(dir: &PathBuf, attachment_count: usize) {
+        let manifest = BackupManifest {
+            id: "backup-test".to_string(),
+            label: "Backup Test".to_string(),
+            created_at: "2026-07-22T00:00:00Z".to_string(),
+            ticket_count: 2,
+            attachment_count,
+            database_size_bytes: 128,
+        };
+        let text = serde_json::to_string_pretty(&manifest).expect("should serialize test manifest");
+        fs::write(dir.join("backup.json"), text).expect("should write backup manifest");
+    }
     fn insert_test_journey(conn: &Connection, journey_id: &str) {
         conn.execute(
             "INSERT INTO journeys (
@@ -3318,7 +3647,10 @@ mod tests {
     #[test]
     fn normalize_lookup_value_trims_and_lowercases() {
         assert_eq!(normalize_lookup_value(Some("  PVG ")), "pvg");
-        assert_eq!(normalize_lookup_value(Some("Sydney Airport")), "sydney airport");
+        assert_eq!(
+            normalize_lookup_value(Some("Sydney Airport")),
+            "sydney airport"
+        );
         assert_eq!(normalize_lookup_value(None), "");
     }
 
@@ -3340,6 +3672,61 @@ mod tests {
         draft.departure.timezone = "".to_string();
         let result = validate_draft(&draft);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_backup_payload_requires_backup_manifest() {
+        let dir = create_temp_backup_dir();
+        fs::write(dir.join("tickettrail.sqlite3"), "db").expect("should write db file");
+
+        let error = match validate_backup_payload(&dir) {
+            Ok(_) => panic!("validation should fail without manifest"),
+            Err(error) => error,
+        };
+        assert!(error.contains("backup.json"));
+
+        fs::remove_dir_all(dir).expect("should clean temp dir");
+    }
+
+    #[test]
+    fn validate_backup_payload_requires_database_file() {
+        let dir = create_temp_backup_dir();
+        write_backup_manifest(&dir, 0);
+
+        let error = match validate_backup_payload(&dir) {
+            Ok(_) => panic!("validation should fail without database"),
+            Err(error) => error,
+        };
+        assert!(error.contains("tickettrail.sqlite3"));
+
+        fs::remove_dir_all(dir).expect("should clean temp dir");
+    }
+
+    #[test]
+    fn validate_backup_payload_accepts_zero_attachments_without_directory() {
+        let dir = create_temp_backup_dir();
+        write_backup_manifest(&dir, 0);
+        fs::write(dir.join("tickettrail.sqlite3"), "db").expect("should write db file");
+
+        let validated = validate_backup_payload(&dir).expect("validation should succeed");
+        assert!(!validated.attachments_present);
+
+        fs::remove_dir_all(dir).expect("should clean temp dir");
+    }
+
+    #[test]
+    fn validate_backup_payload_rejects_missing_attachments_when_manifest_requires_them() {
+        let dir = create_temp_backup_dir();
+        write_backup_manifest(&dir, 3);
+        fs::write(dir.join("tickettrail.sqlite3"), "db").expect("should write db file");
+
+        let error = match validate_backup_payload(&dir) {
+            Ok(_) => panic!("validation should fail without attachments dir"),
+            Err(error) => error,
+        };
+        assert!(error.contains("attachments/"));
+
+        fs::remove_dir_all(dir).expect("should clean temp dir");
     }
 
     #[test]
@@ -3383,8 +3770,8 @@ mod tests {
     #[test]
     fn generated_airport_lookup_resolves_codes_outside_legacy_seed() {
         let location = sample_location("Ayers Rock Airport", Some("AYQ"), "Australia/Darwin");
-        let coordinates =
-            lookup_generated_airport_coordinates(&location).expect("generated airport lookup should resolve");
+        let coordinates = lookup_generated_airport_coordinates(&location)
+            .expect("generated airport lookup should resolve");
 
         assert!((coordinates.0 + 25.1861).abs() < 0.01);
         assert!((coordinates.1 - 130.9756).abs() < 0.01);
@@ -3393,8 +3780,8 @@ mod tests {
     #[test]
     fn generated_airport_lookup_resolves_conservative_name_match() {
         let location = sample_location("Narita International Airport", None, "Asia/Tokyo");
-        let coordinates =
-            lookup_generated_airport_coordinates(&location).expect("generated airport lookup should resolve");
+        let coordinates = lookup_generated_airport_coordinates(&location)
+            .expect("generated airport lookup should resolve");
 
         assert!((coordinates.0 - 35.7719).abs() < 0.01);
         assert!((coordinates.1 - 140.3929).abs() < 0.01);
@@ -3403,8 +3790,8 @@ mod tests {
     #[test]
     fn rail_station_city_fallback_uses_place_catalog_coordinates() {
         let location = sample_location("\u{9752}\u{5c9b}\u{5317}", Some("QHK"), "Asia/Shanghai");
-        let coordinates =
-            lookup_rail_station_city_coordinates(&location).expect("rail city fallback should resolve");
+        let coordinates = lookup_rail_station_city_coordinates(&location)
+            .expect("rail city fallback should resolve");
 
         assert!(coordinates.0 > 35.0 && coordinates.0 < 37.0);
         assert!(coordinates.1 > 119.0 && coordinates.1 < 121.0);
@@ -3412,9 +3799,13 @@ mod tests {
 
     #[test]
     fn rail_station_city_fallback_uses_transport_place_canonical_mapping() {
-        let location = sample_location("\u{54c8}\u{5c14}\u{6ee8}\u{897f}", Some("VAB"), "Asia/Shanghai");
-        let coordinates =
-            lookup_rail_station_city_coordinates(&location).expect("rail transport-place fallback should resolve");
+        let location = sample_location(
+            "\u{54c8}\u{5c14}\u{6ee8}\u{897f}",
+            Some("VAB"),
+            "Asia/Shanghai",
+        );
+        let coordinates = lookup_rail_station_city_coordinates(&location)
+            .expect("rail transport-place fallback should resolve");
 
         assert!(coordinates.0 > 45.0 && coordinates.0 < 46.5);
         assert!(coordinates.1 > 126.0 && coordinates.1 < 127.5);
@@ -3422,7 +3813,11 @@ mod tests {
 
     #[test]
     fn unresolved_rail_station_city_fallback_returns_none_when_place_is_missing() {
-        let location = sample_location("\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}", Some("KUX"), "Asia/Shanghai");
+        let location = sample_location(
+            "\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}",
+            Some("KUX"),
+            "Asia/Shanghai",
+        );
 
         assert!(lookup_rail_station_city_coordinates(&location).is_none());
     }
@@ -3430,11 +3825,18 @@ mod tests {
     #[test]
     fn unresolved_rail_station_resolves_to_unknown_without_pseudo_coordinates() {
         let conn = create_journey_stop_test_connection();
-        let location = sample_location("\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}", Some("KUX"), "Asia/Shanghai");
+        let location = sample_location(
+            "\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}",
+            Some("KUX"),
+            "Asia/Shanghai",
+        );
         let point = resolve_map_point(&conn, "train", &location);
 
         assert_eq!(point.coordinate_precision.as_deref(), Some("unknown"));
-        assert_eq!(point.coordinate_source.as_deref(), Some("unresolved_rail_place"));
+        assert_eq!(
+            point.coordinate_source.as_deref(),
+            Some("unresolved_rail_place")
+        );
         assert_eq!(point.latitude, None);
         assert_eq!(point.longitude, None);
     }
@@ -3449,20 +3851,34 @@ mod tests {
         assert_eq!(point.label, "\u{9752}\u{5c9b}\u{5317}");
         assert_eq!(point.coordinate_precision.as_deref(), Some("city"));
         assert_eq!(point.coordinate_source.as_deref(), Some("place_catalog"));
-        assert!((point.latitude.expect("city fallback latitude should exist") - pseudo.0).abs() > 0.01
-            || (point.longitude.expect("city fallback longitude should exist") - pseudo.1).abs() > 0.01);
+        assert!(
+            (point.latitude.expect("city fallback latitude should exist") - pseudo.0).abs() > 0.01
+                || (point
+                    .longitude
+                    .expect("city fallback longitude should exist")
+                    - pseudo.1)
+                    .abs()
+                    > 0.01
+        );
     }
 
     #[test]
     fn exact_seeded_coordinates_win_over_city_fallback() {
         let conn = create_seeded_location_test_connection();
-        let location = sample_location("Nanjing South Railway Station", Some("NKH"), "Asia/Shanghai");
+        let location = sample_location(
+            "Nanjing South Railway Station",
+            Some("NKH"),
+            "Asia/Shanghai",
+        );
         let point = resolve_map_point(&conn, "train", &location);
 
         assert!((point.latitude.expect("exact latitude should exist") - 31.968).abs() < 0.01);
         assert!((point.longitude.expect("exact longitude should exist") - 118.806).abs() < 0.01);
         assert_eq!(point.coordinate_precision.as_deref(), Some("exact"));
-        assert_eq!(point.coordinate_source.as_deref(), Some("location_directory"));
+        assert_eq!(
+            point.coordinate_source.as_deref(),
+            Some("location_directory")
+        );
     }
 
     #[test]
@@ -3485,7 +3901,9 @@ mod tests {
         let pseudo = fallback_coordinates("ZZZ");
 
         assert!((point.latitude.expect("pseudo latitude should exist") - pseudo.0).abs() < 0.0001);
-        assert!((point.longitude.expect("pseudo longitude should exist") - pseudo.1).abs() < 0.0001);
+        assert!(
+            (point.longitude.expect("pseudo longitude should exist") - pseudo.1).abs() < 0.0001
+        );
         assert_eq!(point.coordinate_precision.as_deref(), Some("pseudo"));
         assert_eq!(point.coordinate_source.as_deref(), Some("pseudo"));
     }
@@ -3493,54 +3911,147 @@ mod tests {
     #[test]
     fn build_ticket_detail_uses_city_fallback_for_vab_to_txp_train_route() {
         let conn = create_journey_stop_test_connection();
-        let ticket = sample_train_ticket_record("\u{54c8}\u{5c14}\u{6ee8}\u{897f}", "VAB", "\u{5929}\u{6d25}\u{897f}", "TXP");
+        let ticket = sample_train_ticket_record(
+            "\u{54c8}\u{5c14}\u{6ee8}\u{897f}",
+            "VAB",
+            "\u{5929}\u{6d25}\u{897f}",
+            "TXP",
+        );
         let detail = build_ticket_detail(&conn, ticket, Vec::new());
 
         assert_eq!(detail.map.origin.label, "\u{54c8}\u{5c14}\u{6ee8}\u{897f}");
         assert_eq!(detail.map.origin.code.as_deref(), Some("VAB"));
-        assert_eq!(detail.map.origin.coordinate_precision.as_deref(), Some("city"));
-        assert_eq!(detail.map.origin.coordinate_source.as_deref(), Some("place_catalog"));
-        assert!(detail.map.origin.latitude.expect("Harbin latitude should exist") > 45.0
-            && detail.map.origin.latitude.expect("Harbin latitude should exist") < 46.5);
-        assert!(detail.map.origin.longitude.expect("Harbin longitude should exist") > 126.0
-            && detail.map.origin.longitude.expect("Harbin longitude should exist") < 127.5);
+        assert_eq!(
+            detail.map.origin.coordinate_precision.as_deref(),
+            Some("city")
+        );
+        assert_eq!(
+            detail.map.origin.coordinate_source.as_deref(),
+            Some("place_catalog")
+        );
+        assert!(
+            detail
+                .map
+                .origin
+                .latitude
+                .expect("Harbin latitude should exist")
+                > 45.0
+                && detail
+                    .map
+                    .origin
+                    .latitude
+                    .expect("Harbin latitude should exist")
+                    < 46.5
+        );
+        assert!(
+            detail
+                .map
+                .origin
+                .longitude
+                .expect("Harbin longitude should exist")
+                > 126.0
+                && detail
+                    .map
+                    .origin
+                    .longitude
+                    .expect("Harbin longitude should exist")
+                    < 127.5
+        );
 
         assert_eq!(detail.map.destination.label, "\u{5929}\u{6d25}\u{897f}");
         assert_eq!(detail.map.destination.code.as_deref(), Some("TXP"));
-        assert_eq!(detail.map.destination.coordinate_precision.as_deref(), Some("city"));
-        assert_eq!(detail.map.destination.coordinate_source.as_deref(), Some("place_catalog"));
-        assert!(detail.map.destination.latitude.expect("Tianjin latitude should exist") > 38.0
-            && detail.map.destination.latitude.expect("Tianjin latitude should exist") < 40.5);
-        assert!(detail.map.destination.longitude.expect("Tianjin longitude should exist") > 116.0
-            && detail.map.destination.longitude.expect("Tianjin longitude should exist") < 118.5);
+        assert_eq!(
+            detail.map.destination.coordinate_precision.as_deref(),
+            Some("city")
+        );
+        assert_eq!(
+            detail.map.destination.coordinate_source.as_deref(),
+            Some("place_catalog")
+        );
+        assert!(
+            detail
+                .map
+                .destination
+                .latitude
+                .expect("Tianjin latitude should exist")
+                > 38.0
+                && detail
+                    .map
+                    .destination
+                    .latitude
+                    .expect("Tianjin latitude should exist")
+                    < 40.5
+        );
+        assert!(
+            detail
+                .map
+                .destination
+                .longitude
+                .expect("Tianjin longitude should exist")
+                > 116.0
+                && detail
+                    .map
+                    .destination
+                    .longitude
+                    .expect("Tianjin longitude should exist")
+                    < 118.5
+        );
 
-        let distance = detail.map.distance_hint_km.expect("resolved rail distance should exist");
+        let distance = detail
+            .map
+            .distance_hint_km
+            .expect("resolved rail distance should exist");
         assert!(distance > 500 && distance < 2500);
         assert_eq!(detail.segments.len(), 1);
-        assert_eq!(detail.segments[0].origin.coordinate_source.as_deref(), Some("place_catalog"));
-        assert_eq!(detail.segments[0].destination.coordinate_source.as_deref(), Some("place_catalog"));
+        assert_eq!(
+            detail.segments[0].origin.coordinate_source.as_deref(),
+            Some("place_catalog")
+        );
+        assert_eq!(
+            detail.segments[0].destination.coordinate_source.as_deref(),
+            Some("place_catalog")
+        );
         assert_eq!(detail.segments[0].distance_hint_km, Some(distance));
     }
 
     #[test]
     fn build_ticket_detail_marks_kux_to_vab_route_unavailable_without_fake_distance() {
         let conn = create_journey_stop_test_connection();
-        let ticket = sample_train_ticket_record("\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}", "KUX", "\u{54c8}\u{5c14}\u{6ee8}\u{897f}", "VAB");
+        let ticket = sample_train_ticket_record(
+            "\u{6a2a}\u{9053}\u{6cb3}\u{5b50}\u{4e1c}",
+            "KUX",
+            "\u{54c8}\u{5c14}\u{6ee8}\u{897f}",
+            "VAB",
+        );
         let detail = build_ticket_detail(&conn, ticket, Vec::new());
 
-        assert_eq!(detail.map.origin.coordinate_precision.as_deref(), Some("unknown"));
-        assert_eq!(detail.map.origin.coordinate_source.as_deref(), Some("unresolved_rail_place"));
+        assert_eq!(
+            detail.map.origin.coordinate_precision.as_deref(),
+            Some("unknown")
+        );
+        assert_eq!(
+            detail.map.origin.coordinate_source.as_deref(),
+            Some("unresolved_rail_place")
+        );
         assert_eq!(detail.map.origin.latitude, None);
         assert_eq!(detail.map.origin.longitude, None);
-        assert_eq!(detail.map.destination.coordinate_source.as_deref(), Some("place_catalog"));
+        assert_eq!(
+            detail.map.destination.coordinate_source.as_deref(),
+            Some("place_catalog")
+        );
         assert!(detail.map.destination.latitude.is_some());
         assert_eq!(detail.map.distance_hint_km, None);
         assert_eq!(detail.segments.len(), 1);
-        assert_eq!(detail.segments[0].origin.coordinate_source.as_deref(), Some("unresolved_rail_place"));
-        assert_eq!(detail.segments[0].destination.coordinate_source.as_deref(), Some("place_catalog"));
+        assert_eq!(
+            detail.segments[0].origin.coordinate_source.as_deref(),
+            Some("unresolved_rail_place")
+        );
+        assert_eq!(
+            detail.segments[0].destination.coordinate_source.as_deref(),
+            Some("place_catalog")
+        );
         assert_eq!(detail.segments[0].distance_hint_km, None);
     }
-
 
     #[test]
     fn migrate_legacy_ticket_journey_tables_renames_old_tables() {
@@ -3670,15 +4181,18 @@ mod tests {
     #[test]
     fn normalize_journey_cost_exchange_rate_ignores_cny_or_empty_currency() {
         assert_eq!(
-            normalize_journey_cost_exchange_rate(None, Some(4.8)).expect("should ignore empty currency"),
+            normalize_journey_cost_exchange_rate(None, Some(4.8))
+                .expect("should ignore empty currency"),
             None
         );
         assert_eq!(
-            normalize_journey_cost_exchange_rate(Some("CNY"), Some(1.0)).expect("should ignore cny"),
+            normalize_journey_cost_exchange_rate(Some("CNY"), Some(1.0))
+                .expect("should ignore cny"),
             None
         );
         assert_eq!(
-            normalize_journey_cost_exchange_rate(Some("AUD"), Some(4.8)).expect("should keep foreign rate"),
+            normalize_journey_cost_exchange_rate(Some("AUD"), Some(4.8))
+                .expect("should keep foreign rate"),
             Some(4.8)
         );
         assert!(normalize_journey_cost_exchange_rate(Some("AUD"), Some(0.0)).is_err());
@@ -3689,10 +4203,18 @@ mod tests {
         let conn = create_journey_stop_test_connection();
 
         assert!(table_exists(&conn, "journey_stops").expect("should inspect tables"));
-        assert!(table_has_column(&conn, "journey_stops", "place_name").expect("should inspect columns"));
-        assert!(table_has_column(&conn, "journey_stops", "arrival_ticket_id").expect("should inspect columns"));
-        assert!(table_has_column(&conn, "journey_stops", "user_edited").expect("should inspect columns"));
-        assert!(table_has_column(&conn, "journey_stops", "updated_at").expect("should inspect columns"));
+        assert!(
+            table_has_column(&conn, "journey_stops", "place_name").expect("should inspect columns")
+        );
+        assert!(
+            table_has_column(&conn, "journey_stops", "arrival_ticket_id")
+                .expect("should inspect columns")
+        );
+        assert!(table_has_column(&conn, "journey_stops", "user_edited")
+            .expect("should inspect columns"));
+        assert!(
+            table_has_column(&conn, "journey_stops", "updated_at").expect("should inspect columns")
+        );
     }
 
     #[test]
@@ -3910,9 +4432,15 @@ mod tests {
         )
         .expect("should create journeys table without new column");
 
-        assert!(!table_has_column(&conn, "journeys", "cost_exchange_rate_to_cny").expect("should inspect columns"));
+        assert!(
+            !table_has_column(&conn, "journeys", "cost_exchange_rate_to_cny")
+                .expect("should inspect columns")
+        );
         ensure_journey_schema_columns(&conn).expect("should add missing column");
-        assert!(table_has_column(&conn, "journeys", "cost_exchange_rate_to_cny").expect("should inspect columns"));
+        assert!(
+            table_has_column(&conn, "journeys", "cost_exchange_rate_to_cny")
+                .expect("should inspect columns")
+        );
     }
 }
 
@@ -3938,8 +4466,10 @@ fn lookup_coordinates(conn: &Connection, location: &TicketLocationPayload) -> Op
         )
         .ok()?;
 
-    stmt.query_row(params![&code, &name, &search_like], |row| Ok((row.get(0)?, row.get(1)?)))
-        .ok()
+    stmt.query_row(params![&code, &name, &search_like], |row| {
+        Ok((row.get(0)?, row.get(1)?))
+    })
+    .ok()
 }
 
 fn parse_airline_row(row: &Row<'_>) -> rusqlite::Result<AirlinePayload> {
@@ -4004,10 +4534,22 @@ fn build_viewport_from_coordinates(coordinates: &[(f64, f64)]) -> MapViewportPay
         };
     }
 
-    let min_latitude = coordinates.iter().map(|(latitude, _)| *latitude).fold(f64::INFINITY, f64::min);
-    let max_latitude = coordinates.iter().map(|(latitude, _)| *latitude).fold(f64::NEG_INFINITY, f64::max);
-    let min_longitude = coordinates.iter().map(|(_, longitude)| *longitude).fold(f64::INFINITY, f64::min);
-    let max_longitude = coordinates.iter().map(|(_, longitude)| *longitude).fold(f64::NEG_INFINITY, f64::max);
+    let min_latitude = coordinates
+        .iter()
+        .map(|(latitude, _)| *latitude)
+        .fold(f64::INFINITY, f64::min);
+    let max_latitude = coordinates
+        .iter()
+        .map(|(latitude, _)| *latitude)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let min_longitude = coordinates
+        .iter()
+        .map(|(_, longitude)| *longitude)
+        .fold(f64::INFINITY, f64::min);
+    let max_longitude = coordinates
+        .iter()
+        .map(|(_, longitude)| *longitude)
+        .fold(f64::NEG_INFINITY, f64::max);
 
     MapViewportPayload {
         min_latitude,

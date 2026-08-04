@@ -664,4 +664,30 @@ They are based on current repository docs/checklists and should be expanded from
   - The current bundle is reasonable for cautious manual migration tests but is not yet a polished WebDAV backup contract.
 - Interview talking points:
   - Auditing an existing backup/migration path before building cloud backup on top of it.
-  - Distinguishing ��works in principle�� from ��safe enough to productize�� in a local-first desktop app.
+  - Distinguishing "works in principle" from "safe enough to productize" in a local-first desktop app.
+
+## 2026-07-22 - ARCHIVE-IMPORT-SAFETY-001
+
+- Area: Archive import safety / destructive restore hardening / local backup guardrail
+- Status: Implemented checkpoint
+- Problem / requirement:
+  - Archive import could overwrite the live SQLite database and attachments immediately after extraction.
+  - The previous flow had no pre-import safety backup and only minimal structural validation.
+- User decision / product constraint:
+  - Keep archive import as a full local overwrite flow.
+  - Do not change archive format yet.
+  - Add a basic safety pass before broader WebDAV or manifest work.
+- Final approach:
+  - Added backend validation for the extracted backup payload before destructive restore.
+  - Reused the existing local backup mechanism to create a visible safety backup before import proceeds.
+  - Clarified Settings/App import messaging so users know a safety backup is created first.
+- Implementation summary:
+  - Updated `src-tauri/src/db.rs` to validate `backup.json`, `tickettrail.sqlite3`, and the attachments presence rule before overwrite.
+  - Added a pre-import backup labeled for archive import recovery and surfaced clearer failure messaging when restore fails after that backup is created.
+  - Added focused Rust unit tests for backup payload validation.
+- Risks / tradeoffs:
+  - Import is still destructive and does not implement rollback.
+  - Schema/app-version checks, checksum validation, and failure cleanup remain future work.
+- Interview talking points:
+  - Hardening a risky overwrite workflow incrementally instead of trying to solve full sync and rollback at once.
+  - Reusing an existing backup primitive as a safety rail before destructive restore.

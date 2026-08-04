@@ -215,6 +215,26 @@ export default function App() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupStatusMessage, setBackupStatusMessage] = useState("");
   const [backupNotice, setBackupNotice] = useState("");
+  const [archiveTransferNotice, setArchiveTransferNotice] = useState<{
+    kind: "success" | "error";
+    title: string;
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!archiveTransferNotice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => setArchiveTransferNotice(null),
+      archiveTransferNotice.kind === "error" ? 6000 : 3600,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [archiveTransferNotice]);
   const [importedDraft, setImportedDraft] = useState<TicketDraft | null>(null);
   const [importReview, setImportReview] = useState<ImportFieldReview[] | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>("overview");
@@ -737,22 +757,28 @@ export default function App() {
     setErrorMessage("");
     setBackupStatusMessage("");
     setBackupNotice("");
+    setArchiveTransferNotice(null);
 
     try {
       const archivePath = await exportArchiveBundle();
-      setBackupNotice(`Archive bundle exported: ${archivePath}`);
-      startTransition(() => {
-        setBackupStatusMessage(`Archive bundle exported: ${archivePath}`);
+      setArchiveTransferNotice({
+        kind: "success",
+        title: "Archive bundle exported",
+        message: archivePath,
       });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to export archive bundle.");
+      setArchiveTransferNotice({
+        kind: "error",
+        title: "Archive export failed",
+        message: error instanceof Error ? error.message : "Failed to export archive bundle.",
+      });
     } finally {
       setBackupBusy(false);
     }
   };
 
   const handleImportArchiveBundle = async (bundlePath: string) => {
-    if (!window.confirm("Import archive bundle? This will overwrite the current database and attachments.")) {
+    if (!window.confirm("Import archive bundle? This will validate the archive, create a safety backup first, and then overwrite the current database and attachments. If import fails after the safety backup is created, that backup will remain available in Local backups.")) {
       return;
     }
 
@@ -760,6 +786,7 @@ export default function App() {
     setErrorMessage("");
     setBackupStatusMessage("");
     setBackupNotice("");
+    setArchiveTransferNotice(null);
 
     try {
       await importArchiveBundle(bundlePath);
@@ -768,7 +795,6 @@ export default function App() {
         listBackups(),
         getBackupReadiness(),
       ]);
-      setBackupNotice(`Archive bundle imported: ${bundlePath}`);
       startTransition(() => {
         setTickets(restoredTickets);
         setBackups(restoredBackups);
@@ -777,11 +803,19 @@ export default function App() {
         setEditingId("");
         setImportedDraft(null);
         setImportReview(null);
-        setBackupStatusMessage(`Archive bundle imported: ${bundlePath}`);
         setDetailVersion((current) => current + 1);
       });
+      setArchiveTransferNotice({
+  kind: "success",
+  title: "Archive bundle imported",
+  message: "Local data was replaced and a safety backup was created first.",
+});
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to import archive bundle.");
+      setArchiveTransferNotice({
+        kind: "error",
+        title: "Archive import failed",
+        message: error instanceof Error ? error.message : "Failed to import archive bundle.",
+      });
     } finally {
       setBackupBusy(false);
     }
@@ -945,6 +979,7 @@ export default function App() {
             )
           : (
                 <SettingsPage
+                  archiveTransferNotice={archiveTransferNotice}
                   backupPanelProps={{
                     backups,
                     readiness: backupReadiness,
@@ -957,6 +992,7 @@ export default function App() {
                     statusMessage: backupNotice || backupStatusMessage,
                   }}
                   initialSubview={activeSection === "exports" ? "export" : "appearance"}
+                  onDismissArchiveTransferNotice={() => setArchiveTransferNotice(null)}
                 />
               );
 
@@ -981,4 +1017,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -1,15 +1,16 @@
 use crate::{
     db,
     flight_lookup::{
-        self, AERODATABOX_GATEWAY_API_MARKET, AERODATABOX_GATEWAY_RAPID_API,
-        PROVIDER_AERODATABOX, PROVIDER_MOCK,
+        self, AERODATABOX_GATEWAY_API_MARKET, AERODATABOX_GATEWAY_RAPID_API, PROVIDER_AERODATABOX,
+        PROVIDER_MOCK,
     },
     models::{
         AirlinePayload, BackupReadinessPayload, BackupRecordPayload, ExportFolderPayload,
-        FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload, FlightLookupCandidatePayload,
-        FlightLookupRequestPayload, JourneyMutationPayload, JourneyPayload, JourneyStopMutationPayload,
-        JourneyStopPayload, LocationDirectoryPayload, StubPreviewPayload, TicketAttachmentPayload,
-        TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
+        FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload,
+        FlightLookupCandidatePayload, FlightLookupRequestPayload, JourneyMutationPayload,
+        JourneyPayload, JourneyStopMutationPayload, JourneyStopPayload, LocationDirectoryPayload,
+        StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
+        TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
     },
 };
 use chrono::Utc;
@@ -70,7 +71,10 @@ pub fn get_journey(app: AppHandle, journey_id: String) -> Result<JourneyPayload,
 }
 
 #[command]
-pub fn create_journey(app: AppHandle, input: JourneyMutationPayload) -> Result<JourneyPayload, String> {
+pub fn create_journey(
+    app: AppHandle,
+    input: JourneyMutationPayload,
+) -> Result<JourneyPayload, String> {
     db::create_journey(&app, input)
 }
 
@@ -89,7 +93,10 @@ pub fn delete_journey(app: AppHandle, journey_id: String) -> Result<(), String> 
 }
 
 #[command]
-pub fn list_journey_stops(app: AppHandle, journey_id: String) -> Result<Vec<JourneyStopPayload>, String> {
+pub fn list_journey_stops(
+    app: AppHandle,
+    journey_id: String,
+) -> Result<Vec<JourneyStopPayload>, String> {
     db::list_journey_stops(&app, &journey_id)
 }
 
@@ -103,7 +110,10 @@ pub fn replace_journey_stops(
 }
 
 #[command]
-pub fn create_ticket(app: AppHandle, draft: TicketDraftPayload) -> Result<TicketRecordPayload, String> {
+pub fn create_ticket(
+    app: AppHandle,
+    draft: TicketDraftPayload,
+) -> Result<TicketRecordPayload, String> {
     db::create_ticket(&app, draft)
 }
 
@@ -155,7 +165,10 @@ pub fn search_airlines(app: AppHandle, query: String) -> Result<Vec<AirlinePaylo
 }
 
 #[command]
-pub fn search_locations(app: AppHandle, query: String) -> Result<Vec<LocationDirectoryPayload>, String> {
+pub fn search_locations(
+    app: AppHandle,
+    query: String,
+) -> Result<Vec<LocationDirectoryPayload>, String> {
     db::search_locations(&app, &query)
 }
 
@@ -219,8 +232,17 @@ pub fn open_local_data_folder(app: AppHandle) -> Result<ExportFolderPayload, Str
 }
 
 #[command]
-pub fn get_flight_data_source_config(app: AppHandle) -> Result<FlightDataSourceConfigPayload, String> {
-    Ok(public_flight_data_source_config(&load_effective_flight_data_source_config(&app)?))
+pub fn pick_archive_bundle_file() -> Result<Option<String>, String> {
+    pick_archive_bundle_file_in_os()
+}
+
+#[command]
+pub fn get_flight_data_source_config(
+    app: AppHandle,
+) -> Result<FlightDataSourceConfigPayload, String> {
+    Ok(public_flight_data_source_config(
+        &load_effective_flight_data_source_config(&app)?,
+    ))
 }
 
 #[command]
@@ -236,7 +258,8 @@ pub fn save_flight_data_source_config(
 
     let config_path = flight_data_source_config_path(&app)?;
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|_| "Failed to prepare local config directory.".to_string())?;
+        fs::create_dir_all(parent)
+            .map_err(|_| "Failed to prepare local config directory.".to_string())?;
     }
 
     let serialized = serde_json::to_string_pretty(&StoredFlightDataSourceConfig {
@@ -259,7 +282,9 @@ pub fn save_flight_data_source_config(
         normalized.clear_api_key,
     )?;
 
-    Ok(public_flight_data_source_config(&load_effective_flight_data_source_config(&app)?))
+    Ok(public_flight_data_source_config(
+        &load_effective_flight_data_source_config(&app)?,
+    ))
 }
 
 #[command]
@@ -289,11 +314,13 @@ pub fn lookup_flight_candidates(
     request: FlightLookupRequestPayload,
 ) -> Result<Vec<FlightLookupCandidatePayload>, crate::models::FlightLookupErrorPayload> {
     let config = load_effective_flight_data_source_config(&app).ok();
-    let provider_config = config.as_ref().map(|value| flight_lookup::FlightLookupProviderConfig {
-        provider: value.provider.clone(),
-        gateway: value.gateway.clone(),
-        api_key: value.api_key.clone(),
-    });
+    let provider_config = config
+        .as_ref()
+        .map(|value| flight_lookup::FlightLookupProviderConfig {
+            provider: value.provider.clone(),
+            gateway: value.gateway.clone(),
+            api_key: value.api_key.clone(),
+        });
     flight_lookup::lookup_candidates(&request, provider_config.as_ref())
 }
 
@@ -328,10 +355,9 @@ fn resolve_export_folder_info(app: &AppHandle) -> Result<ExportFolderPayload, St
 }
 
 fn resolve_local_data_folder_info(app: &AppHandle) -> Result<ExportFolderPayload, String> {
-    let path = app
-        .path()
-        .app_data_dir()
-        .map_err(|_| "Unable to resolve the local TicketTrail data folder on this device.".to_string())?;
+    let path = app.path().app_data_dir().map_err(|_| {
+        "Unable to resolve the local TicketTrail data folder on this device.".to_string()
+    })?;
 
     Ok(ExportFolderPayload {
         path: path.to_string_lossy().to_string(),
@@ -350,7 +376,9 @@ fn open_folder_in_os(path: &PathBuf) -> Result<(), String> {
         ProcessCommand::new("explorer")
             .arg(path)
             .spawn()
-            .map_err(|_| "Failed to open the current export folder in File Explorer.".to_string())?;
+            .map_err(|_| {
+                "Failed to open the current export folder in File Explorer.".to_string()
+            })?;
         return Ok(());
     }
 
@@ -374,6 +402,46 @@ fn open_folder_in_os(path: &PathBuf) -> Result<(), String> {
 
     #[allow(unreachable_code)]
     Err("Opening the current export folder is not supported on this platform yet.".into())
+}
+
+fn pick_archive_bundle_file_in_os() -> Result<Option<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let script = concat!(
+            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ",
+            "Add-Type -AssemblyName System.Windows.Forms; ",
+            "$dialog = New-Object System.Windows.Forms.OpenFileDialog; ",
+            "$dialog.Filter = 'Zip archives (*.zip)|*.zip|All files (*.*)|*.*'; ",
+            "$dialog.Multiselect = $false; ",
+            "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write($dialog.FileName) }",
+        );
+
+        let output = ProcessCommand::new("powershell")
+            .args(["-NoProfile", "-Command", script])
+            .output()
+            .map_err(|_| "Failed to open the archive bundle picker.".to_string())?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(if stderr.is_empty() {
+                "Failed to open the archive bundle picker.".to_string()
+            } else {
+                stderr
+            });
+        }
+
+        let selected_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if selected_path.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(selected_path))
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Choosing an archive bundle file is only supported on Windows in this MVP.".into())
+    }
 }
 
 fn flight_data_source_config_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -439,7 +507,9 @@ fn normalize_flight_data_source_save_payload(
 
 fn normalize_stored_flight_data_source_config(config: &mut StoredFlightDataSourceConfig) {
     config.provider = config.provider.trim().to_lowercase();
-    config.gateway = Some(normalize_flight_data_source_gateway(config.gateway.as_deref()));
+    config.gateway = Some(normalize_flight_data_source_gateway(
+        config.gateway.as_deref(),
+    ));
 }
 
 fn normalize_stored_flight_data_source_secret(secret: &mut StoredFlightDataSourceSecret) {
@@ -544,7 +614,8 @@ fn write_flight_data_source_secret(
     };
 
     if let Some(parent) = secret_path.parent() {
-        fs::create_dir_all(parent).map_err(|_| "Failed to prepare local secret directory.".to_string())?;
+        fs::create_dir_all(parent)
+            .map_err(|_| "Failed to prepare local secret directory.".to_string())?;
     }
 
     let serialized = serde_json::to_string_pretty(&StoredFlightDataSourceSecret {
@@ -590,15 +661,14 @@ struct FlightDataSourceSaveState {
     updated_at: Option<String>,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{
         default_flight_data_source_config, mask_api_key_preview,
         normalize_flight_data_source_save_payload, public_flight_data_source_config,
         validate_flight_data_source_gateway, validate_flight_data_source_provider,
-        AERODATABOX_GATEWAY_API_MARKET, AERODATABOX_GATEWAY_RAPID_API,
-        EffectiveFlightDataSourceConfig, PROVIDER_AERODATABOX, PROVIDER_MOCK,
+        EffectiveFlightDataSourceConfig, AERODATABOX_GATEWAY_API_MARKET,
+        AERODATABOX_GATEWAY_RAPID_API, PROVIDER_AERODATABOX, PROVIDER_MOCK,
     };
     use crate::models::FlightDataSourceConfigSavePayload;
 
@@ -637,7 +707,10 @@ mod tests {
 
         assert_eq!(public_config.gateway, AERODATABOX_GATEWAY_RAPID_API);
         assert!(public_config.has_api_key);
-        assert_eq!(public_config.api_key_preview.as_deref(), Some("********1234"));
+        assert_eq!(
+            public_config.api_key_preview.as_deref(),
+            Some("********1234")
+        );
     }
 
     #[test]

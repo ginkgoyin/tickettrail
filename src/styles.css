@@ -1720,9 +1720,9 @@ html {
 
 .backup-import-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 12px;
-  align-items: end;
+  align-items: center;
 }
 
 .backup-copy {
@@ -3921,5 +3921,73 @@ textarea {
 
   .overview-stat-cell-wide {
     grid-column: auto;
+  }
+}
+
+.settings-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 70;
+  width: min(440px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 60px rgba(2, 12, 24, 0.35);
+  backdrop-filter: blur(18px);
+}
+
+.settings-toast-success {
+  background: rgba(34, 94, 58, 0.92);
+  border-color: rgba(103, 232, 154, 0.28);
+}
+
+.settings-toast-error {
+  background: rgba(127, 29, 29, 0.92);
+  border-color: rgba(252, 165, 165, 0.28);
+}
+
+.settings-toast-copy {
+  min-width: 0;
+}
+
+.settings-toast-copy strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.settings-toast-copy p {
+  margin: 6px 0 0;
+  color: rgba(237, 245, 255, 0.9);
+  word-break: break-word;
+}
+
+.settings-toast-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(237, 245, 255, 0.92);
+  flex-shrink: 0;
+}
+
+.settings-toast-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 640px) {
+  .settings-toast {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    width: auto;
   }
 }
