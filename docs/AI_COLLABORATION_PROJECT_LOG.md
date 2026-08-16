@@ -745,3 +745,28 @@ They are based on current repository docs/checklists and should be expanded from
 - Interview talking points:
   - Designing a destructive cloud-restore workflow around explicit publication, validation, and safety gates.
   - Separating domain archive logic from storage transport while avoiding record-level sync complexity.
+
+## 2026-08-16 - WEBDAV-BACKUP-001A
+
+- Area: Secure desktop configuration / generic WebDAV capability testing
+- Status: Implemented and manually verified against Jianguoyun WebDAV
+- Problem / requirement:
+  - TicketTrail needed to configure and verify user-owned WebDAV storage without exposing credentials to React or prematurely implementing backup upload.
+- User decision / product constraint:
+  - Keep credentials device-local, preserve all existing local/archive behavior, support generic WebDAV, and limit this phase to configuration plus harmless connection probes.
+- Final approach:
+  - Added a Rust-only `SecretStore` backed by Windows Credential Manager and a separate atomic-ish non-secret `webdav.json` config.
+  - Disabled redirects for credential-bearing requests and constrained all remote path construction to validated backend-owned segments.
+  - Tested real WebDAV capabilities using managed `MKCOL`, `PROPFIND`, `PUT`, `HEAD`/`GET`, `MOVE`, and exact probe `DELETE` operations.
+- Implementation summary:
+  - Added narrow Tauri commands and a Settings configuration UI that displays only password/capability status.
+  - Added pure Rust tests with a fake secret store for URL/folder safety, public payload secrecy, and explicit password replacement/clearing behavior.
+- Manual verification:
+  - Real Jianguoyun WebDAV connection and `Test connection` succeeded.
+  - WebDAV configuration survived a TicketTrail restart, and the saved credential continued to work after restart.
+- Risks / tradeoffs:
+  - Jianguoyun verification is complete for this checkpoint; compatibility with other WebDAV providers and provider-specific behavior remains future test work.
+  - Backup upload/history/retention/restore and automatic scheduling remain intentionally deferred.
+- Interview talking points:
+  - Building a secure credential boundary before implementing cloud transport.
+  - Probing generic WebDAV capabilities with reversible, precisely scoped remote operations.

@@ -398,6 +398,50 @@ pub struct FlightDataSourceConfigSavePayload {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WebDavCapabilityPayload {
+    pub webdav_accessible: bool,
+    pub managed_directory_writable: bool,
+    pub move_supported: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavConfigPayload {
+    pub configured: bool,
+    pub server_url: String,
+    pub username: String,
+    pub remote_folder: String,
+    pub has_password: bool,
+    pub auto_backup_mode: String,
+    pub last_tested_at: Option<String>,
+    pub last_connection_succeeded: Option<bool>,
+    pub capabilities: Option<WebDavCapabilityPayload>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavConfigSavePayload {
+    pub server_url: String,
+    pub username: String,
+    pub remote_folder: String,
+    pub password: Option<String>,
+    pub clear_password: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavConnectionTestPayload {
+    pub success: bool,
+    pub tested_at: String,
+    pub managed_directory: String,
+    pub capabilities: Option<WebDavCapabilityPayload>,
+    pub error_code: Option<String>,
+    pub message: String,
+    pub cleanup_warning: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FlightLookupErrorPayload {
     pub code: String,
     pub message: String,

@@ -2,7 +2,7 @@
 
 Task: `WEBDAV-BACKUP-DESIGN-001`
 
-Status: Design baseline; no WebDAV runtime is implemented by this checkpoint.
+Status: Design baseline. `WEBDAV-BACKUP-001A` now implements configuration, secure device-local password storage, and connection/capability testing; backup transport remains unimplemented.
 
 ## 1. Purpose
 
@@ -552,12 +552,17 @@ Explicitly out of scope:
 
 ### `WEBDAV-BACKUP-001A` - Configuration, secret boundary, and connection test
 
-- add non-secret WebDAV config/state models;
-- add backend `SecretStore` and Windows Credential Manager implementation;
-- save masked public config only;
-- normalize/validate URL and remote folder;
-- implement `Test connection`, managed directory creation, method/capability probing, and safe probe cleanup;
-- no backup upload yet.
+Implemented and manually verified against Jianguoyun WebDAV:
+
+- non-secret WebDAV config is stored in app-config `webdav.json` with automatic backup mode reserved as `off`;
+- the password is stored through a Rust-only `SecretStore` backed by Windows Credential Manager service `com.ginkgoyin.tickettrail.webdav`;
+- React receives only `hasPassword`, never the stored password;
+- server URL and remote folder are normalized and validated in Rust;
+- automatic redirects are disabled so Basic credentials are never forwarded to a redirected origin;
+- `Test connection` creates `TicketTrail/backups/` one level at a time, verifies `PROPFIND`, writes and verifies a unique probe, tests `MOVE`, and deletes only its exact probe objects;
+- configuration save does not perform a network request, while Test connection saves the current form before testing;
+- real user manual verification passed: the Jianguoyun connection and `Test connection` succeeded, configuration survived a TicketTrail restart, and the saved credential continued to work after restart;
+- no archive upload, sidecar, remote listing, retention, delete, download, restore, or automatic backup runtime is included.
 
 ### `WEBDAV-BACKUP-001B` - Archive engine extraction and manual remote backup
 

@@ -478,19 +478,17 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest design checkpoint: `WEBDAV-BACKUP-DESIGN-001` (documented; runtime is not implemented).
+Latest implementation checkpoint: `WEBDAV-BACKUP-001A` (implemented and manually verified against Jianguoyun WebDAV).
 
-Recommended next task: `WEBDAV-BACKUP-001A`.
+Recommended next task: `WEBDAV-BACKUP-001B`.
 
 Recommended next task scope:
 
-- add a non-secret WebDAV configuration model and local scheduling/state model
-- add a Rust-side `SecretStore` boundary using Windows Credential Manager for credentials
-- keep the frontend limited to masked/non-secret configuration state
-- normalize and validate the server URL and managed remote folder
-- implement `Test connection`, managed-directory creation, capability probing, and safe probe cleanup
-- do not upload, list, restore, or delete remote backups yet
-- do not change archive format `1`, the live database location, or offline archive export/import
+- extract temporary archive creation from persistent local backup history without changing archive format `1`
+- implement manual `Backup now`, remote ZIP plus sidecar publication, remote listing, and retention at 30
+- preserve offline archive export/import and current local backup behavior during the transition
+- do not implement remote restore/delete/history management UI until `WEBDAV-BACKUP-001C`
+- do not implement automatic backup runtime until `WEBDAV-AUTO-BACKUP-001`
 
 The recommended next implementation order is now:
 
@@ -550,6 +548,7 @@ The recommended next implementation order is now:
 - `BACKUP-HISTORY-UX-001` keeps `Settings > Data & Backup` compact with paginated backup management and a 30-backup retention cap.
 - `ARCHIVE-BUNDLE-MANIFEST-001` adds format version `1`, app/source/count metadata, legacy format `0` compatibility, and pre-restore rejection of unsupported future versions; schema version and integrity checks remain future work.
 - `WEBDAV-BACKUP-DESIGN-001` now defines the generic WebDAV transport boundary, deterministic remote archive/sidecar layout, remote retention at 30, Rust-side credential strategy, restore safety-upload gate, and automatic-backup dirty-state semantics. It adds no runtime WebDAV behavior.
+- `WEBDAV-BACKUP-001A` now implements and manually verifies the configuration/connection foundation against Jianguoyun, with app-config non-secret state, Windows Credential Manager password storage, backend-only URL/path construction, managed directory creation, generic WebDAV probing, and sanitized capability/error status. It does not upload or restore backups.
 
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.

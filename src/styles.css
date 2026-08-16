@@ -1554,6 +1554,21 @@ html {
   color: #cfefff;
 }
 
+.settings-status-message-error {
+  color: #ffb4b4;
+}
+
+.webdav-config-fields {
+  padding-top: 4px;
+}
+
+.webdav-connection-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .section-page-header {
   margin: 0 0 20px;
   padding: 0;

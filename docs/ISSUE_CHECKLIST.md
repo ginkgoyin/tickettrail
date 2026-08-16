@@ -442,6 +442,18 @@
     - Credentials should stay Rust-side behind a secret-store boundary backed by Windows Credential Manager for the Windows-first implementation.
     - Archive format `1` is sufficient for the first WebDAV MVP; sync/merge, first-party storage, checksums, rollback, and DB migrations remain out of scope.
   - Priority: `High`
+- `WEBDAV-BACKUP-001A`
+  - Add the first WebDAV runtime foundation: non-secret configuration, Windows-native device-local password storage, managed-directory creation, and a real generic WebDAV connection test.
+  - Status: `Implemented / manually verified`
+  - Notes:
+    - Non-secret configuration is stored in app-config `webdav.json`; the password is stored only in Windows Credential Manager through a Rust-side `SecretStore`.
+    - Public frontend payloads expose `hasPassword` and sanitized capability/test status but never return the raw password.
+    - Backend validation requires HTTPS except explicit localhost HTTP, rejects embedded credentials/query/fragment/encoded traversal, and constrains the remote folder to safe relative segments.
+    - Connection testing creates the configured folder plus TicketTrail-owned `backups/`, verifies collection access and probe write/read/delete, and records whether `MOVE` is available.
+    - Automatic redirects are disabled to prevent credentials being forwarded to another origin; errors are categorized and sanitized.
+    - Real user manual verification against Jianguoyun passed: the WebDAV connection and `Test connection` succeeded, configuration survived a TicketTrail restart, and the saved credential continued to work after restart.
+    - Backup upload/history/retention/delete/download/restore and automatic backup remain unimplemented for later phases.
+  - Priority: `High`
 - `SETTINGS-DATA-BACKUP-DESIGN-001`
   - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.
   - Status: `Documented / design only`

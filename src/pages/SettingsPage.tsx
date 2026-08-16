@@ -17,6 +17,12 @@ import {
   type FlightDataSourceProvider,
 } from "../lib/flightLookup";
 import { useI18n, type Language } from "../lib/i18n";
+import {
+  getWebDavConfig,
+  saveWebDavConfig,
+  testWebDavConnection,
+  type WebDavConfig,
+} from "../lib/webdav";
 
 type BackupPanelProps = ComponentProps<typeof BackupPanel>;
 type SettingsSubview = "appearance" | "export" | "about";
@@ -44,6 +50,16 @@ function formatSavedAt(value: string) {
   }).format(new Date(timestamp));
 }
 
+function readableError(error: unknown, fallback: string) {
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
+
 export function SettingsPage({
   archiveTransferNotice,
   backupPanelProps,
@@ -69,6 +85,18 @@ export function SettingsPage({
   const [localDataFolderStatus, setLocalDataFolderStatus] = useState("");
   const [bundlePath, setBundlePath] = useState("");
   const [archiveBundlePickerBusy, setArchiveBundlePickerBusy] = useState(false);
+  const [webDavConfig, setWebDavConfig] = useState<WebDavConfig>({
+    configured: false,
+    serverUrl: "",
+    username: "",
+    remoteFolder: "TicketTrail",
+    hasPassword: false,
+    autoBackupMode: "off",
+  });
+  const [webDavPasswordDraft, setWebDavPasswordDraft] = useState("");
+  const [showWebDavPassword, setShowWebDavPassword] = useState(false);
+  const [webDavBusy, setWebDavBusy] = useState<"save" | "test" | "clear" | null>(null);
+  const [webDavStatus, setWebDavStatus] = useState("");
   const settingsTabs: Array<{ value: SettingsSubview; label: string }> = [
     { value: "appearance", label: t("appearance") },
     { value: "export", label: t("dataAndBackup") },
@@ -107,6 +135,33 @@ export function SettingsPage({
 
     void loadFlightDataSourceConfig();
 
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadWebDavConfig = async () => {
+      try {
+        const config = await getWebDavConfig();
+        if (!isMounted) {
+          return;
+        }
+        setWebDavConfig(config);
+        setWebDavPasswordDraft("");
+        setWebDavStatus("");
+      } catch (error) {
+        if (isMounted) {
+          setWebDavStatus(
+            readableError(error, "Failed to load the local WebDAV configuration."),
+          );
+        }
+      }
+    };
+
+    void loadWebDavConfig();
     return () => {
       isMounted = false;
     };
@@ -231,6 +286,85 @@ export function SettingsPage({
       setFlightDataSourceStatus("Failed to clear the saved flight data source API key.");
     } finally {
       setFlightDataSourceBusy(false);
+    }
+  };
+
+  const updateWebDavField = (field: "serverUrl" | "username" | "remoteFolder", value: string) => {
+    setWebDavConfig((current) => ({
+      ...current,
+      [field]: value,
+      lastConnectionSucceeded: undefined,
+      capabilities: undefined,
+    }));
+    setWebDavStatus("");
+  };
+
+  const saveCurrentWebDavConfig = async (clearPassword = false) => {
+    const saved = await saveWebDavConfig({
+      serverUrl: webDavConfig.serverUrl,
+      username: webDavConfig.username,
+      remoteFolder: webDavConfig.remoteFolder,
+      password: clearPassword ? undefined : webDavPasswordDraft || undefined,
+      clearPassword,
+    });
+    setWebDavConfig(saved);
+    setWebDavPasswordDraft("");
+    setShowWebDavPassword(false);
+    return saved;
+  };
+
+  const handleSaveWebDavConfig = async () => {
+    setWebDavBusy("save");
+    setWebDavStatus("");
+    try {
+      const saved = await saveCurrentWebDavConfig();
+      setWebDavStatus(
+        saved.configured
+          ? "WebDAV settings saved. Run Test connection before using cloud backup."
+          : "WebDAV settings saved, but an application password is still required.",
+      );
+    } catch (error) {
+      setWebDavStatus(readableError(error, "Failed to save the WebDAV configuration."));
+    } finally {
+      setWebDavBusy(null);
+    }
+  };
+
+  const handleTestWebDavConnection = async () => {
+    setWebDavBusy("test");
+    setWebDavStatus("");
+    try {
+      await saveCurrentWebDavConfig();
+      const result = await testWebDavConnection();
+      const refreshed = await getWebDavConfig();
+      setWebDavConfig(refreshed);
+      setWebDavStatus(
+        result.cleanupWarning
+          ? `${result.message} ${result.cleanupWarning}`
+          : result.message,
+      );
+    } catch (error) {
+      setWebDavStatus(readableError(error, "The WebDAV connection test failed."));
+      try {
+        setWebDavConfig(await getWebDavConfig());
+      } catch {
+        // Keep the current draft visible if the status refresh also fails.
+      }
+    } finally {
+      setWebDavBusy(null);
+    }
+  };
+
+  const handleClearWebDavPassword = async () => {
+    setWebDavBusy("clear");
+    setWebDavStatus("");
+    try {
+      await saveCurrentWebDavConfig(true);
+      setWebDavStatus("The saved WebDAV password was removed from Windows Credential Manager.");
+    } catch (error) {
+      setWebDavStatus(readableError(error, "Failed to clear the saved WebDAV password."));
+    } finally {
+      setWebDavBusy(null);
     }
   };
 
@@ -479,17 +613,157 @@ export function SettingsPage({
               <div className="settings-option-card settings-option-card-block">
                 <div>
                   <p className="hero-copy">
-                    Back up archive bundles to your own WebDAV storage in a future version.
+                    Connect your own WebDAV storage. TicketTrail data stays local; this connection
+                    will be used for backup and restore, not real-time sync.
                   </p>
                   <p className="settings-helper-copy">
-                    This will be backup and restore, not real-time sync. Restore will be manual and will replace local data.
-                  </p>
-                  <p className="settings-helper-copy">
-                    No TicketTrail account or server is required.
+                    This phase only saves configuration and tests the managed remote directory. It
+                    does not upload archive backups yet.
                   </p>
                 </div>
-                <div className="settings-inline-controls">
-                  <span className="ticket-status ticket-status-draft">Future</span>
+
+                <div className="settings-field-stack webdav-config-fields">
+                  <label className="settings-field">
+                    <span>WebDAV server URL</span>
+                    <input
+                      autoComplete="url"
+                      disabled={webDavBusy !== null}
+                      onChange={(event) => updateWebDavField("serverUrl", event.target.value)}
+                      placeholder="https://dav.example.com/"
+                      type="url"
+                      value={webDavConfig.serverUrl}
+                    />
+                  </label>
+
+                  <label className="settings-field">
+                    <span>Username</span>
+                    <input
+                      autoComplete="username"
+                      disabled={webDavBusy !== null}
+                      onChange={(event) => updateWebDavField("username", event.target.value)}
+                      placeholder="Your WebDAV account"
+                      value={webDavConfig.username}
+                    />
+                  </label>
+
+                  <label className="settings-field">
+                    <span>Password / application password</span>
+                    <div className="settings-secret-input-row">
+                      <input
+                        autoComplete="new-password"
+                        disabled={webDavBusy !== null}
+                        onChange={(event) => setWebDavPasswordDraft(event.target.value)}
+                        placeholder={
+                          webDavConfig.hasPassword
+                            ? "Password saved - type a new value to replace it"
+                            : "Stored securely on this Windows device"
+                        }
+                        type={showWebDavPassword ? "text" : "password"}
+                        value={webDavPasswordDraft}
+                      />
+                      <button
+                        className="ghost-button compact-button"
+                        disabled={!webDavPasswordDraft || webDavBusy !== null}
+                        onClick={() => setShowWebDavPassword((current) => !current)}
+                        type="button"
+                      >
+                        {showWebDavPassword ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                    {webDavConfig.hasPassword ? (
+                      <p className="settings-helper-copy">Password saved in Windows Credential Manager.</p>
+                    ) : null}
+                  </label>
+
+                  <label className="settings-field">
+                    <span>Remote folder</span>
+                    <input
+                      disabled={webDavBusy !== null}
+                      onChange={(event) => updateWebDavField("remoteFolder", event.target.value)}
+                      placeholder="TicketTrail"
+                      value={webDavConfig.remoteFolder}
+                    />
+                    <p className="settings-helper-copy">
+                      TicketTrail manages the <strong>backups</strong> child inside this folder.
+                    </p>
+                  </label>
+
+                  <div className="settings-inline-controls">
+                    <button
+                      className="primary-button"
+                      disabled={webDavBusy !== null}
+                      onClick={() => void handleSaveWebDavConfig()}
+                      type="button"
+                    >
+                      {webDavBusy === "save" ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      className="ghost-button"
+                      disabled={webDavBusy !== null}
+                      onClick={() => void handleTestWebDavConnection()}
+                      type="button"
+                    >
+                      {webDavBusy === "test" ? "Testing..." : "Test connection"}
+                    </button>
+                    {webDavConfig.hasPassword ? (
+                      <button
+                        className="ghost-button compact-button danger-button"
+                        disabled={webDavBusy !== null}
+                        onClick={() => void handleClearWebDavPassword()}
+                        type="button"
+                      >
+                        {webDavBusy === "clear" ? "Clearing..." : "Clear password"}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="webdav-connection-summary">
+                    <span
+                      className={`ticket-status ${
+                        webDavConfig.lastConnectionSucceeded === true
+                          ? "ticket-status-saved"
+                          : webDavConfig.lastConnectionSucceeded === false
+                            ? "ticket-status-warning"
+                            : "ticket-status-draft"
+                      }`}
+                    >
+                      {webDavConfig.lastConnectionSucceeded === true
+                        ? "Connected"
+                        : webDavConfig.lastConnectionSucceeded === false
+                          ? "Connection failed"
+                          : webDavConfig.configured
+                            ? "Saved - not yet tested"
+                            : "Not configured"}
+                    </span>
+                    {webDavConfig.capabilities ? (
+                      <span className="settings-helper-copy">
+                        {webDavConfig.capabilities.moveSupported
+                          ? "Managed directory writable; standard publish mode available."
+                          : "Managed directory writable; compatibility publish mode will be required."}
+                      </span>
+                    ) : null}
+                  </div>
+                  {webDavConfig.lastTestedAt ? (
+                    <p className="settings-helper-copy">
+                      Last tested: {formatSavedAt(webDavConfig.lastTestedAt)}
+                    </p>
+                  ) : null}
+                  {webDavStatus ? (
+                    <p
+                      className={`settings-status-message ${
+                        webDavConfig.lastConnectionSucceeded === false
+                          ? "settings-status-message-error"
+                          : ""
+                      }`}
+                      role={webDavConfig.lastConnectionSucceeded === false ? "alert" : "status"}
+                    >
+                      {webDavStatus}
+                    </p>
+                  ) : null}
+                  <p className="settings-helper-copy">
+                    Non-secret settings are stored in the TicketTrail app config folder. The password
+                    is never written to that JSON file or returned to this screen.
+                  </p>
                 </div>
               </div>
             </div>

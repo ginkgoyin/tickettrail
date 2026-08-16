@@ -10,8 +10,10 @@ use crate::{
         FlightLookupCandidatePayload, FlightLookupRequestPayload, JourneyMutationPayload,
         JourneyPayload, JourneyStopMutationPayload, JourneyStopPayload, LocationDirectoryPayload,
         StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
-        TicketDetailPayload, TicketDraftPayload, TicketRecordPayload,
+        TicketDetailPayload, TicketDraftPayload, TicketRecordPayload, WebDavConfigPayload,
+        WebDavConfigSavePayload, WebDavConnectionTestPayload,
     },
+    webdav,
 };
 use chrono::Utc;
 use std::fs;
@@ -290,6 +292,26 @@ pub fn save_flight_data_source_config(
     Ok(public_flight_data_source_config(
         &load_effective_flight_data_source_config(&app)?,
     ))
+}
+
+#[command]
+pub fn get_webdav_config(app: AppHandle) -> Result<WebDavConfigPayload, String> {
+    webdav::get_public_config(&app)
+}
+
+#[command]
+pub fn save_webdav_config(
+    app: AppHandle,
+    config: WebDavConfigSavePayload,
+) -> Result<WebDavConfigPayload, String> {
+    webdav::save_config(&app, config)
+}
+
+#[command]
+pub async fn test_webdav_connection(app: AppHandle) -> Result<WebDavConnectionTestPayload, String> {
+    tauri::async_runtime::spawn_blocking(move || webdav::test_connection(&app))
+        .await
+        .map_err(|_| "WebDAV connection test could not be completed.".to_string())?
 }
 
 #[command]
