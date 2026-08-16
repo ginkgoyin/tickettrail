@@ -36,6 +36,27 @@ export interface WebDavConnectionTestResult {
   cleanupWarning?: string;
 }
 
+export interface WebDavRemoteBackup {
+  id: string;
+  label: string;
+  createdAt: string;
+  purpose: "manual" | "automatic" | "preRestoreSafety";
+  appVersion?: string;
+  deviceName?: string;
+  platform?: string;
+  ticketCount: number;
+  journeyCount: number;
+  attachmentCount: number;
+  attachmentsIncluded: boolean;
+  archiveFormatVersion: number;
+  archiveSizeBytes: number;
+}
+
+export interface WebDavBackupNowResult {
+  backup: WebDavRemoteBackup;
+  cleanupWarning?: string;
+}
+
 const DEFAULT_CONFIG: WebDavConfig = {
   configured: false,
   serverUrl: "",
@@ -70,4 +91,18 @@ export async function testWebDavConnection(): Promise<WebDavConnectionTestResult
     throw new Error("WebDAV connection testing is available in the desktop app only.");
   }
   return invoke<WebDavConnectionTestResult>("test_webdav_connection");
+}
+
+export async function backupNowWebDav(): Promise<WebDavBackupNowResult> {
+  if (!supportsTauri()) {
+    throw new Error("Cloud backup is available in the desktop app only.");
+  }
+  return invoke<WebDavBackupNowResult>("backup_now_webdav");
+}
+
+export async function listWebDavBackups(): Promise<WebDavRemoteBackup[]> {
+  if (!supportsTauri()) {
+    return [];
+  }
+  return invoke<WebDavRemoteBackup[]>("list_webdav_backups");
 }

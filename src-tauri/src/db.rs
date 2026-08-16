@@ -296,6 +296,20 @@ struct LocalBackupEntry {
     manifest: BackupManifest,
 }
 
+/// A format-v1 archive held only for the duration of a backend operation.
+/// It deliberately lives outside the persistent local-backup history.
+pub(crate) struct TemporaryArchive {
+    pub archive_path: PathBuf,
+    pub record: BackupRecordPayload,
+    work_dir: PathBuf,
+}
+
+impl TemporaryArchive {
+    pub(crate) fn cleanup(self) {
+        let _ = fs::remove_dir_all(self.work_dir);
+    }
+}
+
 fn current_device_name() -> Option<String> {
     ["COMPUTERNAME", "HOSTNAME"].into_iter().find_map(|key| {
         std::env::var(key)
@@ -481,6 +495,78 @@ pub fn list_backups(app: &AppHandle) -> Result<Vec<BackupRecordPayload>, String>
 
 pub fn create_backup(app: &AppHandle) -> Result<BackupRecordPayload, String> {
     create_backup_with_label(app, None)
+}
+
+/// Creates the same format-v1 payload used by local backups, but never creates
+/// a directory in `backups/` and never participates in local retention.
+pub(crate) fn create_temporary_archive(
+    app: &AppHandle,
+    purpose: &str,
+) -> Result<TemporaryArchive, String> {
+    let work_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|err| err.to_string())?
+        .join("temporary-archives")
+        .join(format!("{}-{}", purpose, Uuid::new_v4()));
+    let payload_dir = work_dir.join("payload");
+    let result = (|| {
+        fs::create_dir_all(&payload_dir).map_err(|err| err.to_string())?;
+        let conn = open_connection(app)?;
+        let ticket_count = list_tickets(app)?.len();
+        let journey_count = count_journeys(&conn)?;
+        let attachment_count = count_attachments(&conn)?;
+        drop(conn);
+
+        let created_at = Utc::now().to_rfc3339();
+        let archive_id = format!("temporary-{}-{}", purpose, Uuid::new_v4().simple());
+        let db_destination = payload_dir.join("tickettrail.sqlite3");
+        fs::copy(database_path(app)?, &db_destination).map_err(|err| err.to_string())?;
+        let attachment_source = attachment_root_dir(app)?;
+        let attachments_included = attachment_count > 0;
+        if attachments_included {
+            if !attachment_source.exists() {
+                return Err("Backup could not include attachments because the local attachments folder is missing.".to_string());
+            }
+            copy_dir_recursive(&attachment_source, &payload_dir.join("attachments"))?;
+        }
+        let manifest = build_backup_manifest(
+            archive_id,
+            format!("Backup {}", Local::now().format("%Y-%m-%d %H:%M:%S")),
+            created_at,
+            ticket_count,
+            journey_count,
+            attachment_count,
+            fs::metadata(&db_destination)
+                .map_err(|err| err.to_string())?
+                .len(),
+            attachments_included,
+        );
+        fs::write(
+            payload_dir.join("backup.json"),
+            serde_json::to_string_pretty(&manifest).map_err(|err| err.to_string())?,
+        )
+        .map_err(|err| err.to_string())?;
+        validate_backup_payload(&payload_dir)?;
+        let archive_path = work_dir.join("tickettrail-temporary.zip");
+        compress_directory_to_zip(&payload_dir, &archive_path)?;
+        validate_temporary_archive(&archive_path, &work_dir.join("validation"))?;
+        Ok(TemporaryArchive {
+            archive_path,
+            record: backup_record_payload(&manifest),
+            work_dir: work_dir.clone(),
+        })
+    })();
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&work_dir);
+    }
+    result
+}
+
+fn validate_temporary_archive(archive_path: &Path, validation_root: &Path) -> Result<(), String> {
+    expand_zip_to_directory(archive_path, validation_root)?;
+    let payload_dir = locate_backup_dir(validation_root)?;
+    validate_backup_payload(&payload_dir).map(|_| ())
 }
 
 fn create_backup_with_label(

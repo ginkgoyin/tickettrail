@@ -454,6 +454,24 @@
     - Real user manual verification against Jianguoyun passed: the WebDAV connection and `Test connection` succeeded, configuration survived a TicketTrail restart, and the saved credential continued to work after restart.
     - Backup upload/history/retention/delete/download/restore and automatic backup remain unimplemented for later phases.
   - Priority: `High`
+- `WEBDAV-BACKUP-001B`
+  - Implement the first manual WebDAV archive backup: temporary format-v1 ZIP creation, sidecar-last publication, strict remote listing, and retention at 30 complete backups.
+  - Status: `Implemented / manually verified`
+  - Notes:
+    - Cloud backup uses no persistent local backup-history entry and does not alter local retention.
+    - The managed remote folder only exposes validated `tickettrail-v1-...zip` plus matching `.meta.json` pairs; `.part`, orphan, malformed, and unrelated objects are ignored.
+    - Real user manual verification passed: `Create backup` published a real WebDAV backup, `View backups` showed remote history, and the main count/latest values came from WebDAV.
+    - Remote restore, user-triggered remote delete, automatic backup, archive-format v2, integrity hashes, DB migration, and AeroDataBox changes remain out of scope.
+  - Priority: `High`
+- `WEBDAV-BACKUP-001B-UX`
+  - Consolidate `Settings > Data & Backup` around the single WebDAV backup repository without removing local archive-import safety internals.
+  - Status: `Implemented / manually verified`
+  - Notes:
+    - The primary `Backups` card creates and lists remote WebDAV backups only; its history modal is read-only until `WEBDAV-BACKUP-001C`.
+    - WebDAV configuration is hidden behind `WebDAV settings`; archive export/import remains an independent offline transfer flow.
+    - Existing local backup folders are neither deleted, migrated, nor uploaded.
+    - Manual UI verification passed: the primary workflow, settings modal, offline archive actions, and preserved local backup files were accepted.
+  - Priority: `High`
 - `SETTINGS-DATA-BACKUP-DESIGN-001`
   - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.
   - Status: `Documented / design only`

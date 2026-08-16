@@ -770,3 +770,22 @@ They are based on current repository docs/checklists and should be expanded from
 - Interview talking points:
   - Building a secure credential boundary before implementing cloud transport.
   - Probing generic WebDAV capabilities with reversible, precisely scoped remote operations.
+
+## 2026-08-16 - WEBDAV-BACKUP-001B
+
+- Area: Local-first cloud backup transport / archive lifecycle / remote retention
+- Status: Implemented and manually verified against Jianguoyun WebDAV
+- Problem / requirement:
+  - Publish a real manual WebDAV backup without turning user-owned WebDAV into the active SQLite database or adding sync semantics.
+- User decision / product constraint:
+  - Retain archive format v1, use final metadata sidecars as the visibility boundary, cap complete remote backups at 30, and leave restore plus automation for later tasks.
+- Final approach:
+  - Extracted a temporary archive boundary that reuses the existing manifest and payload validation but does not enter local history. The backend generates strict object names, uploads and verifies ZIP content, publishes sidecar last, lists only validated pairs, and deletes retention candidates sidecar-first.
+- Implementation summary:
+  - Added Tauri commands for manual backup and remote listing, a read-only Settings summary/history, bounded remote response parsing, a single cloud-operation lock, and cleanup-pending warnings without treating an already published backup as failed.
+- Tests / validation:
+  - Focused Rust tests cover filename/schema validation, secret exclusion, strict pair matching, 30/31 retention selection, and deterministic tie-breaking.
+  - Manual verification passed: Create backup published a real WebDAV backup, remote history and summary values were shown in the accepted UI, old local backup files remained untouched, WebDAV settings stayed behind the settings modal, and offline archive export/import remained available.
+  - `npm.cmd run build` completed with the final Vite `built` result; `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, the 12 focused WebDAV Rust tests, the 9 relevant frontend regression tests, and the full 75-test Rust suite passed.
+- Risks / follow-up:
+  - No remote restore, user-triggered delete, automatic scheduling, cryptographic integrity, or database migration was introduced. `WEBDAV-BACKUP-001C` remains the next management/restore task.

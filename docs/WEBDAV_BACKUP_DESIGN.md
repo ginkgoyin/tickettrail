@@ -2,7 +2,7 @@
 
 Task: `WEBDAV-BACKUP-DESIGN-001`
 
-Status: Design baseline. `WEBDAV-BACKUP-001A` now implements configuration, secure device-local password storage, and connection/capability testing; backup transport remains unimplemented.
+Status: Design baseline. `WEBDAV-BACKUP-001A` implements configuration, secure device-local password storage, and connection/capability testing. `WEBDAV-BACKUP-001B` implements manual archive publication, strict remote summary/listing, and remote retention; restore and automatic backup remain unimplemented.
 
 ## 1. Purpose
 
@@ -33,6 +33,10 @@ The existing manual `Export archive bundle` and `Import archive bundle` workflow
 - A remote restore may begin only after the selected archive validates locally and a pre-restore safety snapshot has been uploaded successfully to WebDAV.
 - Network failure must never roll back a successful local business change or corrupt live local data.
 - Manual archive export/import remains independent of WebDAV.
+
+### User-facing backup surface
+
+Once WebDAV is configured, `Settings > Data & Backup` presents one primary `Backups` module. Its create action publishes a WebDAV backup and its history reads validated remote metadata. The local SQLite database remains working data, while old local backup folders are legacy/internal protection rather than a second ongoing user-facing repository. WebDAV credentials and connection testing stay available through a secondary settings dialog. Offline archive export/import remains a separate transfer workflow.
 
 ## 3. Current-State Audit
 
@@ -565,6 +569,8 @@ Implemented and manually verified against Jianguoyun WebDAV:
 - no archive upload, sidecar, remote listing, retention, delete, download, restore, or automatic backup runtime is included.
 
 ### `WEBDAV-BACKUP-001B` - Archive engine extraction and manual remote backup
+
+Implemented and manually verified against Jianguoyun WebDAV, together with the `WEBDAV-BACKUP-001B-UX` Settings consolidation:
 
 - extract temporary archive creation from persistent local backup history;
 - add sidecar generation;

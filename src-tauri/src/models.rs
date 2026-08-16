@@ -442,6 +442,31 @@ pub struct WebDavConnectionTestPayload {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WebDavRemoteBackupPayload {
+    pub id: String,
+    pub label: String,
+    pub created_at: String,
+    pub purpose: String,
+    pub app_version: Option<String>,
+    pub device_name: Option<String>,
+    pub platform: Option<String>,
+    pub ticket_count: usize,
+    pub journey_count: usize,
+    pub attachment_count: usize,
+    pub attachments_included: bool,
+    pub archive_format_version: u32,
+    pub archive_size_bytes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavBackupNowPayload {
+    pub backup: WebDavRemoteBackupPayload,
+    pub cleanup_warning: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FlightLookupErrorPayload {
     pub code: String,
     pub message: String,

@@ -1022,16 +1022,9 @@ export default function App() {
               <SettingsPage
                 archiveTransferNotice={archiveTransferNotice}
                 backupPanelProps={{
-                  backups,
-                  readiness: backupReadiness,
                   isBusy: backupBusy,
-                  onCreateBackup: handleCreateBackup,
                   onExportArchiveBundle: handleExportArchiveBundle,
                   onImportArchiveBundle: handleImportArchiveBundle,
-                  onExportBackup: handleExportBackup,
-                  onRestoreBackup: handleRestoreBackup,
-                  onDeleteBackup: handleDeleteBackup,
-                  statusMessage: backupNotice || backupStatusMessage,
                 }}
                 initialSubview={activeSection === "exports" ? "export" : "appearance"}
                 onDismissArchiveTransferNotice={() => setArchiveTransferNotice(null)}

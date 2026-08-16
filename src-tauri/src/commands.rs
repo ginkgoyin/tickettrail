@@ -10,8 +10,9 @@ use crate::{
         FlightLookupCandidatePayload, FlightLookupRequestPayload, JourneyMutationPayload,
         JourneyPayload, JourneyStopMutationPayload, JourneyStopPayload, LocationDirectoryPayload,
         StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
-        TicketDetailPayload, TicketDraftPayload, TicketRecordPayload, WebDavConfigPayload,
-        WebDavConfigSavePayload, WebDavConnectionTestPayload,
+        TicketDetailPayload, TicketDraftPayload, TicketRecordPayload, WebDavBackupNowPayload,
+        WebDavConfigPayload, WebDavConfigSavePayload, WebDavConnectionTestPayload,
+        WebDavRemoteBackupPayload,
     },
     webdav,
 };
@@ -312,6 +313,20 @@ pub async fn test_webdav_connection(app: AppHandle) -> Result<WebDavConnectionTe
     tauri::async_runtime::spawn_blocking(move || webdav::test_connection(&app))
         .await
         .map_err(|_| "WebDAV connection test could not be completed.".to_string())?
+}
+
+#[command]
+pub async fn backup_now_webdav(app: AppHandle) -> Result<WebDavBackupNowPayload, String> {
+    tauri::async_runtime::spawn_blocking(move || webdav::backup_now(&app))
+        .await
+        .map_err(|_| "WebDAV backup could not be completed.".to_string())?
+}
+
+#[command]
+pub async fn list_webdav_backups(app: AppHandle) -> Result<Vec<WebDavRemoteBackupPayload>, String> {
+    tauri::async_runtime::spawn_blocking(move || webdav::list_remote_backups(&app))
+        .await
+        .map_err(|_| "WebDAV backup history could not be loaded.".to_string())?
 }
 
 #[command]

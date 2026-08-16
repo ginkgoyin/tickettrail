@@ -478,22 +478,23 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest implementation checkpoint: `WEBDAV-BACKUP-001A` (implemented and manually verified against Jianguoyun WebDAV).
+Latest implementation checkpoint: `WEBDAV-BACKUP-001B-UX` (implemented and manually verified).
 
-Recommended next task: `WEBDAV-BACKUP-001B`.
+Recommended next task: `WEBDAV-BACKUP-001C`.
 
 Recommended next task scope:
 
-- extract temporary archive creation from persistent local backup history without changing archive format `1`
-- implement manual `Backup now`, remote ZIP plus sidecar publication, remote listing, and retention at 30
-- preserve offline archive export/import and current local backup behavior during the transition
-- do not implement remote restore/delete/history management UI until `WEBDAV-BACKUP-001C`
+- implement remote archive download and validation;
+- add user-triggered remote Delete with strict ID validation;
+- upload and verify a pre-restore safety snapshot before any destructive restore;
+- implement manual destructive restore with protected IDs and cleanup reporting;
+- preserve offline archive export/import and current local backup behavior during the transition.
 - do not implement automatic backup runtime until `WEBDAV-AUTO-BACKUP-001`
 
 The recommended next implementation order is now:
 
 1. `WEBDAV-BACKUP-001A`: configuration, device-local secret storage, and connection/capability test
-2. `WEBDAV-BACKUP-001B`: temporary archive engine extraction, manual upload, sidecar listing, and remote retention at 30
+2. `WEBDAV-BACKUP-001B`: implemented and manually verified. Temporary archive engine extraction, manual upload, sidecar listing, and remote retention at 30
 3. `WEBDAV-BACKUP-001C`: remote history/delete/download and restore guarded by a successfully uploaded safety snapshot
 4. `WEBDAV-AUTO-BACKUP-001`: dirty revision tracking, Off / every-change / 1 / 3 / 7 day schedules, one backup event per meaningful change, single-flight queuing, and retry UX
 5. keep `ARCHIVE-BUNDLE-TEST-001`, `ARCHIVE-BUNDLE-INTEGRITY-001`, and `SETTINGS-EXPORT-FOLDER-001` as separate follow-up work
@@ -549,6 +550,8 @@ The recommended next implementation order is now:
 - `ARCHIVE-BUNDLE-MANIFEST-001` adds format version `1`, app/source/count metadata, legacy format `0` compatibility, and pre-restore rejection of unsupported future versions; schema version and integrity checks remain future work.
 - `WEBDAV-BACKUP-DESIGN-001` now defines the generic WebDAV transport boundary, deterministic remote archive/sidecar layout, remote retention at 30, Rust-side credential strategy, restore safety-upload gate, and automatic-backup dirty-state semantics. It adds no runtime WebDAV behavior.
 - `WEBDAV-BACKUP-001A` now implements and manually verifies the configuration/connection foundation against Jianguoyun, with app-config non-secret state, Windows Credential Manager password storage, backend-only URL/path construction, managed directory creation, generic WebDAV probing, and sanitized capability/error status. It does not upload or restore backups.
+- `WEBDAV-BACKUP-001B` now adds and manually verifies manual cloud backup publication using an app-private format-v1 ZIP, final-sidecar visibility, strict remote sidecar listing, and backend-only retention at 30 complete pairs. It retains old local backups and offline archive export/import unchanged.
+- `WEBDAV-BACKUP-001B-UX` now consolidates and manually verifies Settings around one WebDAV-backed `Backups` workflow: create/history/summary read actual remote backups, while WebDAV credentials move into a secondary modal and local backup folders remain unmodified legacy/internal protection. The full frontend build is confirmed.
 
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.

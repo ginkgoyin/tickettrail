@@ -428,3 +428,9 @@ The accepted transport design adds a matching per-backup `.meta.json` sidecar so
 WebDAV restore adds a stricter safety boundary than offline archive import. It must validate the selected archive, create a temporary snapshot of current local state, upload and verify that safety snapshot in WebDAV, and only then permit destructive local restore. If the safety upload fails, the live database and attachments remain untouched.
 
 Integrity checks remain a later `ARCHIVE-BUNDLE-INTEGRITY-001` task. WebDAV credentials, provider/API keys, and other device-local secrets remain excluded from archives and remote metadata.
+
+## Update After `WEBDAV-BACKUP-001B`
+
+The first WebDAV transport implementation uses the existing format-v1 archive payload without changing it. Cloud backup creates the same database, attachments (when present), and `backup.json` payload in app-private temporary storage, validates it before upload, then removes temporary files best-effort. It does not create a persistent local backup-history entry or invoke local retention.
+
+The matching remote `.meta.json` is transport metadata only. It contains no password, authorization data, AeroDataBox key, or other device-local secret. The final sidecar is published last, so history lists only a validated ZIP/sidecar pair; cryptographic integrity remains out of scope for `ARCHIVE-BUNDLE-INTEGRITY-001`.

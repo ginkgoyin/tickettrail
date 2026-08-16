@@ -5,13 +5,13 @@ mod models;
 mod webdav;
 
 use commands::{
-    add_ticket_attachment, create_backup, create_journey, create_stub_preview, create_ticket,
-    delete_backup, delete_journey, delete_ticket, delete_ticket_attachment, export_archive_bundle,
-    export_backup, get_backup_readiness, get_bootstrap_summary, get_export_folder_info,
-    get_flight_data_source_config, get_journey, get_local_data_folder_info, get_ticket_detail,
-    get_webdav_config, import_archive_bundle, list_backups, list_journey_stops, list_journeys,
-    list_tickets, lookup_flight_candidates, open_export_folder, open_local_data_folder,
-    pick_archive_bundle_file, replace_journey_stops, restore_backup,
+    add_ticket_attachment, backup_now_webdav, create_backup, create_journey, create_stub_preview,
+    create_ticket, delete_backup, delete_journey, delete_ticket, delete_ticket_attachment,
+    export_archive_bundle, export_backup, get_backup_readiness, get_bootstrap_summary,
+    get_export_folder_info, get_flight_data_source_config, get_journey, get_local_data_folder_info,
+    get_ticket_detail, get_webdav_config, import_archive_bundle, list_backups, list_journey_stops,
+    list_journeys, list_tickets, list_webdav_backups, lookup_flight_candidates, open_export_folder,
+    open_local_data_folder, pick_archive_bundle_file, replace_journey_stops, restore_backup,
     save_flight_data_source_config, save_webdav_config, search_airlines, search_locations,
     test_webdav_connection, update_journey, update_ticket, update_ticket_status,
 };
@@ -48,6 +48,8 @@ pub fn run() {
             get_webdav_config,
             save_webdav_config,
             test_webdav_connection,
+            backup_now_webdav,
+            list_webdav_backups,
             lookup_flight_candidates,
             list_backups,
             create_backup,

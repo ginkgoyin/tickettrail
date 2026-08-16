@@ -1,4 +1,5 @@
-import { useEffect, useState, type ComponentProps } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useState } from "react";
 import { AppIcon } from "../components/AppIcon";
 import { BackupPanel } from "../components/BackupPanel";
 import {
@@ -18,14 +19,22 @@ import {
 } from "../lib/flightLookup";
 import { useI18n, type Language } from "../lib/i18n";
 import {
+  backupNowWebDav,
   getWebDavConfig,
+  listWebDavBackups,
   saveWebDavConfig,
   testWebDavConnection,
   type WebDavConfig,
+  type WebDavRemoteBackup,
 } from "../lib/webdav";
 
-type BackupPanelProps = ComponentProps<typeof BackupPanel>;
 type SettingsSubview = "appearance" | "export" | "about";
+
+interface ArchiveTransferProps {
+  isBusy: boolean;
+  onExportArchiveBundle: () => void;
+  onImportArchiveBundle: (bundlePath: string) => void;
+}
 
 interface SettingsPageProps {
   archiveTransferNotice: {
@@ -33,7 +42,7 @@ interface SettingsPageProps {
     title: string;
     message: string;
   } | null;
-  backupPanelProps: BackupPanelProps;
+  backupPanelProps: ArchiveTransferProps;
   initialSubview?: SettingsSubview;
   onDismissArchiveTransferNotice: () => void;
 }
@@ -95,8 +104,12 @@ export function SettingsPage({
   });
   const [webDavPasswordDraft, setWebDavPasswordDraft] = useState("");
   const [showWebDavPassword, setShowWebDavPassword] = useState(false);
-  const [webDavBusy, setWebDavBusy] = useState<"save" | "test" | "clear" | null>(null);
+  const [webDavBusy, setWebDavBusy] = useState<"save" | "test" | "clear" | "backup" | null>(null);
   const [webDavStatus, setWebDavStatus] = useState("");
+  const [remoteBackups, setRemoteBackups] = useState<WebDavRemoteBackup[]>([]);
+  const [remoteHistoryStatus, setRemoteHistoryStatus] = useState("");
+  const [remoteHistoryLoading, setRemoteHistoryLoading] = useState(false);
+  const [isWebDavSettingsOpen, setIsWebDavSettingsOpen] = useState(false);
   const settingsTabs: Array<{ value: SettingsSubview; label: string }> = [
     { value: "appearance", label: t("appearance") },
     { value: "export", label: t("dataAndBackup") },
@@ -139,6 +152,35 @@ export function SettingsPage({
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!webDavConfig.configured || webDavConfig.lastConnectionSucceeded !== true) {
+      setRemoteBackups([]);
+      setRemoteHistoryLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+    setRemoteHistoryLoading(true);
+    void listWebDavBackups()
+      .then((backups) => {
+        if (isMounted) {
+          setRemoteBackups(backups);
+          setRemoteHistoryStatus("");
+          setRemoteHistoryLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setRemoteHistoryStatus(readableError(error, "Cloud backup history could not be loaded."));
+          setRemoteHistoryLoading(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [webDavConfig.configured, webDavConfig.lastConnectionSucceeded]);
 
   useEffect(() => {
     let isMounted = true;
@@ -368,6 +410,26 @@ export function SettingsPage({
     }
   };
 
+  const handleBackupNowWebDav = async () => {
+    setWebDavBusy("backup");
+    setWebDavStatus("");
+    setRemoteHistoryStatus("");
+    try {
+      const result = await backupNowWebDav();
+      const backups = await listWebDavBackups();
+      setRemoteBackups(backups);
+      setWebDavStatus(
+        result.cleanupWarning
+          ? result.cleanupWarning
+          : `Cloud backup completed: ${result.backup.label}`,
+      );
+    } catch (error) {
+      setWebDavStatus(readableError(error, "Cloud backup failed. Your local tickets remain unchanged."));
+    } finally {
+      setWebDavBusy(null);
+    }
+  };
+
   const exportFolderLabel =
     exportFolderInfo?.resolutionKind === "downloads"
       ? t("defaultSystemDownloadsFolder")
@@ -574,7 +636,20 @@ export function SettingsPage({
             </div>
           </div>
 
-          <BackupPanel {...backupPanelProps} />
+          <BackupPanel
+            backups={remoteBackups}
+            connectionSucceeded={webDavConfig.lastConnectionSucceeded}
+            isBusy={webDavBusy === "backup"}
+            isConfigured={webDavConfig.configured}
+            lastTestedAt={webDavConfig.lastTestedAt}
+            onCreateBackup={() => void handleBackupNowWebDav()}
+            onOpenWebDavSettings={() => setIsWebDavSettingsOpen(true)}
+            statusMessage={
+              remoteHistoryLoading
+                ? "Loading WebDAV backup history..."
+                : remoteHistoryStatus || webDavStatus
+            }
+          />
         </div>
 
         <div className="panel-stack">
@@ -607,18 +682,18 @@ export function SettingsPage({
             {exportFolderStatus ? <p className="settings-status-message">{exportFolderStatus}</p> : null}
           </div>
 
-          <div className="panel settings-section-card">
+          {false ? (<div className="panel settings-section-card">
             <h3>Cloud backup - WebDAV</h3>
             <div className="settings-option-list">
               <div className="settings-option-card settings-option-card-block">
                 <div>
                   <p className="hero-copy">
                     Connect your own WebDAV storage. TicketTrail data stays local; this connection
-                    will be used for backup and restore, not real-time sync.
+                    is used for long-term backups, not real-time sync.
                   </p>
                   <p className="settings-helper-copy">
-                    This phase only saves configuration and tests the managed remote directory. It
-                    does not upload archive backups yet.
+                    Cloud backups publish a complete archive bundle to the managed remote folder.
+                    Restore remains unavailable in this phase.
                   </p>
                 </div>
 
@@ -717,6 +792,65 @@ export function SettingsPage({
                     ) : null}
                   </div>
 
+                  <div className="settings-option-card settings-option-card-block">
+                    <div>
+                      <strong>Cloud backup history</strong>
+                      <p className="hero-copy">
+                        Completed WebDAV backups are listed from your managed remote folder. They do
+                        not change the active local database.
+                      </p>
+                    </div>
+                    <div className="settings-inline-controls">
+                      <button
+                        className="primary-button"
+                        disabled={
+                          webDavBusy !== null ||
+                          !webDavConfig.configured ||
+                          webDavConfig.lastConnectionSucceeded !== true
+                        }
+                        onClick={() => void handleBackupNowWebDav()}
+                        type="button"
+                      >
+                        {webDavBusy === "backup" ? "Backing up..." : "Backup now"}
+                      </button>
+                      <span className="ticket-status ticket-status-draft">
+                        {remoteHistoryLoading
+                          ? "Loading cloud backups..."
+                          : remoteBackups.length === 0
+                          ? "No cloud backups yet"
+                          : `${remoteBackups.length} cloud backup${remoteBackups.length === 1 ? "" : "s"}`}
+                      </span>
+                    </div>
+                    {remoteBackups[0] ? (
+                      <p className="settings-helper-copy">
+                        Last WebDAV backup: {formatSavedAt(remoteBackups[0].createdAt)}
+                      </p>
+                    ) : null}
+                    {remoteBackups.length > 0 ? (
+                      <div className="backup-list">
+                        {remoteBackups.slice(0, 5).map((backup) => (
+                          <div className="backup-card" key={backup.id}>
+                            <div className="backup-card-main">
+                              <strong>{backup.label}</strong>
+                              <span>{formatSavedAt(backup.createdAt)}</span>
+                            </div>
+                            <div className="backup-card-meta">
+                              <span>{`${backup.ticketCount} ticket(s)`}</span>
+                              <span>{`${backup.journeyCount} journey(s)`}</span>
+                              <span>{`${backup.attachmentCount} attached file(s)`}</span>
+                              <span>{`${Math.max(0, Math.round(backup.archiveSizeBytes / 1024))} KB archive`}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {remoteHistoryStatus ? (
+                      <p className="settings-status-message settings-status-message-error" role="alert">
+                        {remoteHistoryStatus}
+                      </p>
+                    ) : null}
+                  </div>
+
                   <div className="webdav-connection-summary">
                     <span
                       className={`ticket-status ${
@@ -737,7 +871,7 @@ export function SettingsPage({
                     </span>
                     {webDavConfig.capabilities ? (
                       <span className="settings-helper-copy">
-                        {webDavConfig.capabilities.moveSupported
+                        {webDavConfig.capabilities?.moveSupported
                           ? "Managed directory writable; standard publish mode available."
                           : "Managed directory writable; compatibility publish mode will be required."}
                       </span>
@@ -745,7 +879,7 @@ export function SettingsPage({
                   </div>
                   {webDavConfig.lastTestedAt ? (
                     <p className="settings-helper-copy">
-                      Last tested: {formatSavedAt(webDavConfig.lastTestedAt)}
+                      Last tested: {formatSavedAt(webDavConfig.lastTestedAt ?? "")}
                     </p>
                   ) : null}
                   {webDavStatus ? (
@@ -767,11 +901,69 @@ export function SettingsPage({
                 </div>
               </div>
             </div>
-          </div>
+          </div>) : null}
         </div>
       </div>
     </section>
   );
+
+  const webDavSettingsModal = isWebDavSettingsOpen
+    ? createPortal(
+        <div className="modal-backdrop" role="presentation">
+          <div aria-labelledby="webdav-settings-dialog-title" aria-modal="true" className="modal-shell tickets-modal backup-history-modal" role="dialog">
+            <div className="tickets-modal-header">
+              <div>
+                <h3 id="webdav-settings-dialog-title">WebDAV settings</h3>
+                <p className="hero-copy">Connect your own storage for TicketTrail backups. Working data remains on this computer.</p>
+              </div>
+              <button aria-label="Close WebDAV settings" className="modal-close-button" disabled={webDavBusy !== null} onClick={() => setIsWebDavSettingsOpen(false)} type="button">
+                <AppIcon className="modal-close-icon" name="close" size={20} />
+              </button>
+            </div>
+            <div className="tickets-modal-body">
+              <div className="settings-field-stack webdav-config-fields">
+                <label className="settings-field">
+                  <span>WebDAV server URL</span>
+                  <input autoComplete="url" disabled={webDavBusy !== null} onChange={(event) => updateWebDavField("serverUrl", event.target.value)} placeholder="https://dav.example.com/" type="url" value={webDavConfig.serverUrl} />
+                </label>
+                <label className="settings-field">
+                  <span>Username</span>
+                  <input autoComplete="username" disabled={webDavBusy !== null} onChange={(event) => updateWebDavField("username", event.target.value)} placeholder="Your WebDAV account" value={webDavConfig.username} />
+                </label>
+                <label className="settings-field">
+                  <span>Password / application password</span>
+                  <div className="settings-secret-input-row">
+                    <input autoComplete="new-password" disabled={webDavBusy !== null} onChange={(event) => setWebDavPasswordDraft(event.target.value)} placeholder={webDavConfig.hasPassword ? "Password saved - type a new value to replace it" : "Stored securely on this Windows device"} type={showWebDavPassword ? "text" : "password"} value={webDavPasswordDraft} />
+                    <button className="ghost-button compact-button" disabled={!webDavPasswordDraft || webDavBusy !== null} onClick={() => setShowWebDavPassword((current) => !current)} type="button">{showWebDavPassword ? "Hide" : "Show"}</button>
+                  </div>
+                  {webDavConfig.hasPassword ? <p className="settings-helper-copy">Password saved in Windows Credential Manager.</p> : null}
+                </label>
+                <label className="settings-field">
+                  <span>Remote folder</span>
+                  <input disabled={webDavBusy !== null} onChange={(event) => updateWebDavField("remoteFolder", event.target.value)} placeholder="TicketTrail" value={webDavConfig.remoteFolder} />
+                  <p className="settings-helper-copy">TicketTrail manages the <strong>backups</strong> child inside this folder.</p>
+                </label>
+                <div className="settings-inline-controls">
+                  <button className="primary-button" disabled={webDavBusy !== null} onClick={() => void handleSaveWebDavConfig()} type="button">{webDavBusy === "save" ? "Saving..." : "Save"}</button>
+                  <button className="ghost-button" disabled={webDavBusy !== null} onClick={() => void handleTestWebDavConnection()} type="button">{webDavBusy === "test" ? "Testing..." : "Test connection"}</button>
+                  {webDavConfig.hasPassword ? <button className="ghost-button compact-button danger-button" disabled={webDavBusy !== null} onClick={() => void handleClearWebDavPassword()} type="button">{webDavBusy === "clear" ? "Clearing..." : "Clear password"}</button> : null}
+                </div>
+                <div className="webdav-connection-summary">
+                  <span className={`ticket-status ${webDavConfig.lastConnectionSucceeded === true ? "ticket-status-saved" : webDavConfig.lastConnectionSucceeded === false ? "ticket-status-warning" : "ticket-status-draft"}`}>
+                    {webDavConfig.lastConnectionSucceeded === true ? "Connected" : webDavConfig.lastConnectionSucceeded === false ? "Connection failed" : webDavConfig.configured ? "Saved - not yet tested" : "Not configured"}
+                  </span>
+                  {webDavConfig.capabilities ? <span className="settings-helper-copy">{webDavConfig.capabilities.moveSupported ? "Managed directory writable; standard publish mode available." : "Managed directory writable; compatibility publish mode will be required."}</span> : null}
+                </div>
+                {webDavConfig.lastTestedAt ? <p className="settings-helper-copy">Last tested: {formatSavedAt(webDavConfig.lastTestedAt)}</p> : null}
+                {webDavStatus ? <p className={`settings-status-message ${webDavConfig.lastConnectionSucceeded === false ? "settings-status-message-error" : ""}`} role={webDavConfig.lastConnectionSucceeded === false ? "alert" : "status"}>{webDavStatus}</p> : null}
+                <p className="settings-helper-copy">Non-secret settings are stored in the TicketTrail app config folder. The password is never written to that JSON file or returned to this screen.</p>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
 
   const archiveTransferToast = archiveTransferNotice ? (
     <div
@@ -948,6 +1140,7 @@ export function SettingsPage({
   return (
     <>
       {archiveTransferToast}
+      {webDavSettingsModal}
     <section className="section-stack settings-page">
       <div className="journeys-subview-bar">
         <div className="tickets-tab-group" aria-label="Settings subviews" role="tablist">
