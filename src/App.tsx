@@ -698,7 +698,7 @@ export default function App() {
   const handleRestoreBackup = async (backupId: string) => {
     const targetBackup = backups.find((backup) => backup.id === backupId);
     const confirmMessage = targetBackup
-      ? `Restore backup "${targetBackup.label}"?\nIt contains ${targetBackup.ticketCount} ticket(s) and ${targetBackup.attachmentCount} attachment(s).\nThis will overwrite the current database and attachments.`
+      ? `Restore backup "${targetBackup.label}"?\nIt contains ${targetBackup.ticketCount} ticket(s) and ${targetBackup.attachmentCount} attached file(s).\nThis will overwrite the current database and attachments.`
       : "Restore this backup? This will overwrite the current database and attachments.";
 
     if (!window.confirm(confirmMessage)) {
@@ -850,7 +850,12 @@ export default function App() {
       setArchiveTransferNotice({
         kind: "error",
         title: "Archive import failed",
-        message: error instanceof Error ? error.message : "Failed to import archive bundle.",
+        message:
+          error instanceof Error
+            ? error.message
+            : typeof error === "string"
+              ? error
+              : "Failed to import archive bundle.",
       });
     } finally {
       setBackupBusy(false);

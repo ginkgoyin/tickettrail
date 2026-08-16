@@ -19,9 +19,24 @@ interface BackupPanelProps {
 const BACKUPS_PAGE_SIZE = 10;
 
 function formatDateTime(value: string) {
-  return value.replace("T", " ").slice(0, 19);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace("T", " ").slice(0, 19);
+  }
+
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
 }
 
+function formatBackupLabel(backup: BackupRecord) {
+  if (/^Backup \d{4}-\d{2}-\d{2} /.test(backup.label)) {
+    return `Backup ${formatDateTime(backup.createdAt)}`;
+  }
+  if (/^Before archive import \d{4}-\d{2}-\d{2} /.test(backup.label)) {
+    return `Before archive import ${formatDateTime(backup.createdAt)}`;
+  }
+  return backup.label;
+}
 function formatSize(bytes: number) {
   if (bytes >= 1024 * 1024) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -30,6 +45,10 @@ function formatSize(bytes: number) {
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
   return `${bytes} B`;
+}
+
+function formatBackupEnvironment(backup: BackupRecord) {
+  return [backup.deviceName, backup.platform].filter(Boolean).join(" - ");
 }
 
 export function BackupPanel({
@@ -93,13 +112,27 @@ export function BackupPanel({
               {visibleBackups.map((backup) => (
                 <div className="backup-card" key={backup.id}>
                   <div className="backup-card-main">
-                    <strong>{backup.label}</strong>
+                    <strong>{formatBackupLabel(backup)}</strong>
                     <span>{formatDateTime(backup.createdAt)}</span>
                   </div>
                   <div className="backup-card-meta">
                     <span>{`${backup.ticketCount} ticket(s)`}</span>
-                    <span>{`${backup.attachmentCount} attachment(s)`}</span>
+                    {backup.journeyCount !== undefined ? <span>{`${backup.journeyCount} journey(s)`}</span> : null}
+                    <span>
+                      {`${backup.attachmentCount} attached file(s)${
+                        backup.attachmentCount === 0 || backup.attachmentsIncluded === undefined
+                          ? ""
+                          : backup.attachmentsIncluded
+                            ? " included"
+                            : " not included"
+                      }`}
+                    </span>
                     <span>{formatSize(backup.databaseSizeBytes)}</span>
+                  </div>
+                  <div className="backup-card-meta backup-card-source-meta">
+                    <span>{backup.archiveFormatVersion ? `Format v${backup.archiveFormatVersion}` : "Legacy backup"}</span>
+                    {backup.appVersion ? <span>{`TicketTrail ${backup.appVersion}`}</span> : null}
+                    {formatBackupEnvironment(backup) ? <span>{formatBackupEnvironment(backup)}</span> : null}
                   </div>
                   <div className="backup-card-actions backup-card-actions-end">
                     <button
@@ -116,10 +149,10 @@ export function BackupPanel({
                       onClick={() => onRestoreBackup(backup.id)}
                       type="button"
                     >
-                      Restore this backup
+                      Restore backup
                     </button>
                     <button
-                      aria-label={`Delete backup ${backup.label}`}
+                      aria-label={`Delete backup ${formatBackupLabel(backup)}`}
                       className="ghost-icon-button"
                       disabled={isBusy}
                       onClick={() => setPendingDeleteBackup(backup)}
@@ -180,12 +213,12 @@ export function BackupPanel({
 
             <div className="tickets-modal-body backup-delete-body">
               <div className="backup-delete-summary">
-                <strong>{pendingDeleteBackup.label}</strong>
+                <strong>{formatBackupLabel(pendingDeleteBackup)}</strong>
                 <span>{formatDateTime(pendingDeleteBackup.createdAt)}</span>
               </div>
               <div className="backup-card-meta backup-delete-meta">
                 <span>{`${pendingDeleteBackup.ticketCount} ticket(s)`}</span>
-                <span>{`${pendingDeleteBackup.attachmentCount} attachment(s)`}</span>
+                <span>{`${pendingDeleteBackup.attachmentCount} attached file(s)`}</span>
                 <span>{formatSize(pendingDeleteBackup.databaseSizeBytes)}</span>
               </div>
               <div className="backup-history-pagination backup-delete-actions">
@@ -228,7 +261,7 @@ export function BackupPanel({
           <div className="backup-highlight">
             <strong>Backup readiness</strong>
             <span>{readiness.databaseExists ? "Database file available" : "Database file missing"}</span>
-            <small>{`${readiness.ticketCount} ticket(s) - ${readiness.attachmentCount} attachment(s)`}</small>
+            <small>{`${readiness.ticketCount} ticket(s) - ${readiness.attachmentCount} attached file(s)`}</small>
           </div>
         ) : null}
 
@@ -242,7 +275,7 @@ export function BackupPanel({
           <strong>Latest backup</strong>
           {latestBackup ? (
             <>
-              <span>{latestBackup.label}</span>
+              <span>{formatBackupLabel(latestBackup)}</span>
               <small>{`${formatDateTime(latestBackup.createdAt)} - ${formatSize(latestBackup.databaseSizeBytes)}`}</small>
             </>
           ) : (

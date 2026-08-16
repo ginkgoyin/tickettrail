@@ -382,3 +382,39 @@ Treat the current archive bundle as:
 
 - acceptable for cautious manual migration testing
 - not yet polished enough to be the final WebDAV backup contract without manifest and import-safety improvements
+## Update After `ARCHIVE-BUNDLE-MANIFEST-001`
+
+New local backups and archive bundles now use manifest format version `1` with one backend constant as the source of truth.
+The enriched `backup.json` records:
+
+- `archiveFormatVersion`
+- `appVersion`
+- `createdAt`
+- `ticketCount`
+- `journeyCount`
+- `attachmentCount`
+- `databaseSizeBytes`
+- `attachmentsIncluded`
+- optional `deviceName`
+- `platform`
+
+Compatibility policy:
+
+- a missing `archiveFormatVersion` is treated as legacy format `0`
+- legacy backups remain listable, exportable, restorable, and importable through the existing compatibility path
+- format version `1` is accepted
+- future unsupported format versions are rejected during payload validation, before archive import creates a safety backup or replaces local data
+- app-version differences are recorded but are not a blocking compatibility check
+- `createdAt` remains an ISO UTC timestamp in the manifest, while backup labels and UI timestamps are displayed in the computer's local time
+- `attachmentsIncluded` is false when a new backup has zero attached files; early v1 archives that recorded zero attachments with `attachmentsIncluded: true` remain accepted because Windows zip creation can omit empty directories
+
+The repository has no reliable database schema-version source such as `PRAGMA user_version`, a migration version table, or a single numbered migration baseline. `schemaVersion` is therefore intentionally omitted rather than invented. A future schema-version policy must first establish a real source of truth.
+
+Still out of scope:
+
+- checksums, signatures, encryption, or archive passwords
+- rollback after a restore has started
+- cross-version database migration policy
+- WebDAV and account sync
+
+Follow-up: `ARCHIVE-BUNDLE-INTEGRITY-001` should add integrity verification only after the versioned manifest contract has been exercised by migration tests.

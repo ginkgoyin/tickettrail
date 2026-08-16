@@ -166,9 +166,15 @@ export interface BackupRecord {
   id: string;
   label: string;
   createdAt: string;
+  archiveFormatVersion?: number;
+  appVersion?: string;
   ticketCount: number;
+  journeyCount?: number;
   attachmentCount: number;
   databaseSizeBytes: number;
+  attachmentsIncluded?: boolean;
+  deviceName?: string;
+  platform?: string;
 }
 
 export interface BackupReadiness {

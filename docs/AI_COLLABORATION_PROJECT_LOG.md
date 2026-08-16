@@ -691,3 +691,31 @@ They are based on current repository docs/checklists and should be expanded from
 - Interview talking points:
   - Hardening a risky overwrite workflow incrementally instead of trying to solve full sync and rollback at once.
   - Reusing an existing backup primitive as a safety rail before destructive restore.
+## 2026-08-06 - ARCHIVE-BUNDLE-MANIFEST-001
+
+- Area: Archive format contract / backup compatibility / destructive-import safety
+- Status: Implemented and manually verified
+- Problem / requirement:
+  - Backup bundles had structural validation but no explicit format or application/source metadata.
+  - Adding metadata could not invalidate backups already created by earlier TicketTrail versions.
+- User decision / product constraint:
+  - Introduce a versioned manifest without changing the archive payload contents or database schema.
+  - Preserve legacy backup restore/import behavior and reject unsupported future formats before local overwrite.
+- Final approach:
+  - Added one backend archive-format constant with supported version `1`; a missing version is treated as legacy format `0`.
+  - Recorded app version, persisted ticket/journey/attachment counts, attachment inclusion, platform, and optional device name.
+  - Kept app-version differences non-blocking and omitted `schemaVersion` because the repository has no reliable schema-version source of truth.
+- Implementation summary:
+  - Extended Rust manifest/payload models and compact backup-history metadata rendering.
+  - Added shared manifest validation used before restore and archive import.
+  - Added focused tests for v1 serialization, legacy compatibility, malformed metadata, future-version rejection, app-version differences, and secret exclusion.
+- Manual verification:
+  - The user confirmed new format-v1 backups display local timestamps and compact source/count metadata correctly.
+  - A newly exported archive bundle imported successfully and created the expected `Before archive import ...` safety backup.
+  - Manual testing exposed and then verified fixes for UTC timestamps being shown as local time and Windows zip creation omitting an empty `attachments/` directory.
+- Risks / tradeoffs:
+  - Checksums, signatures, encryption, rollback, and cross-version database migration policy remain out of scope.
+  - WebDAV and account sync remain unimplemented.
+- Interview talking points:
+  - Evolving a destructive local-backup workflow with a versioned compatibility contract instead of breaking existing user backups.
+  - Refusing to invent schema metadata when the codebase has no trustworthy source of truth.

@@ -419,6 +419,18 @@
     - Deletion targets only the selected local backup folder by backup id; it does not delete live data or exported archive bundle zip files.
     - Automatic retention now prunes the oldest local backups beyond 30 after a new backup is created, while preserving the newly created backup from the same operation.
   - Priority: `High`
+- `ARCHIVE-BUNDLE-MANIFEST-001`
+  - Add explicit archive-format and source metadata while preserving existing local backups.
+  - Status: `Implemented / manually verified`
+  - Notes:
+    - New backups use archive format version `1` and record app version, ticket/journey/attachment counts, payload size, attachment inclusion, platform, and optional device name.
+    - Missing format version is treated as legacy format `0`; existing backups remain listable, exportable, restorable, and importable.
+    - Unsupported future versions are rejected during validation before destructive archive import proceeds.
+    - Manual verification found and fixed two follow-ups: backup timestamps now display in local time, and zero-attachment v1 zip bundles remain importable even when Windows compression omits the empty `attachments/` directory.
+    - Final manual verification confirmed new format-v1 backups display correctly and a newly exported archive bundle imports successfully while creating the expected pre-import safety backup.
+    - `schemaVersion` is omitted because the repository has no reliable schema-version source of truth.
+    - Checksums, signatures, encryption, WebDAV, account sync, rollback, and database migrations remain out of scope.
+  - Priority: `High`
 - `SETTINGS-DATA-BACKUP-DESIGN-001`
   - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.
   - Status: `Documented / design only`

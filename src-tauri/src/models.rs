@@ -302,9 +302,21 @@ pub struct BackupRecordPayload {
     pub id: String,
     pub label: String,
     pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archive_format_version: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_version: Option<String>,
     pub ticket_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub journey_count: Option<usize>,
     pub attachment_count: usize,
     pub database_size_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments_included: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

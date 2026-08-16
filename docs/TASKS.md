@@ -478,26 +478,26 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest implementation checkpoint: `BACKUP-HISTORY-UX-001` (implemented locally, pending final manual verification).
+Latest implementation checkpoint: `ARCHIVE-BUNDLE-MANIFEST-001` (implemented and manually verified).
 
-Recommended next task: `BACKUP-HISTORY-UX-001` manual verification, then `ARCHIVE-BUNDLE-MANIFEST-001`.
+Recommended next task: `ARCHIVE-BUNDLE-TEST-001`.
 
 Recommended next task scope:
 
-- manually verify backup-history modal paging, delete action safety, and 30-backup retention behavior
-- then add richer archive/backup manifest metadata such as backup format version, app version, and schema version
+- verify a newly created backup shows local display time plus format/app/platform and ticket/journey/attached-file metadata
+- verify a newly exported zero-attachment v1 archive imports successfully when the zip omits the empty `attachments/` directory
+- verify existing legacy backups still list, export, restore, and import
+- verify a future unsupported format is rejected before local overwrite
 - keep the current archive bundle as a zip wrapper around the backup payload
-- do not change import from local overwrite to sync/merge
-- keep WebDAV unimplemented until the manifest baseline is clearer
-- do not move the database
+- do not add a schema version until a reliable repository source of truth exists
+- keep WebDAV, checksums, encryption, sync/merge, and database relocation unimplemented
 
 The recommended next implementation order is now:
 
-1. finish manual verification for `BACKUP-HISTORY-UX-001`, including delete safety and retention behavior
-2. implement `ARCHIVE-BUNDLE-MANIFEST-001` to add format/app/schema metadata to archive bundles before broader migration claims
-3. implement `ARCHIVE-BUNDLE-TEST-001` to verify export/import on a second profile or clean machine path
-4. use `WEBDAV-BACKUP-DESIGN-001` after the bundle format and import-safety baseline are clearer
-5. keep `SETTINGS-EXPORT-FOLDER-001` as a later convenience improvement that does not block backup safety work
+1. implement `ARCHIVE-BUNDLE-TEST-001` to verify export/import on a second profile or clean machine path
+2. design `ARCHIVE-BUNDLE-INTEGRITY-001` for checksum/integrity validation
+3. use `WEBDAV-BACKUP-DESIGN-001` after the manifest and migration-test baseline are accepted
+4. keep `SETTINGS-EXPORT-FOLDER-001` as a later convenience improvement that does not block backup safety work
 
 - `DATA-HEALTH-FILTER-001` is paused for now and can resume later after the `Settings > Data & Backup` line reaches a checkpoint.
 
@@ -546,7 +546,8 @@ The recommended next implementation order is now:
 - `SETTINGS-DATA-BACKUP-DESIGN-001` now defines the accepted local-first Settings direction: evolve `Settings > Export` into `Data & Backup`, keep the live database local, keep data location read-only, treat WebDAV as user-provided backup storage rather than sync, and keep account/merge/conflict flows out of the current MVP.
 - `SETTINGS-DATA-BACKUP-001` now implements the first Settings restructure pass: `Data & Backup` keeps the current local backup/archive actions, exposes the app-data folder as read-only local data, preserves export-folder display, and leaves WebDAV as a future placeholder only.
 - `ARCHIVE-BUNDLE-REVIEW-001` now documents the current archive payload and restore path, and `ARCHIVE-IMPORT-SAFETY-001` now adds pre-restore payload validation plus a local safety backup before destructive import. Rollback, richer manifest metadata, and failure cleanup still need follow-up before WebDAV backup or strong migration claims.
-- `BACKUP-HISTORY-UX-001` now keeps `Settings > Data & Backup` compact by moving full local backup history into a paginated modal, adds per-backup delete actions, and caps retained local backups at 30 by pruning the oldest entries after new backup creation while preserving the newly created backup.
+- `BACKUP-HISTORY-UX-001` keeps `Settings > Data & Backup` compact with paginated backup management and a 30-backup retention cap.
+- `ARCHIVE-BUNDLE-MANIFEST-001` adds format version `1`, app/source/count metadata, legacy format `0` compatibility, and pre-restore rejection of unsupported future versions; schema version and integrity checks remain future work.
 
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.

@@ -6,7 +6,7 @@ use crate::models::{
     TicketDetailPayload, TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
     TicketSegmentPayload,
 };
-use chrono::{DateTime, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Local, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use rusqlite::{params, Connection, Row};
 use std::{
@@ -34,6 +34,8 @@ const LEGACY_SEGMENTS_TABLE: &str = "segments";
 const TICKET_ITINERARIES_TABLE: &str = "ticket_itineraries";
 const TICKET_SEGMENTS_TABLE: &str = "ticket_segments";
 const MAX_RETAINED_LOCAL_BACKUPS: usize = 30;
+const ARCHIVE_FORMAT_VERSION: u32 = 1;
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -263,12 +265,24 @@ struct NormalizedJourneyStopMutation {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BackupManifest {
+    #[serde(default)]
+    archive_format_version: Option<u32>,
+    #[serde(default)]
+    app_version: Option<String>,
     id: String,
     label: String,
     created_at: String,
     ticket_count: usize,
+    #[serde(default)]
+    journey_count: Option<usize>,
     attachment_count: usize,
     database_size_bytes: u64,
+    #[serde(default)]
+    attachments_included: Option<bool>,
+    #[serde(default)]
+    device_name: Option<String>,
+    #[serde(default)]
+    platform: Option<String>,
 }
 
 struct ValidatedBackupPayload {
@@ -280,6 +294,89 @@ struct ValidatedBackupPayload {
 struct LocalBackupEntry {
     dir_path: PathBuf,
     manifest: BackupManifest,
+}
+
+fn current_device_name() -> Option<String> {
+    ["COMPUTERNAME", "HOSTNAME"].into_iter().find_map(|key| {
+        std::env::var(key)
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    })
+}
+
+fn build_backup_manifest(
+    id: String,
+    label: String,
+    created_at: String,
+    ticket_count: usize,
+    journey_count: usize,
+    attachment_count: usize,
+    database_size_bytes: u64,
+    attachments_included: bool,
+) -> BackupManifest {
+    BackupManifest {
+        archive_format_version: Some(ARCHIVE_FORMAT_VERSION),
+        app_version: Some(APP_VERSION.to_string()),
+        id,
+        label,
+        created_at,
+        ticket_count,
+        journey_count: Some(journey_count),
+        attachment_count,
+        database_size_bytes,
+        attachments_included: Some(attachments_included),
+        device_name: current_device_name(),
+        platform: Some(std::env::consts::OS.to_string()),
+    }
+}
+
+fn backup_record_payload(manifest: &BackupManifest) -> BackupRecordPayload {
+    BackupRecordPayload {
+        id: manifest.id.clone(),
+        label: manifest.label.clone(),
+        created_at: manifest.created_at.clone(),
+        archive_format_version: manifest.archive_format_version,
+        app_version: manifest.app_version.clone(),
+        ticket_count: manifest.ticket_count,
+        journey_count: manifest.journey_count,
+        attachment_count: manifest.attachment_count,
+        database_size_bytes: manifest.database_size_bytes,
+        attachments_included: manifest.attachments_included,
+        device_name: manifest.device_name.clone(),
+        platform: manifest.platform.clone(),
+    }
+}
+
+fn validate_backup_manifest(manifest: &BackupManifest) -> Result<(), String> {
+    match manifest.archive_format_version {
+        None | Some(0) => Ok(()),
+        Some(ARCHIVE_FORMAT_VERSION) => {
+            if manifest
+                .app_version
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .is_none()
+            {
+                return Err("Archive validation failed: backup format 1 requires appVersion.".to_string());
+            }
+            if manifest.journey_count.is_none() {
+                return Err("Archive validation failed: backup format 1 requires journeyCount.".to_string());
+            }
+            if manifest.attachments_included.is_none() {
+                return Err(
+                    "Archive validation failed: backup format 1 requires attachmentsIncluded."
+                        .to_string(),
+                );
+            }
+            Ok(())
+        }
+        Some(_) => Err(
+            "This archive uses a newer unsupported backup format. Update TicketTrail before importing it."
+                .to_string(),
+        ),
+    }
 }
 
 pub fn search_airlines(app: &AppHandle, query: &str) -> Result<Vec<AirlinePayload>, String> {
@@ -375,14 +472,7 @@ pub fn list_backups(app: &AppHandle) -> Result<Vec<BackupRecordPayload>, String>
     let backup_root = backup_root_dir(app)?;
     let mut backups = scan_local_backup_entries(&backup_root)?
         .into_iter()
-        .map(|entry| BackupRecordPayload {
-            id: entry.manifest.id,
-            label: entry.manifest.label,
-            created_at: entry.manifest.created_at,
-            ticket_count: entry.manifest.ticket_count,
-            attachment_count: entry.manifest.attachment_count,
-            database_size_bytes: entry.manifest.database_size_bytes,
-        })
+        .map(|entry| backup_record_payload(&entry.manifest))
         .collect::<Vec<_>>();
 
     backups.sort_by(|left, right| right.created_at.cmp(&left.created_at));
@@ -399,6 +489,7 @@ fn create_backup_with_label(
 ) -> Result<BackupRecordPayload, String> {
     let conn = open_connection(app)?;
     let ticket_count = list_tickets(app)?.len();
+    let journey_count = count_journeys(&conn)?;
     let attachment_count = count_attachments(&conn)?;
     drop(conn);
 
@@ -419,7 +510,14 @@ fn create_backup_with_label(
 
     let attachment_source = attachment_root_dir(app)?;
     let attachment_destination = backup_dir.join("attachments");
-    if attachment_source.exists() {
+    let attachments_included = attachment_count > 0;
+    if attachments_included && !attachment_source.exists() {
+        return Err(
+            "Backup could not include attachments because the local attachments folder is missing."
+                .to_string(),
+        );
+    }
+    if attachments_included {
         copy_dir_recursive(&attachment_source, &attachment_destination)?;
     }
 
@@ -427,27 +525,22 @@ fn create_backup_with_label(
         .map_err(|err| err.to_string())?
         .len();
     let label = custom_label
-        .unwrap_or_else(|| format!("Backup {}", created_at_dt.format("%Y-%m-%d %H:%M:%S")));
-    let manifest = BackupManifest {
-        id: backup_id.clone(),
+        .unwrap_or_else(|| format!("Backup {}", Local::now().format("%Y-%m-%d %H:%M:%S")));
+    let manifest = build_backup_manifest(
+        backup_id.clone(),
         label,
-        created_at: created_at.clone(),
+        created_at.clone(),
         ticket_count,
+        journey_count,
         attachment_count,
         database_size_bytes,
-    };
+        attachments_included,
+    );
 
     let manifest_text = serde_json::to_string_pretty(&manifest).map_err(|err| err.to_string())?;
     fs::write(backup_dir.join("backup.json"), manifest_text).map_err(|err| err.to_string())?;
 
-    let payload = BackupRecordPayload {
-        id: manifest.id.clone(),
-        label: manifest.label.clone(),
-        created_at: manifest.created_at.clone(),
-        ticket_count: manifest.ticket_count,
-        attachment_count: manifest.attachment_count,
-        database_size_bytes: manifest.database_size_bytes,
-    };
+    let payload = backup_record_payload(&manifest);
 
     if let Err(error) = prune_local_backups(&backup_root, &manifest.id, MAX_RETAINED_LOCAL_BACKUPS)
     {
@@ -536,7 +629,7 @@ pub fn import_archive_bundle(app: &AppHandle, bundle_path: &str) -> Result<(), S
         app,
         Some(format!(
             "Before archive import {}",
-            Utc::now().format("%Y-%m-%d %H:%M:%S")
+            Local::now().format("%Y-%m-%d %H:%M:%S")
         )),
     )
     .map_err(|err| {
@@ -2872,6 +2965,14 @@ fn attachment_ticket_dir(app: &AppHandle, ticket_id: &str) -> Result<PathBuf, St
     Ok(attachment_root_dir(app)?.join(ticket_id))
 }
 
+fn count_journeys(conn: &Connection) -> Result<usize, String> {
+    conn.query_row("SELECT COUNT(*) FROM journeys", [], |row| {
+        row.get::<_, i64>(0)
+    })
+    .map(|count| count.max(0) as usize)
+    .map_err(|err| err.to_string())
+}
+
 fn count_attachments(conn: &Connection) -> Result<usize, String> {
     conn.query_row("SELECT COUNT(*) FROM ticket_attachments", [], |row| {
         row.get::<_, i64>(0)
@@ -2993,6 +3094,7 @@ fn validate_backup_payload(backup_dir: &Path) -> Result<ValidatedBackupPayload, 
             err
         )
     })?;
+    validate_backup_manifest(&manifest)?;
 
     let database_path = backup_dir.join("tickettrail.sqlite3");
     if !database_path.exists() {
@@ -3017,6 +3119,23 @@ fn validate_backup_payload(backup_dir: &Path) -> Result<ValidatedBackupPayload, 
             manifest.attachment_count,
             backup_dir.to_string_lossy()
         ));
+    }
+    // PowerShell Compress-Archive omits empty directories. Accept early v1 bundles
+    // that marked an empty attachment set as included but contain no directory.
+    if manifest.attachments_included == Some(true)
+        && manifest.attachment_count > 0
+        && !attachments_present
+    {
+        return Err(format!(
+            "Archive validation failed: backup.json reports that attachments are included, but attachments/ is missing in {}.",
+            backup_dir.to_string_lossy()
+        ));
+    }
+    if manifest.attachments_included == Some(false) && manifest.attachment_count > 0 {
+        return Err(
+            "Archive validation failed: backup.json reports attachments that are not included."
+                .to_string(),
+        );
     }
 
     Ok(ValidatedBackupPayload {
@@ -3525,18 +3644,20 @@ fn normalize_lookup_value(value: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_effective_segments, build_ticket_detail, clear_journey_stop_ticket_references,
-        compare_optional_date, delete_backup_dir_by_id, delete_journey_related_rows,
-        derive_journey_date_range_from_linked_tickets, ensure_journey_schema_columns,
-        fallback_coordinates, load_journey_stops, lookup_generated_airport_coordinates,
-        lookup_rail_station_city_coordinates, migrate_legacy_ticket_journey_tables,
-        normalize_companion_names, normalize_journey_cost_exchange_rate,
-        normalize_journey_stop_mutations, normalize_lookup_value, normalize_to_utc,
-        prune_local_backups, replace_journey_stop_rows, resolve_map_point, sanitize_file_name,
-        scan_local_backup_entries, seed_location_directory, sort_linked_journey_ticket_records,
-        table_exists, table_has_column, validate_backup_payload, validate_draft, BackupManifest,
+        build_backup_manifest, build_effective_segments, build_ticket_detail,
+        clear_journey_stop_ticket_references, compare_optional_date, delete_backup_dir_by_id,
+        delete_journey_related_rows, derive_journey_date_range_from_linked_tickets,
+        ensure_journey_schema_columns, fallback_coordinates, load_journey_stops,
+        lookup_generated_airport_coordinates, lookup_rail_station_city_coordinates,
+        migrate_legacy_ticket_journey_tables, normalize_companion_names,
+        normalize_journey_cost_exchange_rate, normalize_journey_stop_mutations,
+        normalize_lookup_value, normalize_to_utc, prune_local_backups, replace_journey_stop_rows,
+        resolve_map_point, sanitize_file_name, scan_local_backup_entries, seed_location_directory,
+        sort_linked_journey_ticket_records, table_exists, table_has_column,
+        validate_backup_manifest, validate_backup_payload, validate_draft, BackupManifest,
         JourneyStopMutationPayload, LinkedJourneyTicketRecord, TicketDraftPayload,
-        TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload, SCHEMA_SQL,
+        TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload, APP_VERSION,
+        ARCHIVE_FORMAT_VERSION, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
     use std::{env, fs, path::PathBuf};
@@ -3651,12 +3772,18 @@ mod tests {
         attachment_count: usize,
     ) {
         let manifest = BackupManifest {
+            archive_format_version: None,
+            app_version: None,
             id: backup_id.to_string(),
             label: label.to_string(),
             created_at: created_at.to_string(),
             ticket_count: 2,
+            journey_count: None,
             attachment_count,
             database_size_bytes: 128,
+            attachments_included: None,
+            device_name: None,
+            platform: None,
         };
         let text = serde_json::to_string_pretty(&manifest).expect("should serialize test manifest");
         fs::write(dir.join("backup.json"), text).expect("should write backup manifest");
@@ -3765,6 +3892,166 @@ mod tests {
     }
 
     #[test]
+    fn new_backup_manifest_serializes_versioned_metadata_without_secrets() {
+        let manifest = build_backup_manifest(
+            "backup-v1".to_string(),
+            "Backup V1".to_string(),
+            "2026-08-06T00:00:00Z".to_string(),
+            12,
+            3,
+            4,
+            512,
+            true,
+        );
+
+        assert_eq!(
+            manifest.archive_format_version,
+            Some(ARCHIVE_FORMAT_VERSION)
+        );
+        assert_eq!(manifest.app_version.as_deref(), Some(APP_VERSION));
+        assert_eq!(manifest.ticket_count, 12);
+        assert_eq!(manifest.journey_count, Some(3));
+        assert_eq!(manifest.attachment_count, 4);
+        assert_eq!(manifest.attachments_included, Some(true));
+        assert_eq!(manifest.platform.as_deref(), Some(std::env::consts::OS));
+        assert!(manifest
+            .device_name
+            .as_ref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(true));
+
+        let serialized = serde_json::to_string(&manifest).expect("should serialize manifest");
+        assert!(serialized.contains("archiveFormatVersion"));
+        assert!(serialized.contains("appVersion"));
+        assert!(serialized.contains("journeyCount"));
+        assert!(serialized.contains("attachmentsIncluded"));
+        for secret_key in ["password", "token", "apiKey", "credential", "webdav"] {
+            assert!(!serialized
+                .to_lowercase()
+                .contains(&secret_key.to_lowercase()));
+        }
+    }
+
+    #[test]
+    fn legacy_backup_manifest_remains_listable_and_valid() {
+        let root = create_temp_backup_dir();
+        let backup_dir = root.join("legacy-backup-dir");
+        fs::create_dir_all(&backup_dir).expect("should create legacy backup dir");
+        write_backup_manifest_with(
+            &backup_dir,
+            "legacy-backup",
+            "Legacy Backup",
+            "2026-08-01T00:00:00Z",
+            0,
+        );
+        fs::write(backup_dir.join("tickettrail.sqlite3"), "db")
+            .expect("should write legacy database file");
+
+        let listed = scan_local_backup_entries(&root).expect("legacy backup should list");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].manifest.archive_format_version, None);
+        validate_backup_payload(&backup_dir)
+            .expect("legacy backup should pass restore and import validation");
+
+        fs::remove_dir_all(root).expect("should clean temp dir");
+    }
+
+    #[test]
+    fn supported_archive_format_version_is_accepted() {
+        let manifest = build_backup_manifest(
+            "backup-v1".to_string(),
+            "Backup V1".to_string(),
+            "2026-08-06T00:00:00Z".to_string(),
+            1,
+            1,
+            0,
+            128,
+            false,
+        );
+        validate_backup_manifest(&manifest).expect("format version 1 should be supported");
+    }
+
+    #[test]
+    fn supported_format_does_not_block_a_different_app_version() {
+        let mut manifest = build_backup_manifest(
+            "backup-other-app-version".to_string(),
+            "Other App Version".to_string(),
+            "2026-08-06T00:00:00Z".to_string(),
+            1,
+            1,
+            0,
+            128,
+            false,
+        );
+        manifest.app_version = Some("999.0.0".to_string());
+
+        validate_backup_manifest(&manifest)
+            .expect("app-version differences should not block format version 1");
+    }
+
+    #[test]
+    fn future_archive_format_is_rejected_before_restore() {
+        let dir = create_temp_backup_dir();
+        let mut manifest = build_backup_manifest(
+            "backup-future".to_string(),
+            "Future Backup".to_string(),
+            "2026-08-06T00:00:00Z".to_string(),
+            1,
+            1,
+            0,
+            128,
+            false,
+        );
+        manifest.archive_format_version = Some(ARCHIVE_FORMAT_VERSION + 1);
+        let text = serde_json::to_string_pretty(&manifest).expect("should serialize manifest");
+        fs::write(dir.join("backup.json"), text).expect("should write manifest");
+        fs::write(dir.join("tickettrail.sqlite3"), "db").expect("should write db file");
+
+        let error = match validate_backup_payload(&dir) {
+            Ok(_) => panic!("future backup format should be rejected"),
+            Err(error) => error,
+        };
+        assert!(error.contains("newer unsupported backup format"));
+
+        fs::remove_dir_all(dir).expect("should clean temp dir");
+    }
+
+    #[test]
+    fn versioned_manifest_missing_required_metadata_is_rejected() {
+        let manifest_text = r#"{
+            "archiveFormatVersion": 1,
+            "id": "backup-invalid",
+            "label": "Invalid Backup",
+            "createdAt": "2026-08-06T00:00:00Z",
+            "ticketCount": 1,
+            "journeyCount": 1,
+            "attachmentCount": 0,
+            "databaseSizeBytes": 128,
+            "attachmentsIncluded": false
+        }"#;
+        let manifest = serde_json::from_str::<BackupManifest>(manifest_text)
+            .expect("optional compatibility fields should parse");
+        let error = validate_backup_manifest(&manifest)
+            .expect_err("versioned manifest without appVersion should fail");
+        assert!(error.contains("appVersion"));
+    }
+
+    #[test]
+    fn malformed_backup_metadata_is_rejected() {
+        let dir = create_temp_backup_dir();
+        fs::write(dir.join("backup.json"), "{not-json").expect("should write malformed manifest");
+        fs::write(dir.join("tickettrail.sqlite3"), "db").expect("should write db file");
+
+        let error = match validate_backup_payload(&dir) {
+            Ok(_) => panic!("malformed manifest should be rejected"),
+            Err(error) => error,
+        };
+        assert!(error.contains("backup.json is invalid"));
+
+        fs::remove_dir_all(dir).expect("should clean temp dir");
+    }
+
+    #[test]
     fn validate_backup_payload_requires_backup_manifest() {
         let dir = create_temp_backup_dir();
         fs::write(dir.join("tickettrail.sqlite3"), "db").expect("should write db file");
@@ -3804,6 +4091,30 @@ mod tests {
         fs::remove_dir_all(dir).expect("should clean temp dir");
     }
 
+    #[test]
+    fn validate_backup_payload_accepts_early_v1_empty_attachment_bundle_without_directory() {
+        let dir = create_temp_backup_dir();
+        let mut manifest = build_backup_manifest(
+            "backup-empty-attachments".to_string(),
+            "Backup Empty Attachments".to_string(),
+            "2026-08-06T00:00:00Z".to_string(),
+            1,
+            1,
+            0,
+            128,
+            false,
+        );
+        manifest.attachments_included = Some(true);
+        let text = serde_json::to_string_pretty(&manifest).expect("should serialize manifest");
+        fs::write(dir.join("backup.json"), text).expect("should write manifest");
+        fs::write(dir.join("tickettrail.sqlite3"), "db").expect("should write db file");
+
+        let validated = validate_backup_payload(&dir)
+            .expect("empty early v1 archive should not require an empty directory");
+        assert!(!validated.attachments_present);
+
+        fs::remove_dir_all(dir).expect("should clean temp dir");
+    }
     #[test]
     fn validate_backup_payload_rejects_missing_attachments_when_manifest_requires_them() {
         let dir = create_temp_backup_dir();
