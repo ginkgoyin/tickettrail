@@ -719,3 +719,29 @@ They are based on current repository docs/checklists and should be expanded from
 - Interview talking points:
   - Evolving a destructive local-backup workflow with a versioned compatibility contract instead of breaking existing user backups.
   - Refusing to invent schema metadata when the codebase has no trustworthy source of truth.
+
+## 2026-08-16 - WEBDAV-BACKUP-DESIGN-001
+
+- Area: Backup transport architecture / WebDAV safety / local-first product boundaries
+- Status: Design documented; runtime not implemented
+- Problem / requirement:
+  - TicketTrail needed a long-term user-owned backup repository without turning WebDAV into the active database or claiming real-time synchronization.
+  - Remote listing, retention, credentials, partial uploads, automatic backup, and destructive restore needed explicit safety semantics before implementation.
+- User decision / product constraint:
+  - Keep SQLite and attachments as the local working copy, preserve offline archive export/import, cap actual remote backups at 30, and require a successfully uploaded pre-restore safety snapshot before local overwrite.
+  - Keep first-party storage, accounts, merge/conflict handling, automatic restore, and WebDAV-hosted live SQLite out of scope.
+- Final approach:
+  - Separate the existing archive creation/validation/restore engine from a generic WebDAV transport.
+  - Use deterministic immutable ZIP names with per-backup metadata sidecars, publish sidecars last, and list remote history without downloading every archive.
+  - Store credentials behind a Rust-side secret-store boundary using Windows Credential Manager for the Windows-first implementation.
+  - Track automatic-backup dirty state by successful persisted business revisions rather than keystrokes or SQL statements.
+- Implementation summary:
+  - Added `docs/WEBDAV_BACKUP_DESIGN.md` with manual backup, listing, deletion, retention, restore, scheduling, failure-handling, security, UI migration, and phased implementation designs.
+  - Confirmed archive format `1` is sufficient for the first WebDAV MVP; transport sidecars do not require archive format `2`.
+- Risks / tradeoffs:
+  - Generic WebDAV servers differ in `MOVE`, redirect, authentication, and directory behavior, so provider compatibility testing remains required.
+  - Sidecar metadata improves listing efficiency but is untrusted; restore must validate the downloaded ZIP and internal manifest.
+  - Checksums, encryption, automatic rollback, and cross-version database migration policy remain future work.
+- Interview talking points:
+  - Designing a destructive cloud-restore workflow around explicit publication, validation, and safety gates.
+  - Separating domain archive logic from storage transport while avoiding record-level sync complexity.

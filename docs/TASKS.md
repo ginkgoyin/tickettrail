@@ -478,26 +478,27 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest implementation checkpoint: `ARCHIVE-BUNDLE-MANIFEST-001` (implemented and manually verified).
+Latest design checkpoint: `WEBDAV-BACKUP-DESIGN-001` (documented; runtime is not implemented).
 
-Recommended next task: `ARCHIVE-BUNDLE-TEST-001`.
+Recommended next task: `WEBDAV-BACKUP-001A`.
 
 Recommended next task scope:
 
-- verify a newly created backup shows local display time plus format/app/platform and ticket/journey/attached-file metadata
-- verify a newly exported zero-attachment v1 archive imports successfully when the zip omits the empty `attachments/` directory
-- verify existing legacy backups still list, export, restore, and import
-- verify a future unsupported format is rejected before local overwrite
-- keep the current archive bundle as a zip wrapper around the backup payload
-- do not add a schema version until a reliable repository source of truth exists
-- keep WebDAV, checksums, encryption, sync/merge, and database relocation unimplemented
+- add a non-secret WebDAV configuration model and local scheduling/state model
+- add a Rust-side `SecretStore` boundary using Windows Credential Manager for credentials
+- keep the frontend limited to masked/non-secret configuration state
+- normalize and validate the server URL and managed remote folder
+- implement `Test connection`, managed-directory creation, capability probing, and safe probe cleanup
+- do not upload, list, restore, or delete remote backups yet
+- do not change archive format `1`, the live database location, or offline archive export/import
 
 The recommended next implementation order is now:
 
-1. implement `ARCHIVE-BUNDLE-TEST-001` to verify export/import on a second profile or clean machine path
-2. design `ARCHIVE-BUNDLE-INTEGRITY-001` for checksum/integrity validation
-3. use `WEBDAV-BACKUP-DESIGN-001` after the manifest and migration-test baseline are accepted
-4. keep `SETTINGS-EXPORT-FOLDER-001` as a later convenience improvement that does not block backup safety work
+1. `WEBDAV-BACKUP-001A`: configuration, device-local secret storage, and connection/capability test
+2. `WEBDAV-BACKUP-001B`: temporary archive engine extraction, manual upload, sidecar listing, and remote retention at 30
+3. `WEBDAV-BACKUP-001C`: remote history/delete/download and restore guarded by a successfully uploaded safety snapshot
+4. `WEBDAV-AUTO-BACKUP-001`: dirty revision tracking, Off / every-change / 1 / 3 / 7 day schedules, one backup event per meaningful change, single-flight queuing, and retry UX
+5. keep `ARCHIVE-BUNDLE-TEST-001`, `ARCHIVE-BUNDLE-INTEGRITY-001`, and `SETTINGS-EXPORT-FOLDER-001` as separate follow-up work
 
 - `DATA-HEALTH-FILTER-001` is paused for now and can resume later after the `Settings > Data & Backup` line reaches a checkpoint.
 
@@ -548,6 +549,7 @@ The recommended next implementation order is now:
 - `ARCHIVE-BUNDLE-REVIEW-001` now documents the current archive payload and restore path, and `ARCHIVE-IMPORT-SAFETY-001` now adds pre-restore payload validation plus a local safety backup before destructive import. Rollback, richer manifest metadata, and failure cleanup still need follow-up before WebDAV backup or strong migration claims.
 - `BACKUP-HISTORY-UX-001` keeps `Settings > Data & Backup` compact with paginated backup management and a 30-backup retention cap.
 - `ARCHIVE-BUNDLE-MANIFEST-001` adds format version `1`, app/source/count metadata, legacy format `0` compatibility, and pre-restore rejection of unsupported future versions; schema version and integrity checks remain future work.
+- `WEBDAV-BACKUP-DESIGN-001` now defines the generic WebDAV transport boundary, deterministic remote archive/sidecar layout, remote retention at 30, Rust-side credential strategy, restore safety-upload gate, and automatic-backup dirty-state semantics. It adds no runtime WebDAV behavior.
 
 - The generated `transport-place.generated.json` currently maps `5112 / 8800` airports and `500 / 3339` rail stations.
 - Journey place normalization now prefers Place Catalog standard labels from endpoint mappings; aliases remain search-only.

@@ -418,3 +418,13 @@ Still out of scope:
 - WebDAV and account sync
 
 Follow-up: `ARCHIVE-BUNDLE-INTEGRITY-001` should add integrity verification only after the versioned manifest contract has been exercised by migration tests.
+
+## Update After `WEBDAV-BACKUP-DESIGN-001`
+
+The version `1` archive is sufficient as the payload for the first WebDAV backup MVP. WebDAV should transport immutable archive bundles rather than the active SQLite database, and no archive format `2` is required before the first implementation.
+
+The accepted transport design adds a matching per-backup `.meta.json` sidecar so remote history can be listed without downloading every ZIP. The sidecar is discovery metadata only: restore must still download the ZIP and validate its internal `backup.json` before touching live data.
+
+WebDAV restore adds a stricter safety boundary than offline archive import. It must validate the selected archive, create a temporary snapshot of current local state, upload and verify that safety snapshot in WebDAV, and only then permit destructive local restore. If the safety upload fails, the live database and attachments remain untouched.
+
+Integrity checks remain a later `ARCHIVE-BUNDLE-INTEGRITY-001` task. WebDAV credentials, provider/API keys, and other device-local secrets remain excluded from archives and remote metadata.

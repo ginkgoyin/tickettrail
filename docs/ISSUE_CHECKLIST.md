@@ -431,6 +431,17 @@
     - `schemaVersion` is omitted because the repository has no reliable schema-version source of truth.
     - Checksums, signatures, encryption, WebDAV, account sync, rollback, and database migrations remain out of scope.
   - Priority: `High`
+- `WEBDAV-BACKUP-DESIGN-001`
+  - Design a production-oriented, generic WebDAV backup transport around the existing versioned archive engine without implementing runtime WebDAV behavior.
+  - Status: `Documented / design accepted`
+  - Notes:
+    - The local SQLite database remains the working copy; WebDAV stores immutable archive bundles and becomes the long-term user-visible backup repository once configured.
+    - The default managed folder is `TicketTrail/backups/`; each strict archive filename has a matching metadata sidecar so listing does not require downloading every ZIP.
+    - Manual backup publishes remotely before reporting success, and remote retention deletes the oldest eligible complete backup pairs beyond 30 while protecting active restore objects.
+    - Remote restore must upload and verify a current-state safety snapshot before destructive local replacement; safety-upload failure aborts restore with live data untouched.
+    - Credentials should stay Rust-side behind a secret-store boundary backed by Windows Credential Manager for the Windows-first implementation.
+    - Archive format `1` is sufficient for the first WebDAV MVP; sync/merge, first-party storage, checksums, rollback, and DB migrations remain out of scope.
+  - Priority: `High`
 - `SETTINGS-DATA-BACKUP-DESIGN-001`
   - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.
   - Status: `Documented / design only`
