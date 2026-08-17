@@ -2,7 +2,7 @@
 
 Task: `WEBDAV-BACKUP-DESIGN-001`
 
-Status: Design baseline. `WEBDAV-BACKUP-001A` implements configuration, secure device-local password storage, and connection/capability testing. `WEBDAV-BACKUP-001B` implements manual archive publication, strict remote summary/listing, and remote retention; restore and automatic backup remain unimplemented.
+Status: Design baseline. `WEBDAV-BACKUP-001A` implements configuration, secure device-local password storage, and connection/capability testing. `WEBDAV-BACKUP-001B` implements manual archive publication, strict remote summary/listing, and remote retention. `WEBDAV-BACKUP-001C` now implements guarded remote delete and two-stage manual restore; automatic backup remains unimplemented.
 
 ## 1. Purpose
 
@@ -223,6 +223,8 @@ Sidecar schema version `1` contains only non-secret metadata:
 Allowed purposes are `manual`, `automatic`, and `preRestoreSafety`.
 
 The sidecar is an efficient listing hint, not proof that the ZIP is safe. Before restore, TicketTrail downloads the ZIP, runs current structural/format validation, and verifies that its internal manifest ID and format match the selected sidecar.
+
+Implementation clarification from `WEBDAV-BACKUP-001C-SAFETY`: committed `001B` backups use a remote sidecar `backupId` that differs from the historical `temporary-manual-*` ID inside `backup.json`. Those existing backups remain eligible through the strict compatibility checks documented in `docs/WEBDAV_RESTORE_SAFETY_REVIEW.md`. New backups created after the 001C identity change should use one matching ID in both locations. This compatibility rule does not weaken ZIP validation or permit arbitrary internal IDs.
 
 No global `index.json` is used in the MVP. A global index creates multi-device lost-update and recovery problems. No archive format change is required because the sidecar is a transport-level object outside the ZIP.
 
@@ -580,12 +582,16 @@ Implemented and manually verified against Jianguoyun WebDAV, together with the `
 
 ### `WEBDAV-BACKUP-001C` - Remote management and safe restore
 
-- remote history modal using existing pagination UX;
-- strict ID-based remote delete;
-- download and validate;
-- upload pre-restore safety snapshot;
-- abort restore when safety upload fails;
-- destructive restore with protected IDs and cleanup reporting.
+Implemented / manually verified against Jianguoyun WebDAV:
+
+- the history modal exposes app-themed Restore and Delete confirmation flows using only opaque backup IDs;
+- restore preparation freshly resolves the ID, streams a bounded archive download to app-private storage, validates the format-v1 payload, publishes and freshly confirms a `preRestoreSafety` pair, then returns a short-lived confirmation token;
+- final confirmation revalidates the prepared local payload immediately before the existing destructive restore primitive runs;
+- cancellation, expiry, configuration changes, and concurrent mutations are blocked or cleaned through the shared process-local cloud-operation state;
+- new manual backups use the same `backup-<uuid>` identity in `backup.json` and the sidecar; the narrowly validated historical `temporary-manual-<uuid>` format remains restorable;
+- remote deletion and retention both resolve only validated discovered pairs and delete sidecar first, then ZIP. A ZIP cleanup failure leaves an ignored orphan and must be reported as cleanup pending.
+- real provider verification passed: Restore replaced current local data from the selected backup; Prepare -> final confirmation -> Cancel left local data unchanged while the remote `preRestoreSafety` backup remained; user-triggered remote Delete removed the selected backup without modifying current Ticket/Journey data.
+- accepted remaining risks: destructive restore is not transactional across SQLite plus attachments, and automatic rollback is not implemented.
 
 ### `WEBDAV-AUTO-BACKUP-001` - Dirty state, schedules, and retries
 

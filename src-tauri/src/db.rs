@@ -503,6 +503,23 @@ pub(crate) fn create_temporary_archive(
     app: &AppHandle,
     purpose: &str,
 ) -> Result<TemporaryArchive, String> {
+    create_temporary_archive_with_identity(
+        app,
+        purpose,
+        format!("temporary-{}-{}", purpose, Uuid::new_v4().simple()),
+        format!("Backup {}", Local::now().format("%Y-%m-%d %H:%M:%S")),
+    )
+}
+
+/// Creates a non-persistent format-v1 archive with a caller-owned, validated
+/// identity. WebDAV uses this so its sidecar and archive manifest describe the
+/// same backup; local backup history continues to use its own IDs.
+pub(crate) fn create_temporary_archive_with_identity(
+    app: &AppHandle,
+    purpose: &str,
+    archive_id: String,
+    label: String,
+) -> Result<TemporaryArchive, String> {
     let work_dir = app
         .path()
         .app_data_dir()
@@ -519,7 +536,6 @@ pub(crate) fn create_temporary_archive(
         drop(conn);
 
         let created_at = Utc::now().to_rfc3339();
-        let archive_id = format!("temporary-{}-{}", purpose, Uuid::new_v4().simple());
         let db_destination = payload_dir.join("tickettrail.sqlite3");
         fs::copy(database_path(app)?, &db_destination).map_err(|err| err.to_string())?;
         let attachment_source = attachment_root_dir(app)?;
@@ -532,7 +548,7 @@ pub(crate) fn create_temporary_archive(
         }
         let manifest = build_backup_manifest(
             archive_id,
-            format!("Backup {}", Local::now().format("%Y-%m-%d %H:%M:%S")),
+            label,
             created_at,
             ticket_count,
             journey_count,
@@ -561,6 +577,54 @@ pub(crate) fn create_temporary_archive(
         let _ = fs::remove_dir_all(&work_dir);
     }
     result
+}
+
+/// Expands an archive into a caller-owned private directory and validates the
+/// exact format-v1 payload before a restore can use it. The returned record is
+/// derived from the validated `backup.json`, never from remote metadata.
+pub(crate) fn expand_and_validate_archive(
+    archive_path: &Path,
+    extraction_root: &Path,
+) -> Result<(PathBuf, BackupRecordPayload), String> {
+    expand_zip_to_directory(archive_path, extraction_root)?;
+    let payload_dir = locate_backup_dir(extraction_root)?;
+    let canonical_root = fs::canonicalize(extraction_root)
+        .map_err(|err| format!("Archive validation failed: extraction root is invalid. {err}"))?;
+    let canonical_payload = fs::canonicalize(&payload_dir)
+        .map_err(|err| format!("Archive validation failed: payload path is invalid. {err}"))?;
+    if !canonical_payload.starts_with(&canonical_root) {
+        return Err(
+            "Archive validation failed: payload escaped the private extraction folder.".to_string(),
+        );
+    }
+    validate_backup_payload(&payload_dir)?;
+    let manifest_text = fs::read_to_string(payload_dir.join("backup.json"))
+        .map_err(|err| format!("Archive validation failed: could not read backup.json. {err}"))?;
+    let manifest = serde_json::from_str::<BackupManifest>(&manifest_text)
+        .map_err(|err| format!("Archive validation failed: backup.json is invalid. {err}"))?;
+    Ok((payload_dir, backup_record_payload(&manifest)))
+}
+
+/// Restores only a payload that the caller has already expanded in private
+/// storage. Validation is repeated immediately before destructive replacement.
+pub(crate) fn restore_validated_archive_payload(
+    app: &AppHandle,
+    payload_dir: &Path,
+) -> Result<(), String> {
+    restore_from_backup_dir(app, payload_dir)
+}
+
+/// Re-reads and validates a prepared payload immediately before the caller
+/// crosses the destructive restore boundary.
+pub(crate) fn validate_archive_payload_record(
+    payload_dir: &Path,
+) -> Result<BackupRecordPayload, String> {
+    validate_backup_payload(payload_dir)?;
+    let manifest_text = fs::read_to_string(payload_dir.join("backup.json"))
+        .map_err(|err| format!("Archive validation failed: could not read backup.json. {err}"))?;
+    let manifest = serde_json::from_str::<BackupManifest>(&manifest_text)
+        .map_err(|err| format!("Archive validation failed: backup.json is invalid. {err}"))?;
+    Ok(backup_record_payload(&manifest))
 }
 
 fn validate_temporary_archive(archive_path: &Path, validation_root: &Path) -> Result<(), String> {

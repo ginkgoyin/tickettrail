@@ -1,7 +1,8 @@
 use crate::db;
 use crate::models::{
-    WebDavBackupNowPayload, WebDavCapabilityPayload, WebDavConfigPayload, WebDavConfigSavePayload,
-    WebDavConnectionTestPayload, WebDavRemoteBackupPayload,
+    RestoreReadyPublicPayload, WebDavBackupNowPayload, WebDavCapabilityPayload,
+    WebDavConfigPayload, WebDavConfigSavePayload, WebDavConnectionTestPayload,
+    WebDavDeleteResultPayload, WebDavRemoteBackupPayload, WebDavRestoreResultPayload,
 };
 use chrono::{DateTime, NaiveDateTime, Utc};
 use reqwest::{
@@ -12,6 +13,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -33,7 +35,33 @@ const MAX_PROPFIND_RESPONSE_BYTES: u64 = 1_048_576;
 const MAX_SIDECAR_RESPONSE_BYTES: u64 = 32_768;
 const MAX_SIDECAR_CANDIDATES: usize = 100;
 const MAX_RETAINED_REMOTE_BACKUPS: usize = 30;
-static CLOUD_BACKUP_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+const MAX_RESTORE_ARCHIVE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const RESTORE_DOWNLOAD_TIMEOUT_SECONDS: u64 = 10 * 60;
+const PREPARED_RESTORE_TTL_SECONDS: i64 = 10 * 60;
+
+#[derive(Default)]
+struct CloudOperationState {
+    active: Option<&'static str>,
+    prepared: HashMap<String, PreparedRestore>,
+}
+
+struct PreparedRestore {
+    target: CompleteRemoteBackup,
+    safety: CompleteRemoteBackup,
+    archive_record: crate::models::BackupRecordPayload,
+    repository_identity: String,
+    payload_dir: PathBuf,
+    work_dir: PathBuf,
+    expires_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PairObjectKind {
+    Sidecar,
+    Archive,
+}
+
+static CLOUD_OPERATION_STATE: OnceLock<Mutex<CloudOperationState>> = OnceLock::new();
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -423,7 +451,7 @@ impl WebDavClient {
         Err(status_error(
             response.status(),
             WebDavErrorCode::CleanupFailed,
-            "TicketTrail could not remove its WebDAV connection-test probe.",
+            "TicketTrail could not remove the selected TicketTrail WebDAV object.",
         ))
     }
 
@@ -433,7 +461,7 @@ impl WebDavClient {
         path: &Path,
         content_type: &'static str,
     ) -> Result<(), WebDavError> {
-        let bytes = fs::read(path).map_err(|_| {
+        let file = fs::File::open(path).map_err(|_| {
             WebDavError::new(
                 WebDavErrorCode::WriteTestFailed,
                 "TicketTrail could not read the temporary archive.",
@@ -442,7 +470,7 @@ impl WebDavClient {
         self.send(
             self.request(Method::PUT, url)
                 .header(CONTENT_TYPE, content_type)
-                .body(bytes),
+                .body(reqwest::blocking::Body::new(file)),
             WebDavErrorCode::WriteTestFailed,
             "TicketTrail could not upload the backup archive.",
         )?;
@@ -594,6 +622,90 @@ impl WebDavClient {
             "TicketTrail could not read backup metadata.",
         )?;
         read_limited(response, limit, "The WebDAV backup metadata was too large.")
+    }
+
+    /// Streams a remote archive into a private `.part` file. Archives are never
+    /// buffered in memory and both declared and observed byte counts are bounded.
+    fn download_archive_to_file(
+        &self,
+        url: Url,
+        destination: &Path,
+        expected_size: u64,
+    ) -> Result<(), WebDavError> {
+        if expected_size == 0 || expected_size > MAX_RESTORE_ARCHIVE_BYTES {
+            return Err(WebDavError::new(
+                WebDavErrorCode::ListingFailed,
+                "This backup archive is too large to restore safely.",
+            ));
+        }
+        let mut response = self
+            .request(Method::GET, url)
+            .timeout(Duration::from_secs(RESTORE_DOWNLOAD_TIMEOUT_SECONDS))
+            .send()
+            .map_err(|error| map_network_error(error, WebDavErrorCode::ListingFailed))?;
+        if response.status().is_redirection() {
+            return Err(WebDavError::new(
+                WebDavErrorCode::UnsafeRedirect,
+                "The WebDAV server redirected archive download.",
+            ));
+        }
+        if !response.status().is_success() {
+            return Err(status_error(
+                response.status(),
+                WebDavErrorCode::ListingFailed,
+                "TicketTrail could not download the selected backup archive.",
+            ));
+        }
+        if response
+            .content_length()
+            .is_some_and(|value| value > MAX_RESTORE_ARCHIVE_BYTES || value != expected_size)
+        {
+            return Err(WebDavError::new(
+                WebDavErrorCode::ListingFailed,
+                "The selected backup archive size does not match its published metadata.",
+            ));
+        }
+        let mut output = fs::File::create(destination).map_err(|_| {
+            WebDavError::new(
+                WebDavErrorCode::ListingFailed,
+                "TicketTrail could not create private restore storage.",
+            )
+        })?;
+        let mut total = 0_u64;
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let read = response.read(&mut buffer).map_err(|_| {
+                WebDavError::new(
+                    WebDavErrorCode::ListingFailed,
+                    "TicketTrail could not download the selected backup archive.",
+                )
+            })?;
+            if read == 0 {
+                break;
+            }
+            total = total.saturating_add(read as u64);
+            if total > MAX_RESTORE_ARCHIVE_BYTES || total > expected_size {
+                let _ = fs::remove_file(destination);
+                return Err(WebDavError::new(
+                    WebDavErrorCode::ListingFailed,
+                    "The selected backup archive exceeded its safe size limit.",
+                ));
+            }
+            output.write_all(&buffer[..read]).map_err(|_| {
+                WebDavError::new(
+                    WebDavErrorCode::ListingFailed,
+                    "TicketTrail could not save the selected backup archive.",
+                )
+            })?;
+        }
+        if total != expected_size {
+            let _ = fs::remove_file(destination);
+            return Err(WebDavError::new(
+                WebDavErrorCode::ListingFailed,
+                "The selected backup archive size does not match its published metadata.",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -832,7 +944,10 @@ pub fn save_config(
     app: &AppHandle,
     input: WebDavConfigSavePayload,
 ) -> Result<WebDavConfigPayload, String> {
-    save_config_with_store(&config_path(app)?, input, &WindowsCredentialSecretStore)
+    begin_cloud_mutation("settings change")?;
+    let result = save_config_with_store(&config_path(app)?, input, &WindowsCredentialSecretStore);
+    end_cloud_mutation();
+    result
 }
 
 pub fn test_connection(app: &AppHandle) -> Result<WebDavConnectionTestPayload, String> {
@@ -885,15 +1000,27 @@ pub fn test_connection(app: &AppHandle) -> Result<WebDavConnectionTestPayload, S
 }
 
 pub fn backup_now(app: &AppHandle) -> Result<WebDavBackupNowPayload, String> {
-    let lock = CLOUD_BACKUP_LOCK.get_or_init(|| Mutex::new(()));
-    let _guard = lock
-        .try_lock()
-        .map_err(|_| "A WebDAV backup is already in progress.".to_string())?;
+    begin_cloud_mutation("backup")?;
+    let result = backup_now_inner(app);
+    end_cloud_mutation();
+    result
+}
+
+fn backup_now_inner(app: &AppHandle) -> Result<WebDavBackupNowPayload, String> {
     let (client, managed, move_supported) = open_backup_transport(app)?;
-    let temporary = db::create_temporary_archive(app, "manual")?;
     let operation_id = Uuid::new_v4().simple().to_string();
     let timestamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
     let object_id = Uuid::new_v4().simple().to_string();
+    let backup_id = format!("backup-{object_id}");
+    let temporary = db::create_temporary_archive_with_identity(
+        app,
+        "manual",
+        backup_id.clone(),
+        format!(
+            "Backup {}",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+        ),
+    )?;
     let archive_name = format!("tickettrail-v1-{timestamp}-{object_id}.zip");
     let sidecar_name = archive_name.trim_end_matches(".zip").to_string() + ".meta.json";
     let archive_part_name = format!("tickettrail-uploading-{operation_id}.zip.part");
@@ -903,7 +1030,7 @@ pub fn backup_now(app: &AppHandle) -> Result<WebDavBackupNowPayload, String> {
         .len();
     let sidecar = RemoteBackupSidecar {
         remote_metadata_version: 1,
-        backup_id: format!("backup-{object_id}"),
+        backup_id: backup_id.clone(),
         archive_object_name: archive_name.clone(),
         archive_size_bytes,
         archive_format_version: 1,
@@ -921,55 +1048,54 @@ pub fn backup_now(app: &AppHandle) -> Result<WebDavBackupNowPayload, String> {
     };
     let sidecar_bytes = serde_json::to_vec_pretty(&sidecar)
         .map_err(|_| "TicketTrail could not prepare backup metadata.".to_string())?;
-    let archive_final = remote_object_url(&managed, &archive_name)?;
-    let sidecar_final = remote_object_url(&managed, &sidecar_name)?;
-    let archive_part = remote_object_url(&managed, &archive_part_name)?;
-    let sidecar_part = remote_object_url(&managed, &sidecar_part_name)?;
-
-    let published = (|| -> Result<(), WebDavError> {
-        if move_supported {
-            client.put_file(
-                archive_part.clone(),
-                &temporary.archive_path,
-                "application/zip",
-            )?;
-            client.verify_object_size(archive_part.clone(), archive_size_bytes)?;
-            client.put_bytes(
-                sidecar_part.clone(),
-                sidecar_bytes.clone(),
-                "application/json",
-            )?;
-            client.move_exact(archive_part.clone(), archive_final.clone())?;
-            client.move_exact(sidecar_part.clone(), sidecar_final.clone())?;
-        } else {
-            client.put_file(
-                archive_final.clone(),
-                &temporary.archive_path,
-                "application/zip",
-            )?;
-            client.verify_object_size(archive_final.clone(), archive_size_bytes)?;
-            client.put_bytes(
-                sidecar_final.clone(),
-                sidecar_bytes.clone(),
-                "application/json",
-            )?;
-        }
-        Ok(())
-    })();
+    let published = publish_backup_pair(
+        &client,
+        &managed,
+        move_supported,
+        &temporary.archive_path,
+        &archive_name,
+        &sidecar_name,
+        &archive_part_name,
+        &sidecar_part_name,
+        archive_size_bytes,
+        &sidecar_bytes,
+    );
     let mut cleanup_warning = None;
     temporary.cleanup();
     if published.is_err() {
         // The sidecar-last rule keeps an interrupted upload undiscoverable. These
         // exact-object deletes are only best-effort cleanup; they never scan.
         let mut failed = Vec::new();
-        if move_supported && client.delete_exact(archive_part).is_err() {
+        if move_supported
+            && client
+                .delete_exact(
+                    remote_object_url(&managed, &archive_part_name).map_err(|_| {
+                        "TicketTrail could not clean up WebDAV upload objects.".to_string()
+                    })?,
+                )
+                .is_err()
+        {
             failed.push("archive upload temporary object");
         }
-        if move_supported && client.delete_exact(sidecar_part).is_err() {
+        if move_supported
+            && client
+                .delete_exact(
+                    remote_object_url(&managed, &sidecar_part_name).map_err(|_| {
+                        "TicketTrail could not clean up WebDAV upload objects.".to_string()
+                    })?,
+                )
+                .is_err()
+        {
             failed.push("metadata upload temporary object");
         }
-        let _ = client.delete_exact(archive_final.clone());
-        let _ = client.delete_exact(sidecar_final.clone());
+        let _ = client
+            .delete_exact(remote_object_url(&managed, &archive_name).map_err(|_| {
+                "TicketTrail could not clean up WebDAV upload objects.".to_string()
+            })?);
+        let _ = client
+            .delete_exact(remote_object_url(&managed, &sidecar_name).map_err(|_| {
+                "TicketTrail could not clean up WebDAV upload objects.".to_string()
+            })?);
         if !failed.is_empty() {
             cleanup_warning = Some(format!(
                 "Remote cleanup pending for {}.",
@@ -989,7 +1115,7 @@ pub fn backup_now(app: &AppHandle) -> Result<WebDavBackupNowPayload, String> {
         })?
         .payload
         .clone();
-    if let Err(error) = enforce_retention(&client, &managed, &sidecar.backup_id) {
+    if let Err(error) = enforce_retention(&client, &managed, &[sidecar.backup_id.as_str()]) {
         cleanup_warning = Some(match cleanup_warning {
             Some(existing) => format!(
                 "{existing} Backup uploaded; remote cleanup pending: {}",
@@ -1011,6 +1137,529 @@ pub fn list_remote_backups(app: &AppHandle) -> Result<Vec<WebDavRemoteBackupPayl
     list_complete_backups(&client, &managed)
         .map(|backups| backups.into_iter().map(|backup| backup.payload).collect())
         .map_err(|error| error.message)
+}
+
+fn cloud_state() -> &'static Mutex<CloudOperationState> {
+    CLOUD_OPERATION_STATE.get_or_init(|| Mutex::new(CloudOperationState::default()))
+}
+
+fn begin_cloud_mutation(kind: &'static str) -> Result<(), String> {
+    let mut state = cloud_state()
+        .lock()
+        .map_err(|_| "TicketTrail could not coordinate the WebDAV operation.".to_string())?;
+    prune_expired_prepared(&mut state);
+    if state.active.is_some() || !state.prepared.is_empty() {
+        return Err(
+            "Another WebDAV backup or restore operation is already in progress.".to_string(),
+        );
+    }
+    state.active = Some(kind);
+    Ok(())
+}
+
+fn end_cloud_mutation() {
+    if let Ok(mut state) = cloud_state().lock() {
+        state.active = None;
+    }
+}
+
+fn prune_expired_prepared(state: &mut CloudOperationState) {
+    prune_expired_prepared_at(state, Utc::now());
+}
+
+fn prune_expired_prepared_at(state: &mut CloudOperationState, now: DateTime<Utc>) {
+    let expired = state
+        .prepared
+        .iter()
+        .filter_map(|(id, operation)| (operation.expires_at <= now).then_some(id.clone()))
+        .collect::<Vec<_>>();
+    for id in expired {
+        if let Some(operation) = state.prepared.remove(&id) {
+            let _ = fs::remove_dir_all(operation.work_dir);
+        }
+    }
+}
+
+fn take_prepared_restore(
+    state: &mut CloudOperationState,
+    operation_id: &str,
+    now: DateTime<Utc>,
+) -> Result<PreparedRestore, String> {
+    prune_expired_prepared_at(state, now);
+    if state.active.is_some() {
+        return Err("Another WebDAV operation is already in progress.".to_string());
+    }
+    let prepared = state.prepared.remove(operation_id).ok_or_else(|| {
+        "This restore confirmation has expired or is no longer valid.".to_string()
+    })?;
+    state.active = Some("restore confirmation");
+    Ok(prepared)
+}
+
+fn cancel_prepared_restore_in_state(
+    state: &mut CloudOperationState,
+    operation_id: &str,
+) -> Option<PreparedRestore> {
+    state.prepared.remove(operation_id)
+}
+
+fn consume_restore_capability<T, F>(
+    capability: Result<PreparedRestore, String>,
+    action: F,
+) -> Result<T, String>
+where
+    F: FnOnce(PreparedRestore) -> Result<T, String>,
+{
+    action(capability?)
+}
+
+fn restore_work_dir(app: &AppHandle, operation_id: &str) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|err| err.to_string())?
+        .join("temporary-archives")
+        .join(format!("webdav-restore-{operation_id}")))
+}
+
+fn repository_identity(app: &AppHandle) -> Result<String, String> {
+    let stored = load_stored_config(&config_path(app)?)?;
+    let server = normalize_server_url(&stored.server_url)?;
+    let folder = normalize_remote_folder(&stored.remote_folder)?;
+    Ok(format!(
+        "{}\n{}\n{}",
+        server.as_str(),
+        stored.username.trim(),
+        folder
+    ))
+}
+
+fn same_archive_record(
+    left: &crate::models::BackupRecordPayload,
+    right: &crate::models::BackupRecordPayload,
+) -> bool {
+    left.id == right.id
+        && left.created_at == right.created_at
+        && left.archive_format_version == right.archive_format_version
+        && left.app_version == right.app_version
+        && left.ticket_count == right.ticket_count
+        && left.journey_count == right.journey_count
+        && left.attachment_count == right.attachment_count
+        && left.database_size_bytes == right.database_size_bytes
+        && left.attachments_included == right.attachments_included
+}
+
+fn compatible_archive_manifest(
+    remote: &WebDavRemoteBackupPayload,
+    archive: &crate::models::BackupRecordPayload,
+) -> bool {
+    let exact_id = archive.id == remote.id;
+    // 001B shipped manual sidecars with `backup-<uuid>` while the format-v1
+    // manifest used `temporary-manual-<uuid>`. Accept only that narrow legacy
+    // shape and still require all user-visible payload facts to agree.
+    let historical_manual_id = remote.purpose == "manual"
+        && remote.id.starts_with("backup-")
+        && archive.id.starts_with("temporary-manual-")
+        && archive.id.len() == "temporary-manual-".len() + 32
+        && archive.id["temporary-manual-".len()..] == remote.id["backup-".len()..]
+        && archive.id["temporary-manual-".len()..]
+            .chars()
+            .all(|value| value.is_ascii_hexdigit() && !value.is_ascii_uppercase());
+    (exact_id || historical_manual_id)
+        && archive.created_at == remote.created_at
+        && archive.ticket_count == remote.ticket_count
+        && archive.journey_count.unwrap_or(0) == remote.journey_count
+        && archive.attachment_count == remote.attachment_count
+        && archive.attachments_included.unwrap_or(false) == remote.attachments_included
+        && archive.archive_format_version == Some(remote.archive_format_version)
+        && archive.app_version == remote.app_version
+}
+
+fn execute_prepared_restore<F>(
+    prepared: &PreparedRestore,
+    current_repository_identity: Result<String, String>,
+    current_record: Result<crate::models::BackupRecordPayload, String>,
+    restore: F,
+) -> Result<(), String>
+where
+    F: FnOnce() -> Result<(), String>,
+{
+    if current_repository_identity? != prepared.repository_identity {
+        return Err(
+            "WebDAV settings changed after restore preparation. Prepare the restore again."
+                .to_string(),
+        );
+    }
+    let current_record = current_record?;
+    if !same_archive_record(&prepared.archive_record, &current_record)
+        || !compatible_archive_manifest(&prepared.target.payload, &current_record)
+    {
+        return Err(
+            "The prepared restore payload changed after validation. Prepare the restore again."
+                .to_string(),
+        );
+    }
+    restore().map_err(|error| {
+        format!(
+            "Critical restore failure. Safety backup \"{}\" ({}) remains in WebDAV. {}",
+            prepared.safety.payload.label, prepared.safety.payload.id, error
+        )
+    })
+}
+
+/// Phase 1 of restore. This command is deliberately non-destructive: it
+/// freshly resolves the opaque target ID, downloads and validates it, then
+/// publishes and confirms a distinct current-state safety backup.
+pub fn prepare_webdav_restore(
+    app: &AppHandle,
+    backup_id: String,
+) -> Result<RestoreReadyPublicPayload, String> {
+    begin_cloud_mutation("restore preparation")?;
+    let operation_id = Uuid::new_v4().simple().to_string();
+    let work_dir = match restore_work_dir(app, &operation_id) {
+        Ok(path) => path,
+        Err(error) => {
+            end_cloud_mutation();
+            return Err(error);
+        }
+    };
+    let result = (|| {
+        let prepared_repository_identity = repository_identity(app)?;
+        let (client, managed, move_supported) = open_backup_transport(app)?;
+        let fresh = list_complete_backups(&client, &managed).map_err(|error| error.message)?;
+        let target = fresh
+            .iter()
+            .find(|backup| backup.payload.id == backup_id)
+            .cloned()
+            .ok_or_else(|| "The selected WebDAV backup is no longer available.".to_string())?;
+        fs::create_dir_all(&work_dir).map_err(|err| err.to_string())?;
+        let archive_part_path = work_dir.join("target.zip.part");
+        let archive_path = work_dir.join("target.zip");
+        let target_url = remote_object_url(&managed, &target.archive_name)?;
+        client
+            .download_archive_to_file(
+                target_url,
+                &archive_part_path,
+                target.payload.archive_size_bytes,
+            )
+            .map_err(|error| error.message)?;
+        // Keep the interrupted download marker until byte validation succeeds,
+        // then give PowerShell's ZIP extractor a conventional archive name.
+        fs::rename(&archive_part_path, &archive_path).map_err(|_| {
+            "TicketTrail could not finalize the private downloaded backup archive.".to_string()
+        })?;
+        let extracted_root = work_dir.join("target-extracted");
+        let (payload_dir, archive_record) =
+            db::expand_and_validate_archive(&archive_path, &extracted_root)?;
+        if !compatible_archive_manifest(&target.payload, &archive_record) {
+            return Err(
+                "The downloaded archive does not match its published backup metadata.".to_string(),
+            );
+        }
+
+        let safety_object_id = Uuid::new_v4().simple().to_string();
+        let safety_id = format!("backup-{safety_object_id}");
+        let safety_timestamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+        let safety_archive_name =
+            format!("tickettrail-v1-{safety_timestamp}-{safety_object_id}.zip");
+        let safety_sidecar_name =
+            format!("{}.meta.json", safety_archive_name.trim_end_matches(".zip"));
+        let safety_temp = db::create_temporary_archive_with_identity(
+            app,
+            "preRestoreSafety",
+            safety_id.clone(),
+            format!(
+                "Before restore {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+            ),
+        )?;
+        let safety_size = fs::metadata(&safety_temp.archive_path)
+            .map_err(|err| err.to_string())?
+            .len();
+        let safety_sidecar = RemoteBackupSidecar {
+            remote_metadata_version: 1,
+            backup_id: safety_id.clone(),
+            archive_object_name: safety_archive_name.clone(),
+            archive_size_bytes: safety_size,
+            archive_format_version: 1,
+            created_at: safety_temp.record.created_at.clone(),
+            label: safety_temp.record.label.clone(),
+            purpose: "preRestoreSafety".to_string(),
+            app_version: safety_temp.record.app_version.clone(),
+            device_id: None,
+            device_name: safety_temp.record.device_name.clone(),
+            platform: safety_temp.record.platform.clone(),
+            ticket_count: safety_temp.record.ticket_count,
+            journey_count: safety_temp.record.journey_count.unwrap_or(0),
+            attachment_count: safety_temp.record.attachment_count,
+            attachments_included: safety_temp.record.attachments_included.unwrap_or(false),
+        };
+        let safety_bytes = serde_json::to_vec_pretty(&safety_sidecar)
+            .map_err(|_| "TicketTrail could not prepare restore safety metadata.".to_string())?;
+        let safety_record = safety_temp.record.clone();
+        let safety_operation = Uuid::new_v4().simple().to_string();
+        let safety_archive_part_name = format!("tickettrail-uploading-{safety_operation}.zip.part");
+        let safety_sidecar_part_name =
+            format!("tickettrail-uploading-{safety_operation}.meta.json.part");
+        let published = publish_backup_pair(
+            &client,
+            &managed,
+            move_supported,
+            &safety_temp.archive_path,
+            &safety_archive_name,
+            &safety_sidecar_name,
+            &safety_archive_part_name,
+            &safety_sidecar_part_name,
+            safety_size,
+            &safety_bytes,
+        );
+        safety_temp.cleanup();
+        if published.is_err() {
+            // Exact names from this operation only; no folder scan or wildcard
+            // cleanup can touch user-owned content.
+            if move_supported {
+                if let Ok(url) = remote_object_url(&managed, &safety_archive_part_name) {
+                    let _ = client.delete_exact(url);
+                }
+                if let Ok(url) = remote_object_url(&managed, &safety_sidecar_part_name) {
+                    let _ = client.delete_exact(url);
+                }
+            }
+            if let Ok(url) = remote_object_url(&managed, &safety_sidecar_name) {
+                let _ = client.delete_exact(url);
+            }
+            if let Ok(url) = remote_object_url(&managed, &safety_archive_name) {
+                let _ = client.delete_exact(url);
+            }
+        }
+        published.map_err(|error| error.message)?;
+        let verified = list_complete_backups(&client, &managed).map_err(|error| error.message)?;
+        let safety = verified
+            .iter()
+            .find(|backup| backup.payload.id == safety_id)
+            .cloned()
+            .ok_or_else(|| {
+                "The restore safety backup was published but could not be confirmed.".to_string()
+            })?;
+        if safety.payload.purpose != "preRestoreSafety"
+            || safety.payload.archive_size_bytes != safety_size
+            || !compatible_archive_manifest(&safety.payload, &safety_record)
+        {
+            return Err(
+                "The published restore safety backup metadata could not be verified.".to_string(),
+            );
+        }
+        client
+            .verify_object_size(
+                remote_object_url(&managed, &safety.archive_name)?,
+                safety_size,
+            )
+            .map_err(|error| error.message)?;
+        // Both target and safety are protected while enforcing the cap.
+        let cleanup_warning = enforce_retention(
+            &client,
+            &managed,
+            &[target.payload.id.as_str(), safety.payload.id.as_str()],
+        )
+        .err()
+        .map(|error| {
+            format!(
+                "Safety backup is ready; remote cleanup pending: {}",
+                error.message
+            )
+        });
+        let expires_at = Utc::now() + chrono::Duration::seconds(PREPARED_RESTORE_TTL_SECONDS);
+        Ok((
+            operation_id.clone(),
+            target,
+            safety,
+            archive_record,
+            prepared_repository_identity,
+            payload_dir,
+            work_dir.clone(),
+            expires_at,
+            cleanup_warning,
+        ))
+    })();
+    match result {
+        Ok((
+            operation_id,
+            target,
+            safety,
+            archive_record,
+            repository_identity,
+            payload_dir,
+            work_dir,
+            expires_at,
+            cleanup_warning,
+        )) => {
+            let mut state = cloud_state().lock().map_err(|_| {
+                "TicketTrail could not coordinate the prepared restore.".to_string()
+            })?;
+            state.active = None;
+            state.prepared.insert(
+                operation_id.clone(),
+                PreparedRestore {
+                    target: target.clone(),
+                    safety: safety.clone(),
+                    archive_record,
+                    repository_identity,
+                    payload_dir,
+                    work_dir,
+                    expires_at,
+                },
+            );
+            Ok(RestoreReadyPublicPayload {
+                operation_id,
+                target_backup: target.payload,
+                safety_backup: safety.payload,
+                expires_at: expires_at.to_rfc3339(),
+                cleanup_warning,
+            })
+        }
+        Err(error) => {
+            let _ = fs::remove_dir_all(&work_dir);
+            end_cloud_mutation();
+            Err(error)
+        }
+    }
+}
+
+/// Phase 2. Only an unexpired opaque token produced above can reach this
+/// destructive operation; the archive is revalidated immediately beforehand.
+pub fn confirm_webdav_restore(
+    app: &AppHandle,
+    operation_id: String,
+) -> Result<WebDavRestoreResultPayload, String> {
+    let capability = {
+        let mut state = cloud_state()
+            .lock()
+            .map_err(|_| "TicketTrail could not coordinate the prepared restore.".to_string())?;
+        take_prepared_restore(&mut state, &operation_id, Utc::now())
+    };
+    let acquired_restore_lock = capability.is_ok();
+    let result = consume_restore_capability(capability, |prepared| {
+        let work_dir = prepared.work_dir.clone();
+        let action_result = (|| {
+            let canonical_work_dir = fs::canonicalize(&prepared.work_dir)
+                .map_err(|_| "The private restore workspace is no longer available.".to_string())?;
+            let canonical_payload_dir = fs::canonicalize(&prepared.payload_dir)
+                .map_err(|_| "The prepared restore payload is no longer available.".to_string())?;
+            if !canonical_payload_dir.starts_with(&canonical_work_dir) {
+                return Err(
+                    "The prepared restore payload left its private workspace. Prepare the restore again."
+                        .to_string(),
+                );
+            }
+            execute_prepared_restore(
+                &prepared,
+                repository_identity(app),
+                db::validate_archive_payload_record(&prepared.payload_dir),
+                || db::restore_validated_archive_payload(app, &prepared.payload_dir),
+            )?;
+            Ok(WebDavRestoreResultPayload {
+                restored_backup_id: prepared.target.payload.id.clone(),
+                safety_backup: prepared.safety.payload.clone(),
+            })
+        })();
+        let _ = fs::remove_dir_all(work_dir);
+        action_result
+    });
+    if acquired_restore_lock {
+        end_cloud_mutation();
+    }
+    result
+}
+
+pub fn cancel_webdav_restore(operation_id: String) -> Result<(), String> {
+    let mut state = cloud_state()
+        .lock()
+        .map_err(|_| "TicketTrail could not coordinate the prepared restore.".to_string())?;
+    if let Some(prepared) = cancel_prepared_restore_in_state(&mut state, &operation_id) {
+        let _ = fs::remove_dir_all(prepared.work_dir);
+    }
+    Ok(())
+}
+
+pub fn delete_webdav_backup(
+    app: &AppHandle,
+    backup_id: String,
+) -> Result<WebDavDeleteResultPayload, String> {
+    if !is_valid_backup_id(&backup_id) {
+        return Err("The selected WebDAV backup ID is invalid.".to_string());
+    }
+    begin_cloud_mutation("remote deletion")?;
+    let result = (|| {
+        let (client, managed, _) = open_backup_transport(app)?;
+        let backup = list_complete_backups(&client, &managed)
+            .map_err(|error| error.message)?
+            .into_iter()
+            .find(|item| item.payload.id == backup_id)
+            .ok_or_else(|| "The selected WebDAV backup is no longer available.".to_string())?;
+        let sidecar = remote_object_url(&managed, &backup.sidecar_name)?;
+        // Do not attempt the ZIP if hiding the pair failed. Once the sidecar is
+        // gone, an archive-delete failure is safe but must remain visible as a
+        // cleanup warning rather than a false successful full deletion.
+        let archive = remote_object_url(&managed, &backup.archive_name)?;
+        let cleanup_warning = delete_pair_in_order(|kind| match kind {
+            PairObjectKind::Sidecar => client.delete_exact(sidecar.clone()),
+            PairObjectKind::Archive => client.delete_exact(archive.clone()),
+        })
+        .map_err(|error| error.message)?
+        .map(|error| {
+            format!(
+                "Backup hidden from history; remote archive cleanup pending: {}",
+                error.message
+            )
+        });
+        Ok(WebDavDeleteResultPayload {
+            deleted_backup_id: backup_id,
+            cleanup_warning,
+        })
+    })();
+    end_cloud_mutation();
+    result
+}
+
+/// Publishes a complete backup pair. A final metadata sidecar is the sole
+/// visibility marker, so all archive failures remain undiscoverable.
+fn publish_backup_pair(
+    client: &WebDavClient,
+    managed: &Url,
+    move_supported: bool,
+    archive_path: &Path,
+    archive_name: &str,
+    sidecar_name: &str,
+    archive_part_name: &str,
+    sidecar_part_name: &str,
+    archive_size_bytes: u64,
+    sidecar_bytes: &[u8],
+) -> Result<(), WebDavError> {
+    let archive_final = remote_object_url(managed, archive_name)
+        .map_err(|message| WebDavError::new(WebDavErrorCode::WriteTestFailed, message))?;
+    let sidecar_final = remote_object_url(managed, sidecar_name)
+        .map_err(|message| WebDavError::new(WebDavErrorCode::WriteTestFailed, message))?;
+    if move_supported {
+        let archive_part = remote_object_url(managed, archive_part_name)
+            .map_err(|message| WebDavError::new(WebDavErrorCode::WriteTestFailed, message))?;
+        let sidecar_part = remote_object_url(managed, sidecar_part_name)
+            .map_err(|message| WebDavError::new(WebDavErrorCode::WriteTestFailed, message))?;
+        client.put_file(archive_part.clone(), archive_path, "application/zip")?;
+        client.verify_object_size(archive_part.clone(), archive_size_bytes)?;
+        client.put_bytes(
+            sidecar_part.clone(),
+            sidecar_bytes.to_vec(),
+            "application/json",
+        )?;
+        client.move_exact(archive_part, archive_final)?;
+        // The metadata MOVE is deliberately last: it is the transaction commit.
+        client.move_exact(sidecar_part, sidecar_final)?;
+    } else {
+        client.put_file(archive_final.clone(), archive_path, "application/zip")?;
+        client.verify_object_size(archive_final, archive_size_bytes)?;
+        client.put_bytes(sidecar_final, sidecar_bytes.to_vec(), "application/json")?;
+    }
+    Ok(())
 }
 
 fn open_backup_transport(app: &AppHandle) -> Result<(WebDavClient, Url, bool), String> {
@@ -1255,13 +1904,13 @@ fn list_complete_backups(
 fn enforce_retention(
     client: &WebDavClient,
     managed: &Url,
-    protected_id: &str,
+    protected_ids: &[&str],
 ) -> Result<(), WebDavError> {
     let mut backups = list_complete_backups(client, managed)?;
     if backups.len() <= MAX_RETAINED_REMOTE_BACKUPS {
         return Ok(());
     }
-    let remove_ids = select_retention_ids(&backups, protected_id, MAX_RETAINED_REMOTE_BACKUPS)
+    let remove_ids = select_retention_ids(&backups, protected_ids, MAX_RETAINED_REMOTE_BACKUPS)
         .ok_or_else(|| {
             WebDavError::new(
                 WebDavErrorCode::CleanupFailed,
@@ -1274,12 +1923,7 @@ fn enforce_retention(
             .position(|backup| backup.payload.id == backup_id)
             .expect("selected retention backup must be present");
         let backup = backups.remove(position);
-        let sidecar = remote_object_url(managed, &backup.sidecar_name)
-            .map_err(|message| WebDavError::new(WebDavErrorCode::CleanupFailed, message))?;
-        client.delete_exact(sidecar)?;
-        let archive = remote_object_url(managed, &backup.archive_name)
-            .map_err(|message| WebDavError::new(WebDavErrorCode::CleanupFailed, message))?;
-        client.delete_exact(archive)?;
+        delete_complete_backup_pair(client, managed, &backup)?;
     }
     let verified = list_complete_backups(client, managed)?;
     if verified.len() > MAX_RETAINED_REMOTE_BACKUPS {
@@ -1293,7 +1937,7 @@ fn enforce_retention(
 
 fn select_retention_ids(
     backups: &[CompleteRemoteBackup],
-    protected_id: &str,
+    protected_ids: &[&str],
     maximum: usize,
 ) -> Option<Vec<String>> {
     if backups.len() <= maximum {
@@ -1311,11 +1955,39 @@ fn select_retention_ids(
         if backups.len().saturating_sub(result.len()) <= maximum {
             break;
         }
-        if backup.payload.id != protected_id {
+        if !protected_ids.iter().any(|id| *id == backup.payload.id) {
             result.push(backup.payload.id.clone());
         }
     }
     (backups.len().saturating_sub(result.len()) <= maximum).then_some(result)
+}
+
+/// Exact-object, sidecar-first deletion for entries that were just discovered
+/// by strict listing. It never receives a frontend path or arbitrary URL.
+fn delete_complete_backup_pair(
+    client: &WebDavClient,
+    managed: &Url,
+    backup: &CompleteRemoteBackup,
+) -> Result<(), WebDavError> {
+    let sidecar = remote_object_url(managed, &backup.sidecar_name)
+        .map_err(|message| WebDavError::new(WebDavErrorCode::CleanupFailed, message))?;
+    let archive = remote_object_url(managed, &backup.archive_name)
+        .map_err(|message| WebDavError::new(WebDavErrorCode::CleanupFailed, message))?;
+    match delete_pair_in_order(|kind| match kind {
+        PairObjectKind::Sidecar => client.delete_exact(sidecar.clone()),
+        PairObjectKind::Archive => client.delete_exact(archive.clone()),
+    })? {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+fn delete_pair_in_order<F>(mut delete: F) -> Result<Option<WebDavError>, WebDavError>
+where
+    F: FnMut(PairObjectKind) -> Result<(), WebDavError>,
+{
+    delete(PairObjectKind::Sidecar)?;
+    Ok(delete(PairObjectKind::Archive).err())
 }
 
 fn run_connection_test(
@@ -1448,15 +2120,22 @@ fn status_error(
 #[cfg(test)]
 mod tests {
     use super::{
-        append_segments, default_stored_config, expected_archive_name,
-        extract_propfind_content_length, extract_propfind_names, managed_directory_urls,
-        normalize_remote_folder, normalize_server_url, parse_final_archive_name,
-        parse_final_sidecar_name, public_config, save_config_with_store, select_retention_ids,
-        validate_sidecar, CompleteRemoteBackup, RemoteBackupSidecar, SecretStore,
-        StoredWebDavConfig,
+        append_segments, cancel_prepared_restore_in_state, compatible_archive_manifest,
+        consume_restore_capability, default_stored_config, delete_pair_in_order,
+        execute_prepared_restore, expected_archive_name, extract_propfind_content_length,
+        extract_propfind_names, managed_directory_urls, normalize_remote_folder,
+        normalize_server_url, parse_final_archive_name, parse_final_sidecar_name, public_config,
+        save_config_with_store, select_retention_ids, take_prepared_restore, validate_sidecar,
+        CloudOperationState, CompleteRemoteBackup, PairObjectKind, PreparedRestore,
+        RemoteBackupSidecar, SecretStore, StoredWebDavConfig, WebDavError, WebDavErrorCode,
     };
-    use crate::models::{WebDavConfigSavePayload, WebDavRemoteBackupPayload};
-    use std::{cell::RefCell, fs};
+    use crate::models::{BackupRecordPayload, WebDavConfigSavePayload, WebDavRemoteBackupPayload};
+    use chrono::{Duration as ChronoDuration, Utc};
+    use std::{
+        cell::{Cell, RefCell},
+        fs,
+        path::PathBuf,
+    };
     use uuid::Uuid;
 
     #[derive(Default)]
@@ -1638,6 +2317,38 @@ mod tests {
         }
     }
 
+    fn archive_record_for(remote: &WebDavRemoteBackupPayload) -> BackupRecordPayload {
+        BackupRecordPayload {
+            id: remote.id.clone(),
+            label: remote.label.clone(),
+            created_at: remote.created_at.clone(),
+            archive_format_version: Some(remote.archive_format_version),
+            app_version: remote.app_version.clone(),
+            ticket_count: remote.ticket_count,
+            journey_count: Some(remote.journey_count),
+            attachment_count: remote.attachment_count,
+            database_size_bytes: 10,
+            attachments_included: Some(remote.attachments_included),
+            device_name: remote.device_name.clone(),
+            platform: remote.platform.clone(),
+        }
+    }
+
+    fn prepared_restore(expires_at: chrono::DateTime<Utc>) -> PreparedRestore {
+        let target = remote_backup("6adc040628f24208a0e2dd98a369625b", "2026-08-16T07:00:19Z");
+        let mut safety = remote_backup("7bdc040628f24208a0e2dd98a369625b", "2026-08-16T07:01:19Z");
+        safety.payload.purpose = "preRestoreSafety".to_string();
+        PreparedRestore {
+            archive_record: archive_record_for(&target.payload),
+            repository_identity: "https://dav.example.com/\nuser\nTicketTrail".to_string(),
+            target,
+            safety,
+            payload_dir: PathBuf::from("private-payload"),
+            work_dir: PathBuf::from("private-work"),
+            expires_at,
+        }
+    }
+
     #[test]
     fn strict_remote_filename_contract_rejects_temp_and_unrelated_names() {
         let id = "6adc040628f24208a0e2dd98a369625b";
@@ -1730,21 +2441,270 @@ mod tests {
             ));
         }
         let protected = backups.last().unwrap().payload.id.clone();
-        let selected = select_retention_ids(&backups, &protected, 30).unwrap();
+        let selected = select_retention_ids(&backups, &[protected.as_str()], 30).unwrap();
         assert_eq!(selected, vec![backups[0].payload.id.clone()]);
         assert!(!selected.contains(&protected));
-        assert!(select_retention_ids(&backups[..30], &protected, 30)
-            .unwrap()
-            .is_empty());
+        assert!(
+            select_retention_ids(&backups[..30], &[protected.as_str()], 30)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
     fn retention_tie_breaks_by_backup_id() {
         let old = remote_backup("00000000000000000000000000000001", "2026-08-16T00:00:00Z");
         let newer_id = remote_backup("00000000000000000000000000000002", "2026-08-16T00:00:00Z");
-        let selected =
-            select_retention_ids(&[newer_id.clone(), old.clone()], &newer_id.payload.id, 1)
-                .unwrap();
+        let selected = select_retention_ids(
+            &[newer_id.clone(), old.clone()],
+            &[newer_id.payload.id.as_str()],
+            1,
+        )
+        .unwrap();
         assert_eq!(selected, vec![old.payload.id]);
+    }
+
+    #[test]
+    fn retention_protects_old_target_and_new_safety_at_thirty_one() {
+        let mut backups = (0..31_u32)
+            .map(|index| {
+                remote_backup(
+                    &format!("{index:032x}"),
+                    &format!("2026-08-{:02}T00:00:00Z", index + 1),
+                )
+            })
+            .collect::<Vec<_>>();
+        backups[30].payload.purpose = "preRestoreSafety".to_string();
+        let target = backups[0].payload.id.as_str();
+        let safety = backups[30].payload.id.as_str();
+        let selected = select_retention_ids(&backups, &[target, safety], 30).unwrap();
+        assert_eq!(selected, vec![backups[1].payload.id.clone()]);
+        assert!(!selected.iter().any(|id| id == target || id == safety));
+        assert!(
+            select_retention_ids(&backups[..2], &[target, backups[1].payload.id.as_str()], 0)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn delete_is_sidecar_first_and_sidecar_failure_prevents_archive_delete() {
+        let calls = RefCell::new(Vec::new());
+        let error = delete_pair_in_order(|kind| {
+            calls.borrow_mut().push(kind);
+            if kind == PairObjectKind::Sidecar {
+                Err(WebDavError::new(
+                    WebDavErrorCode::CleanupFailed,
+                    "sidecar failed",
+                ))
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap_err();
+        assert_eq!(error.message, "sidecar failed");
+        assert_eq!(*calls.borrow(), vec![PairObjectKind::Sidecar]);
+    }
+
+    #[test]
+    fn delete_reports_archive_cleanup_after_sidecar_success() {
+        let calls = RefCell::new(Vec::new());
+        let warning = delete_pair_in_order(|kind| {
+            calls.borrow_mut().push(kind);
+            if kind == PairObjectKind::Archive {
+                Err(WebDavError::new(
+                    WebDavErrorCode::CleanupFailed,
+                    "archive failed",
+                ))
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap()
+        .expect("archive failure should be a cleanup warning");
+        assert_eq!(warning.message, "archive failed");
+        assert_eq!(
+            *calls.borrow(),
+            vec![PairObjectKind::Sidecar, PairObjectKind::Archive]
+        );
+    }
+
+    #[test]
+    fn prepared_restore_token_is_single_use_and_expired_tokens_are_rejected() {
+        let now = Utc::now();
+        let mut state = CloudOperationState::default();
+        state.prepared.insert(
+            "single-use".to_string(),
+            prepared_restore(now + ChronoDuration::minutes(10)),
+        );
+        let first = take_prepared_restore(&mut state, "single-use", now).unwrap();
+        assert_eq!(
+            first.target.payload.id,
+            "backup-6adc040628f24208a0e2dd98a369625b"
+        );
+        state.active = None;
+        assert!(take_prepared_restore(&mut state, "single-use", now).is_err());
+
+        state.prepared.insert(
+            "expired".to_string(),
+            prepared_restore(now - ChronoDuration::seconds(1)),
+        );
+        assert!(take_prepared_restore(&mut state, "expired", now).is_err());
+        assert!(!state.prepared.contains_key("expired"));
+    }
+
+    #[test]
+    fn cancelled_prepared_restore_cannot_be_confirmed() {
+        let now = Utc::now();
+        let mut state = CloudOperationState::default();
+        state.prepared.insert(
+            "cancelled".to_string(),
+            prepared_restore(now + ChronoDuration::minutes(10)),
+        );
+        assert!(cancel_prepared_restore_in_state(&mut state, "cancelled").is_some());
+        assert!(take_prepared_restore(&mut state, "cancelled", now).is_err());
+    }
+
+    #[test]
+    fn failed_token_acquisition_does_not_clear_an_unrelated_active_operation() {
+        let now = Utc::now();
+        let mut state = CloudOperationState {
+            active: Some("backup"),
+            ..CloudOperationState::default()
+        };
+        assert!(take_prepared_restore(&mut state, "missing", now).is_err());
+        assert_eq!(state.active, Some("backup"));
+    }
+
+    #[test]
+    fn preparation_failures_cannot_invoke_the_destructive_restore_capability() {
+        let failure_stages = [
+            "target download",
+            "target size verification",
+            "target archive validation",
+            "unsupported archive format",
+            "sidecar manifest binding",
+            "safety archive creation",
+            "safety zip upload",
+            "safety sidecar publication",
+            "safety remote verification",
+        ];
+
+        for stage in failure_stages {
+            let restore_calls = Cell::new(0_u32);
+            let result =
+                consume_restore_capability::<(), _>(Err(format!("{stage} failed")), |_| {
+                    restore_calls.set(restore_calls.get() + 1);
+                    Ok(())
+                });
+            assert!(result.is_err(), "{stage} must block confirmation");
+            assert_eq!(
+                restore_calls.get(),
+                0,
+                "{stage} reached destructive restore"
+            );
+        }
+    }
+
+    #[test]
+    fn confirm_gate_never_calls_restore_for_validation_or_binding_failures() {
+        let prepared = prepared_restore(Utc::now() + ChronoDuration::minutes(10));
+        let restore_calls = Cell::new(0_u32);
+        let restore = || {
+            restore_calls.set(restore_calls.get() + 1);
+            Ok(())
+        };
+        assert!(execute_prepared_restore(
+            &prepared,
+            Ok(prepared.repository_identity.clone()),
+            Err("invalid or unsupported archive".to_string()),
+            restore,
+        )
+        .is_err());
+        assert_eq!(restore_calls.get(), 0);
+
+        let mut substituted = prepared.archive_record.clone();
+        substituted.ticket_count += 1;
+        assert!(execute_prepared_restore(
+            &prepared,
+            Ok(prepared.repository_identity.clone()),
+            Ok(substituted),
+            || {
+                restore_calls.set(restore_calls.get() + 1);
+                Ok(())
+            },
+        )
+        .is_err());
+        assert_eq!(restore_calls.get(), 0);
+
+        assert!(execute_prepared_restore(
+            &prepared,
+            Ok("different repository".to_string()),
+            Ok(prepared.archive_record.clone()),
+            || {
+                restore_calls.set(restore_calls.get() + 1);
+                Ok(())
+            },
+        )
+        .is_err());
+        assert_eq!(restore_calls.get(), 0);
+    }
+
+    #[test]
+    fn confirm_gate_invokes_destructive_restore_exactly_once() {
+        let prepared = prepared_restore(Utc::now() + ChronoDuration::minutes(10));
+        let restore_calls = Cell::new(0_u32);
+        execute_prepared_restore(
+            &prepared,
+            Ok(prepared.repository_identity.clone()),
+            Ok(prepared.archive_record.clone()),
+            || {
+                restore_calls.set(restore_calls.get() + 1);
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(restore_calls.get(), 1);
+    }
+
+    #[test]
+    fn archive_identity_accepts_only_the_documented_001b_manual_compatibility_shape() {
+        let remote = remote_backup("6adc040628f24208a0e2dd98a369625b", "2026-08-16T07:00:19Z");
+        let matching = BackupRecordPayload {
+            id: "temporary-manual-6adc040628f24208a0e2dd98a369625b".to_string(),
+            label: "Backup".to_string(),
+            created_at: remote.payload.created_at.clone(),
+            archive_format_version: Some(1),
+            app_version: Some("0.1.0".to_string()),
+            ticket_count: 1,
+            journey_count: Some(1),
+            attachment_count: 0,
+            database_size_bytes: 10,
+            attachments_included: Some(false),
+            device_name: None,
+            platform: Some("windows".to_string()),
+        };
+        assert!(compatible_archive_manifest(&remote.payload, &matching));
+        let mut invalid = matching;
+        invalid.id = "temporary-automatic-6adc040628f24208a0e2dd98a369625b".to_string();
+        assert!(!compatible_archive_manifest(&remote.payload, &invalid));
+
+        let mut uppercase = archive_record_for(&remote.payload);
+        uppercase.id = "temporary-manual-6ADC040628F24208A0E2DD98A369625B".to_string();
+        assert!(!compatible_archive_manifest(&remote.payload, &uppercase));
+
+        let mut different_historical_id = archive_record_for(&remote.payload);
+        different_historical_id.id =
+            "temporary-manual-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string();
+        assert!(!compatible_archive_manifest(
+            &remote.payload,
+            &different_historical_id
+        ));
+
+        let mut wrong_version = archive_record_for(&remote.payload);
+        wrong_version.app_version = Some("9.9.9".to_string());
+        assert!(!compatible_archive_manifest(
+            &remote.payload,
+            &wrong_version
+        ));
     }
 }

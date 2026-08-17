@@ -467,10 +467,31 @@
   - Consolidate `Settings > Data & Backup` around the single WebDAV backup repository without removing local archive-import safety internals.
   - Status: `Implemented / manually verified`
   - Notes:
-    - The primary `Backups` card creates and lists remote WebDAV backups only; its history modal is read-only until `WEBDAV-BACKUP-001C`.
+    - The primary `Backups` card creates and lists remote WebDAV backups only; its history modal now supports the manually verified 001C Restore and Delete flows.
     - WebDAV configuration is hidden behind `WebDAV settings`; archive export/import remains an independent offline transfer flow.
     - Existing local backup folders are neither deleted, migrated, nor uploaded.
     - Manual UI verification passed: the primary workflow, settings modal, offline archive actions, and preserved local backup files were accepted.
+  - Priority: `High`
+- `WEBDAV-BACKUP-001C-SAFETY`
+  - Audit the committed WebDAV/archive implementation and define the destructive restore/delete safety boundary before runtime implementation.
+  - Status: `Completed / PASS WITH FIXES; manually verified`
+  - Notes:
+    - The accepted plan uses a Rust-orchestrated two-step restore with an opaque, short-lived, single-use operation token; React never receives remote or local paths.
+    - Destructive restore is gated by target download/validation plus successful publication and fresh remote verification of a `preRestoreSafety` backup.
+    - Restore target and safety backup remain protected from retention/delete; pair deletion is sidecar-first and uses a freshly resolved validated opaque ID.
+    - Mandatory Rust tests prove the destructive restore call count remains zero for every safety-gate failure.
+    - The real Jianguoyun Restore, Safety backup, Cancel-after-Prepare safety, and user-triggered remote Delete flows passed manual verification; no BLOCKER remains.
+    - Accepted risks remain: destructive restore is not transactional across SQLite plus attachments, and automatic rollback is not implemented.
+
+- `WEBDAV-BACKUP-001C-IMPLEMENT`
+  - Status: `Implemented / manually verified`
+  - Adds backend-owned opaque-ID remote delete and two-stage WebDAV restore without changing archive format v1.
+  - Restore preparation downloads and validates first, then publishes and re-lists a `preRestoreSafety` backup before final local overwrite is enabled.
+  - Final confirmation is token-gated, single-use, and revalidates the extracted payload immediately before calling the existing restore primitive.
+  - Manual backup publishing now writes a unified backup ID to both its sidecar and internal `backup.json`; strict compatibility remains for historical 001B manual archives.
+  - Delete/retention remove sidecar before ZIP and never operate on frontend paths, unrelated objects, or unvalidated pairs.
+  - Real Jianguoyun manual verification passed: Restore replaced current local data from the selected backup; Prepare -> final confirmation -> Cancel left local data unchanged while the remote Safety backup remained; remote Delete removed the selected backup without modifying current Ticket/Journey data.
+  - Automatic backup, sync, archive format v2, DB migration, AeroDataBox changes, and remote restore rollback remain out of scope.
   - Priority: `High`
 - `SETTINGS-DATA-BACKUP-DESIGN-001`
   - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.

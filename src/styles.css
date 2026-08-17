@@ -4112,3 +4112,16 @@ textarea {
     min-height: auto;
   }
 }
+
+.danger-button {
+  border-radius: 14px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 126, 115, 0.42);
+  background: rgba(180, 68, 59, 0.14);
+  color: #ffd0ca;
+  font: inherit;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: rgba(180, 68, 59, 0.26);
+}

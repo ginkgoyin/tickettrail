@@ -478,24 +478,25 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 ## 12. Immediate Next Task Recommendation
 
-Latest implementation checkpoint: `WEBDAV-BACKUP-001B-UX` (implemented and manually verified).
+Latest WebDAV checkpoint: `WEBDAV-BACKUP-001C` (guarded remote delete and two-stage restore implemented and manually verified against Jianguoyun WebDAV).
 
-Recommended next task: `WEBDAV-BACKUP-001C`.
+Recommended next task: `WEBDAV-AUTO-BACKUP-001` only after the accepted WebDAV restore safety boundary.
 
-Recommended next task scope:
+Completed 001C scope:
 
 - implement remote archive download and validation;
 - add user-triggered remote Delete with strict ID validation;
 - upload and verify a pre-restore safety snapshot before any destructive restore;
 - implement manual destructive restore with protected IDs and cleanup reporting;
 - preserve offline archive export/import and current local backup behavior during the transition.
+- follow `docs/WEBDAV_RESTORE_SAFETY_REVIEW.md`: keep orchestration in Rust, use a two-step opaque restore token, and implement the mandatory destructive-call-counter tests before UI wiring;
 - do not implement automatic backup runtime until `WEBDAV-AUTO-BACKUP-001`
 
 The recommended next implementation order is now:
 
 1. `WEBDAV-BACKUP-001A`: configuration, device-local secret storage, and connection/capability test
 2. `WEBDAV-BACKUP-001B`: implemented and manually verified. Temporary archive engine extraction, manual upload, sidecar listing, and remote retention at 30
-3. `WEBDAV-BACKUP-001C`: remote history/delete/download and restore guarded by a successfully uploaded safety snapshot
+3. `WEBDAV-BACKUP-001C`: remote history/delete/download and restore guarded by a successfully uploaded safety snapshot (implemented / manually verified)
 4. `WEBDAV-AUTO-BACKUP-001`: dirty revision tracking, Off / every-change / 1 / 3 / 7 day schedules, one backup event per meaningful change, single-flight queuing, and retry UX
 5. keep `ARCHIVE-BUNDLE-TEST-001`, `ARCHIVE-BUNDLE-INTEGRITY-001`, and `SETTINGS-EXPORT-FOLDER-001` as separate follow-up work
 

@@ -465,6 +465,33 @@ pub struct WebDavBackupNowPayload {
     pub cleanup_warning: Option<String>,
 }
 
+/// A non-destructive restore preparation result. The opaque operation ID is
+/// required for the separate confirmation command and is intentionally short
+/// lived in process memory only.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreReadyPublicPayload {
+    pub operation_id: String,
+    pub target_backup: WebDavRemoteBackupPayload,
+    pub safety_backup: WebDavRemoteBackupPayload,
+    pub expires_at: String,
+    pub cleanup_warning: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavRestoreResultPayload {
+    pub restored_backup_id: String,
+    pub safety_backup: WebDavRemoteBackupPayload,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavDeleteResultPayload {
+    pub deleted_backup_id: String,
+    pub cleanup_warning: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlightLookupErrorPayload {

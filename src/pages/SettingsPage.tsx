@@ -20,12 +20,17 @@ import {
 import { useI18n, type Language } from "../lib/i18n";
 import {
   backupNowWebDav,
+  cancelWebDavRestore,
+  confirmWebDavRestore,
+  deleteWebDavBackup,
   getWebDavConfig,
   listWebDavBackups,
+  prepareWebDavRestore,
   saveWebDavConfig,
   testWebDavConnection,
   type WebDavConfig,
   type WebDavRemoteBackup,
+  type WebDavRestoreReadyResult,
 } from "../lib/webdav";
 
 type SettingsSubview = "appearance" | "export" | "about";
@@ -45,6 +50,7 @@ interface SettingsPageProps {
   backupPanelProps: ArchiveTransferProps;
   initialSubview?: SettingsSubview;
   onDismissArchiveTransferNotice: () => void;
+  onWebDavRestoreComplete: () => Promise<void>;
 }
 
 function formatSavedAt(value: string) {
@@ -74,6 +80,7 @@ export function SettingsPage({
   backupPanelProps,
   initialSubview = "appearance",
   onDismissArchiveTransferNotice,
+  onWebDavRestoreComplete,
 }: SettingsPageProps) {
   const { language, setLanguage, t } = useI18n();
   const [subview, setSubview] = useState<SettingsSubview>(initialSubview);
@@ -430,6 +437,54 @@ export function SettingsPage({
     }
   };
 
+  const refreshRemoteBackups = async () => {
+    const backups = await listWebDavBackups();
+    setRemoteBackups(backups);
+  };
+
+  const handleDeleteWebDavBackup = async (backup: WebDavRemoteBackup) => {
+    setWebDavBusy("backup");
+    setWebDavStatus("");
+    try {
+      const result = await deleteWebDavBackup(backup.id);
+      await refreshRemoteBackups();
+      setWebDavStatus(result.cleanupWarning || `Deleted remote backup: ${backup.label}`);
+    } finally {
+      setWebDavBusy(null);
+    }
+  };
+
+  const handlePrepareWebDavRestore = async (backup: WebDavRemoteBackup): Promise<WebDavRestoreReadyResult> => {
+    setWebDavBusy("backup");
+    setWebDavStatus("");
+    try {
+      const ready = await prepareWebDavRestore(backup.id);
+      await refreshRemoteBackups();
+      setWebDavStatus(ready.cleanupWarning || "Restore is ready. Confirming it will replace the active local data.");
+      return ready;
+    } finally {
+      setWebDavBusy(null);
+    }
+  };
+
+  const handleConfirmWebDavRestore = async (operationId: string) => {
+    setWebDavBusy("backup");
+    try {
+      const result = await confirmWebDavRestore(operationId);
+      let localRefreshWarning = "";
+      try {
+        await onWebDavRestoreComplete();
+      } catch {
+        localRefreshWarning = " Restart TicketTrail to refresh the restored records.";
+      }
+      let remoteRefreshWarning = "";
+      try { await refreshRemoteBackups(); } catch { remoteRefreshWarning = " Refresh the backup list when the connection is available."; }
+      setWebDavStatus(`Restored ${result.restoredBackupId}. A safety backup remains in WebDAV.${localRefreshWarning}${remoteRefreshWarning}`);
+    } finally {
+      setWebDavBusy(null);
+    }
+  };
+
   const exportFolderLabel =
     exportFolderInfo?.resolutionKind === "downloads"
       ? t("defaultSystemDownloadsFolder")
@@ -643,7 +698,11 @@ export function SettingsPage({
             isConfigured={webDavConfig.configured}
             lastTestedAt={webDavConfig.lastTestedAt}
             onCreateBackup={() => void handleBackupNowWebDav()}
+            onCancelRestore={cancelWebDavRestore}
+            onConfirmRestore={handleConfirmWebDavRestore}
+            onDeleteBackup={handleDeleteWebDavBackup}
             onOpenWebDavSettings={() => setIsWebDavSettingsOpen(true)}
+            onPrepareRestore={handlePrepareWebDavRestore}
             statusMessage={
               remoteHistoryLoading
                 ? "Loading WebDAV backup history..."

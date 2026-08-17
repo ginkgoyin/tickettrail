@@ -737,6 +737,19 @@ export default function App() {
     }
   };
 
+  const handleWebDavRestoreComplete = async () => {
+    const [restoredTickets, readiness] = await Promise.all([listTickets(), getBackupReadiness()]);
+    startTransition(() => {
+      setTickets(restoredTickets);
+      setBackupReadiness(readiness);
+      setSelectedId(restoredTickets[0]?.id ?? "");
+      setEditingId("");
+      setImportedDraft(null);
+      setImportReview(null);
+      setDetailVersion((current) => current + 1);
+    });
+  };
+
   const handleDeleteBackup = async (backupId: string) => {
     setBackupBusy(true);
     setErrorMessage("");
@@ -1028,6 +1041,7 @@ export default function App() {
                 }}
                 initialSubview={activeSection === "exports" ? "export" : "appearance"}
                 onDismissArchiveTransferNotice={() => setArchiveTransferNotice(null)}
+                onWebDavRestoreComplete={handleWebDavRestoreComplete}
               />
             );
 

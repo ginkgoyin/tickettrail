@@ -771,6 +771,17 @@ They are based on current repository docs/checklists and should be expanded from
   - Building a secure credential boundary before implementing cloud transport.
   - Probing generic WebDAV capabilities with reversible, precisely scoped remote operations.
 
+## 2026-08-17 - WEBDAV-BACKUP-001C-IMPLEMENT
+
+- Situation: WebDAV publication and history were working, but remote deletion and restore needed an explicit destructive-safety contract rather than a direct download-and-overwrite path.
+- Decision: retain format-v1 and existing restore/archive validation primitives, but require a backend-only two-stage flow: fresh opaque-ID resolution, bounded private download and validation, successfully published/freshly listed `preRestoreSafety` backup, then a short-lived one-time confirmation token.
+- Implementation: added shared cloud mutation state; sidecar-first validated pair deletion; protected-ID retention; streaming archive upload/download; a matching sidecar/manifest ID for new backups; a narrow compatibility rule for historical 001B `temporary-manual-*` manifests; and app-themed Restore/Delete confirmations in the existing remote history modal.
+- Safety: no frontend path, URL, credential, method, or header is accepted; no local SQLite or attachment replacement occurs during preparation; cancellation/expiry removes private extraction data; safety backups are never removed as part of failure cleanup.
+- Status: Implemented / manually verified against Jianguoyun WebDAV. Automatic backup, sync, DB migration, rollback, archive format v2, and AeroDataBox changes remain out of scope.
+- Manual verification passed: real Restore replaced current local data from the selected backup; Prepare -> final confirmation -> Cancel left local data unchanged; the remote `preRestoreSafety` backup remained after cancellation; and user-triggered remote Delete removed the selected backup without modifying current Ticket/Journey data.
+- Safety review verdict: `PASS WITH FIXES`, with no remaining BLOCKER. Accepted risks remain that destructive restore is not transactional across SQLite plus attachments and automatic rollback is not implemented.
+- Final validation: the focused WebDAV Rust tests passed 22/22, the full Rust suite passed 85/85, `cargo fmt --manifest-path src-tauri/Cargo.toml --check` passed, the relevant frontend regression passed 9/9, Vite build passed, and the two full-Vitest railway/place failures reproduced on committed `HEAD` as baseline failures.
+
 ## 2026-08-16 - WEBDAV-BACKUP-001B
 
 - Area: Local-first cloud backup transport / archive lifecycle / remote retention
@@ -788,4 +799,4 @@ They are based on current repository docs/checklists and should be expanded from
   - Manual verification passed: Create backup published a real WebDAV backup, remote history and summary values were shown in the accepted UI, old local backup files remained untouched, WebDAV settings stayed behind the settings modal, and offline archive export/import remained available.
   - `npm.cmd run build` completed with the final Vite `built` result; `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, the 12 focused WebDAV Rust tests, the 9 relevant frontend regression tests, and the full 75-test Rust suite passed.
 - Risks / follow-up:
-  - No remote restore, user-triggered delete, automatic scheduling, cryptographic integrity, or database migration was introduced. `WEBDAV-BACKUP-001C` remains the next management/restore task.
+  - No remote restore, user-triggered delete, automatic scheduling, cryptographic integrity, or database migration was introduced in 001B; remote restore and user-triggered delete were addressed in the completed `WEBDAV-BACKUP-001C` checkpoint.

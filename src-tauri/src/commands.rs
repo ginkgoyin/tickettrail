@@ -9,10 +9,11 @@ use crate::{
         FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload,
         FlightLookupCandidatePayload, FlightLookupRequestPayload, JourneyMutationPayload,
         JourneyPayload, JourneyStopMutationPayload, JourneyStopPayload, LocationDirectoryPayload,
-        StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
-        TicketDetailPayload, TicketDraftPayload, TicketRecordPayload, WebDavBackupNowPayload,
-        WebDavConfigPayload, WebDavConfigSavePayload, WebDavConnectionTestPayload,
-        WebDavRemoteBackupPayload,
+        RestoreReadyPublicPayload, StubPreviewPayload, TicketAttachmentPayload,
+        TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
+        TicketRecordPayload, WebDavBackupNowPayload, WebDavConfigPayload, WebDavConfigSavePayload,
+        WebDavConnectionTestPayload, WebDavDeleteResultPayload, WebDavRemoteBackupPayload,
+        WebDavRestoreResultPayload,
     },
     webdav,
 };
@@ -327,6 +328,41 @@ pub async fn list_webdav_backups(app: AppHandle) -> Result<Vec<WebDavRemoteBacku
     tauri::async_runtime::spawn_blocking(move || webdav::list_remote_backups(&app))
         .await
         .map_err(|_| "WebDAV backup history could not be loaded.".to_string())?
+}
+
+#[command]
+pub async fn prepare_webdav_restore(
+    app: AppHandle,
+    backup_id: String,
+) -> Result<RestoreReadyPublicPayload, String> {
+    tauri::async_runtime::spawn_blocking(move || webdav::prepare_webdav_restore(&app, backup_id))
+        .await
+        .map_err(|_| "WebDAV restore preparation could not be completed.".to_string())?
+}
+
+#[command]
+pub async fn confirm_webdav_restore(
+    app: AppHandle,
+    operation_id: String,
+) -> Result<WebDavRestoreResultPayload, String> {
+    tauri::async_runtime::spawn_blocking(move || webdav::confirm_webdav_restore(&app, operation_id))
+        .await
+        .map_err(|_| "WebDAV restore could not be completed.".to_string())?
+}
+
+#[command]
+pub fn cancel_webdav_restore(operation_id: String) -> Result<(), String> {
+    webdav::cancel_webdav_restore(operation_id)
+}
+
+#[command]
+pub async fn delete_webdav_backup(
+    app: AppHandle,
+    backup_id: String,
+) -> Result<WebDavDeleteResultPayload, String> {
+    tauri::async_runtime::spawn_blocking(move || webdav::delete_webdav_backup(&app, backup_id))
+        .await
+        .map_err(|_| "WebDAV backup deletion could not be completed.".to_string())?
 }
 
 #[command]

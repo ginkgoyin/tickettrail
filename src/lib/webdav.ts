@@ -57,6 +57,24 @@ export interface WebDavBackupNowResult {
   cleanupWarning?: string;
 }
 
+export interface WebDavRestoreReadyResult {
+  operationId: string;
+  targetBackup: WebDavRemoteBackup;
+  safetyBackup: WebDavRemoteBackup;
+  expiresAt: string;
+  cleanupWarning?: string;
+}
+
+export interface WebDavRestoreResult {
+  restoredBackupId: string;
+  safetyBackup: WebDavRemoteBackup;
+}
+
+export interface WebDavDeleteResult {
+  deletedBackupId: string;
+  cleanupWarning?: string;
+}
+
 const DEFAULT_CONFIG: WebDavConfig = {
   configured: false,
   serverUrl: "",
@@ -105,4 +123,24 @@ export async function listWebDavBackups(): Promise<WebDavRemoteBackup[]> {
     return [];
   }
   return invoke<WebDavRemoteBackup[]>("list_webdav_backups");
+}
+
+export async function prepareWebDavRestore(backupId: string): Promise<WebDavRestoreReadyResult> {
+  if (!supportsTauri()) throw new Error("WebDAV restore is available in the desktop app only.");
+  return invoke<WebDavRestoreReadyResult>("prepare_webdav_restore", { backupId });
+}
+
+export async function confirmWebDavRestore(operationId: string): Promise<WebDavRestoreResult> {
+  if (!supportsTauri()) throw new Error("WebDAV restore is available in the desktop app only.");
+  return invoke<WebDavRestoreResult>("confirm_webdav_restore", { operationId });
+}
+
+export async function cancelWebDavRestore(operationId: string): Promise<void> {
+  if (!supportsTauri()) return;
+  await invoke("cancel_webdav_restore", { operationId });
+}
+
+export async function deleteWebDavBackup(backupId: string): Promise<WebDavDeleteResult> {
+  if (!supportsTauri()) throw new Error("WebDAV backup deletion is available in the desktop app only.");
+  return invoke<WebDavDeleteResult>("delete_webdav_backup", { backupId });
 }
