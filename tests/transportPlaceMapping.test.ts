@@ -90,14 +90,18 @@ describe("transportPlaceMapping", () => {
       makeLocation("南宁", "NNZ"),
       { preferredLanguage: "zh", ticketType: "train" },
     );
+    expect(huaibei).toMatchObject({ displayName: "淮北", placeKey: "cn-huaibei" });
+    expect(nanning).toMatchObject({ displayName: "南宁", placeKey: "cn-nanning" });
+  });
+
+  it("uses the existing exact Chinese catalog identity for Xi'an without a transport mapping", () => {
     const xian = normalizeJourneyPlaceFromLocation(
       makeLocation("西安", "XAY"),
       { preferredLanguage: "zh", ticketType: "train" },
     );
 
-    expect(huaibei).toMatchObject({ displayName: "淮北", placeKey: "cn-huaibei" });
-    expect(nanning).toMatchObject({ displayName: "南宁", placeKey: "cn-nanning" });
-    expect(xian).toMatchObject({ displayName: "西安", placeKey: "cn-xian" });
+    expect(MAPPING.railStations.XAY).toBeUndefined();
+    expect(xian).toMatchObject({ displayName: "西安", placeKey: "cn-xi-an", confidence: "medium" });
   });
 
   it("keeps endpoint metadata separate from standard place labels", () => {

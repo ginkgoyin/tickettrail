@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import placeCatalog from "../src/data/place-catalog.generated.json";
 import railStations from "../src/data/rail-stations.generated.json";
 import { readRailGeonamesCandidateReviewCsv } from "../scripts/lib/rail-geonames-review.mjs";
+import { readRailStationPlaceOverrides } from "../scripts/lib/rail-station-place-overrides.mjs";
 import type { PlaceCatalogEntry } from "../src/types/placeCatalog";
 import type { LocationDirectoryEntry } from "../src/types/ticket";
 
@@ -32,8 +33,14 @@ describe("rail-needed China GeoNames expansion", () => {
 
   it("applies every safe existing-catalog canonicalization review row to the generated rail stations", async () => {
     const rows = await readRailGeonamesCandidateReviewCsv("data-sources/rail/rail-geonames-reviewed-safe-matches.json");
+    const overrides = await readRailStationPlaceOverrides("data-sources/rail/rail-station-place-overrides.json");
     const canonicalizeRows = rows.filter(
       (row) => row.recommendedAction === "can_canonicalize_to_existing_catalog",
+    );
+    const approvedTelecodeOverrides = new Map(
+      overrides
+        .filter((override) => override.reviewStatus === "approved" && override.scope === "telecode")
+        .map((override) => [override.telecode, override.reviewedPlaceKey]),
     );
 
     expect(canonicalizeRows.length).toBeGreaterThan(0);
@@ -45,7 +52,10 @@ describe("rail-needed China GeoNames expansion", () => {
       row.sampleTelecodeList.forEach((telecode) => {
         const station = stations.find((entry) => entry.code === telecode);
         expect(station).toBeDefined();
-        expect(station?.placeKey).toBe(expectedPlaceKey);
+        // Generator order is canonicalization followed by an approved, more
+        // specific telecode repair. The latter must deliberately win.
+        const expectedFinalPlaceKey = approvedTelecodeOverrides.get(telecode) || expectedPlaceKey;
+        expect(station?.placeKey).toBe(expectedFinalPlaceKey);
       });
     });
   });

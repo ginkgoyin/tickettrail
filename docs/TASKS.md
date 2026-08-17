@@ -480,6 +480,8 @@ For new features or behavior changes, follow the sequence: docs -> task plan -> 
 
 Latest WebDAV checkpoint: `WEBDAV-BACKUP-001C` (guarded remote delete and two-stage restore implemented and manually verified against Jianguoyun WebDAV).
 
+Latest frontend baseline checkpoint: `TEST-BASELINE-RAIL-001` (two stale rail/place test assertions aligned with existing approved overrides and exact-catalog canonicalization; no runtime or generated-data change).
+
 Recommended next task: `WEBDAV-AUTO-BACKUP-001` only after the accepted WebDAV restore safety boundary.
 
 Completed 001C scope:

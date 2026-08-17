@@ -493,6 +493,11 @@
   - Real Jianguoyun manual verification passed: Restore replaced current local data from the selected backup; Prepare -> final confirmation -> Cancel left local data unchanged while the remote Safety backup remained; remote Delete removed the selected backup without modifying current Ticket/Journey data.
   - Automatic backup, sync, archive format v2, DB migration, AeroDataBox changes, and remote restore rollback remain out of scope.
   - Priority: `High`
+- `TEST-BASELINE-RAIL-001`
+  - Status: `Implemented / verified`
+  - The two pre-existing railway/place test failures were stale assertions, not runtime or generated-data regressions.
+  - `NQY`/`NOY` now assert their approved telecode overrides to `cn-hanzhong`, which intentionally supersede the earlier broad GeoNames canonicalization candidate.
+  - `XAY` now asserts the existing exact-Chinese Place Catalog key `cn-xi-an`; it is not a low-confidence unmapped fallback.
 - `SETTINGS-DATA-BACKUP-DESIGN-001`
   - Redesign `Settings > Export` into a local-first `Data & Backup` model and define a future WebDAV backup/restore direction without implementing it yet.
   - Status: `Documented / design only`
