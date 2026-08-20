@@ -8,7 +8,7 @@ use crate::models::{
 };
 use chrono::{DateTime, Local, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
-use rusqlite::{params, Connection, Row};
+use rusqlite::{backup::Backup, params, Connection, OpenFlags, Row};
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
@@ -17,6 +17,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     sync::OnceLock,
+    time::Duration,
 };
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
@@ -537,7 +538,7 @@ pub(crate) fn create_temporary_archive_with_identity(
 
         let created_at = Utc::now().to_rfc3339();
         let db_destination = payload_dir.join("tickettrail.sqlite3");
-        fs::copy(database_path(app)?, &db_destination).map_err(|err| err.to_string())?;
+        create_sqlite_snapshot(&database_path(app)?, &db_destination)?;
         let attachment_source = attachment_root_dir(app)?;
         let attachments_included = attachment_count > 0;
         if attachments_included {
@@ -654,9 +655,8 @@ fn create_backup_with_label(
     let backup_dir = backup_root.join(&backup_id);
     fs::create_dir_all(&backup_dir).map_err(|err| err.to_string())?;
 
-    let db_source = database_path(app)?;
     let db_destination = backup_dir.join("tickettrail.sqlite3");
-    fs::copy(&db_source, &db_destination).map_err(|err| err.to_string())?;
+    create_sqlite_snapshot(&database_path(app)?, &db_destination)?;
 
     let attachment_source = attachment_root_dir(app)?;
     let attachment_destination = backup_dir.join("attachments");
@@ -3022,6 +3022,105 @@ fn database_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(data_dir.join("tickettrail.sqlite3"))
 }
 
+/// Materializes an independently openable SQLite snapshot using SQLite's online
+/// backup API. This intentionally snapshots database pages through SQLite
+/// rather than copying the live main file, so committed WAL-resident changes
+/// are included without placing `-wal` or `-shm` files in an archive.
+fn create_sqlite_snapshot(source: &Path, destination: &Path) -> Result<(), String> {
+    if !source.is_file() {
+        return Err(format!(
+            "SQLite snapshot source was not found: {}",
+            source.to_string_lossy()
+        ));
+    }
+    if destination.exists() {
+        return Err(format!(
+            "SQLite snapshot destination already exists: {}",
+            destination.to_string_lossy()
+        ));
+    }
+
+    let destination_parent = destination.parent().ok_or_else(|| {
+        format!(
+            "SQLite snapshot destination has no parent directory: {}",
+            destination.to_string_lossy()
+        )
+    })?;
+    fs::create_dir_all(destination_parent).map_err(|err| {
+        format!(
+            "Could not create the SQLite snapshot directory {}: {err}",
+            destination_parent.to_string_lossy()
+        )
+    })?;
+
+    let source_connection = Connection::open_with_flags(source, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|err| {
+        format!("Could not open the live SQLite database for snapshot: {err}")
+    })?;
+    let destination_name = destination
+        .file_name()
+        .and_then(OsStr::to_str)
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| {
+            format!(
+                "SQLite snapshot destination has no valid file name: {}",
+                destination.to_string_lossy()
+            )
+        })?;
+    let partial_destination = destination_parent.join(format!(
+        ".{destination_name}.snapshot-{}",
+        Uuid::new_v4().simple()
+    ));
+
+    let snapshot_result = (|| {
+        let mut destination_connection = Connection::open(&partial_destination).map_err(|err| {
+            format!(
+                "Could not create the SQLite snapshot destination {}: {err}",
+                partial_destination.to_string_lossy()
+            )
+        })?;
+        {
+            let backup = Backup::new(&source_connection, &mut destination_connection)
+                .map_err(|err| format!("Could not initialize the SQLite online backup: {err}"))?;
+            backup
+                .run_to_completion(64, Duration::from_millis(10), None)
+                .map_err(|err| format!("Could not create the SQLite online backup: {err}"))?;
+        }
+
+        let integrity: String = destination_connection
+            .query_row("PRAGMA quick_check(1)", [], |row| row.get(0))
+            .map_err(|err| format!("Could not verify the SQLite snapshot: {err}"))?;
+        if !integrity.eq_ignore_ascii_case("ok") {
+            return Err(format!(
+                "The SQLite snapshot integrity check failed: {integrity}"
+            ));
+        }
+        drop(destination_connection);
+
+        fs::rename(&partial_destination, destination).map_err(|err| {
+            format!(
+                "Could not publish the SQLite snapshot {}: {err}",
+                destination.to_string_lossy()
+            )
+        })
+    })();
+
+    if snapshot_result.is_err() {
+        remove_sqlite_snapshot_artifacts(&partial_destination);
+    }
+    snapshot_result
+}
+
+fn remove_sqlite_snapshot_artifacts(path: &Path) {
+    let _ = fs::remove_file(path);
+    for suffix in ["-wal", "-shm"] {
+        let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
+            continue;
+        };
+        let _ = fs::remove_file(path.with_file_name(format!("{file_name}{suffix}")));
+    }
+}
+
 fn attachment_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
     Ok(data_dir.join("attachments"))
@@ -3795,19 +3894,19 @@ fn normalize_lookup_value(value: Option<&str>) -> String {
 mod tests {
     use super::{
         build_backup_manifest, build_effective_segments, build_ticket_detail,
-        clear_journey_stop_ticket_references, compare_optional_date, delete_backup_dir_by_id,
-        delete_journey_related_rows, derive_journey_date_range_from_linked_tickets,
-        ensure_journey_schema_columns, fallback_coordinates, load_journey_stops,
-        lookup_generated_airport_coordinates, lookup_rail_station_city_coordinates,
-        migrate_legacy_ticket_journey_tables, normalize_companion_names,
-        normalize_journey_cost_exchange_rate, normalize_journey_stop_mutations,
-        normalize_lookup_value, normalize_to_utc, prune_local_backups, replace_journey_stop_rows,
-        resolve_map_point, sanitize_file_name, scan_local_backup_entries, seed_location_directory,
-        sort_linked_journey_ticket_records, table_exists, table_has_column,
-        validate_backup_manifest, validate_backup_payload, validate_draft, BackupManifest,
-        JourneyStopMutationPayload, LinkedJourneyTicketRecord, TicketDraftPayload,
-        TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload, APP_VERSION,
-        ARCHIVE_FORMAT_VERSION, SCHEMA_SQL,
+        clear_journey_stop_ticket_references, compare_optional_date, create_sqlite_snapshot,
+        delete_backup_dir_by_id, delete_journey_related_rows,
+        derive_journey_date_range_from_linked_tickets, ensure_journey_schema_columns,
+        fallback_coordinates, load_journey_stops, lookup_generated_airport_coordinates,
+        lookup_rail_station_city_coordinates, migrate_legacy_ticket_journey_tables,
+        normalize_companion_names, normalize_journey_cost_exchange_rate,
+        normalize_journey_stop_mutations, normalize_lookup_value, normalize_to_utc,
+        prune_local_backups, replace_journey_stop_rows, resolve_map_point, sanitize_file_name,
+        scan_local_backup_entries, seed_location_directory, sort_linked_journey_ticket_records,
+        table_exists, table_has_column, validate_backup_manifest, validate_backup_payload,
+        validate_draft, BackupManifest, JourneyStopMutationPayload, LinkedJourneyTicketRecord,
+        TicketDraftPayload, TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
+        APP_VERSION, ARCHIVE_FORMAT_VERSION, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
     use std::{env, fs, path::PathBuf};
@@ -4003,6 +4102,213 @@ mod tests {
             segments: None,
             segment_count: 1,
         }
+    }
+
+    #[test]
+    fn sqlite_snapshot_copies_committed_normal_database_and_keeps_source_usable() {
+        let dir = create_temp_backup_dir();
+        let source_path = dir.join("source.sqlite3");
+        let destination_path = dir.join("snapshot.sqlite3");
+        let source = Connection::open(&source_path).expect("should create source database");
+        source
+            .execute_batch("CREATE TABLE snapshot_rows (value TEXT NOT NULL);")
+            .expect("should create source table");
+        source
+            .execute(
+                "INSERT INTO snapshot_rows (value) VALUES ('normal snapshot')",
+                [],
+            )
+            .expect("should insert source row");
+
+        create_sqlite_snapshot(&source_path, &destination_path)
+            .expect("should create SQLite online snapshot");
+
+        let source_value: String = source
+            .query_row("SELECT value FROM snapshot_rows", [], |row| row.get(0))
+            .expect("source should remain usable after snapshot");
+        assert_eq!(source_value, "normal snapshot");
+        drop(source);
+
+        let snapshot = Connection::open(&destination_path)
+            .expect("snapshot should be independently openable after source closes");
+        let snapshot_value: String = snapshot
+            .query_row("SELECT value FROM snapshot_rows", [], |row| row.get(0))
+            .expect("snapshot should contain committed source row");
+        assert_eq!(snapshot_value, "normal snapshot");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn sqlite_snapshot_includes_committed_wal_resident_data() {
+        let dir = create_temp_backup_dir();
+        let source_path = dir.join("source.sqlite3");
+        let raw_main_copy_path = dir.join("raw-main-copy.sqlite3");
+        let destination_path = dir.join("snapshot.sqlite3");
+        let source = Connection::open(&source_path).expect("should create source database");
+        let journal_mode: String = source
+            .query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))
+            .expect("should enable WAL mode");
+        assert_eq!(journal_mode.to_ascii_lowercase(), "wal");
+        source
+            .execute_batch(
+                "PRAGMA wal_autocheckpoint=0; CREATE TABLE wal_rows (value TEXT NOT NULL);",
+            )
+            .expect("should create WAL-backed table without auto checkpointing");
+        source
+            .execute(
+                "INSERT INTO wal_rows (value) VALUES ('committed only in WAL')",
+                [],
+            )
+            .expect("should commit WAL-backed source row");
+        let committed_source_value: String = source
+            .query_row("SELECT value FROM wal_rows", [], |row| row.get(0))
+            .expect("source connection should observe the committed WAL row");
+        assert_eq!(committed_source_value, "committed only in WAL");
+
+        let wal_path = PathBuf::from(format!("{}-wal", source_path.to_string_lossy()));
+        assert!(
+            wal_path.exists() && fs::metadata(&wal_path).expect("should inspect WAL").len() > 0,
+            "test must retain a non-empty WAL containing committed changes"
+        );
+
+        fs::copy(&source_path, &raw_main_copy_path)
+            .expect("should be able to demonstrate the unsafe main-file-only copy");
+        let raw_main_copy = Connection::open(&raw_main_copy_path)
+            .expect("raw main-file copy should still be a SQLite file");
+        assert!(
+            raw_main_copy
+                .query_row("SELECT value FROM wal_rows", [], |row| row
+                    .get::<_, String>(0))
+                .is_err(),
+            "the raw main file must not stand in for the committed WAL state"
+        );
+        drop(raw_main_copy);
+
+        create_sqlite_snapshot(&source_path, &destination_path)
+            .expect("online snapshot should include committed WAL data");
+        drop(source);
+
+        let snapshot = Connection::open(&destination_path)
+            .expect("WAL snapshot should be independently openable");
+        let snapshot_value: String = snapshot
+            .query_row("SELECT value FROM wal_rows", [], |row| row.get(0))
+            .expect("online snapshot should include the committed WAL row");
+        assert_eq!(snapshot_value, "committed only in WAL");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn sqlite_snapshot_failure_leaves_no_completed_destination() {
+        let dir = create_temp_backup_dir();
+        let missing_source = dir.join("missing.sqlite3");
+        let destination_path = dir.join("snapshot.sqlite3");
+
+        let error = create_sqlite_snapshot(&missing_source, &destination_path)
+            .expect_err("missing source must fail snapshot creation");
+        assert!(error.contains("source was not found"));
+        assert!(
+            !destination_path.exists(),
+            "failed snapshot creation must not publish a destination database"
+        );
+        let leftovers = fs::read_dir(&dir)
+            .expect("should inspect snapshot directory")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("should read snapshot directory");
+        assert!(
+            leftovers.is_empty(),
+            "failed snapshot should clean partial files"
+        );
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn sqlite_snapshot_cleans_partial_destination_after_backup_failure() {
+        let dir = create_temp_backup_dir();
+        let malformed_source = dir.join("malformed.sqlite3");
+        let destination_path = dir.join("snapshot.sqlite3");
+        fs::write(&malformed_source, "not a SQLite database")
+            .expect("should create malformed source file");
+
+        create_sqlite_snapshot(&malformed_source, &destination_path)
+            .expect_err("malformed source must fail after opening the partial destination");
+
+        assert!(
+            !destination_path.exists(),
+            "failed online backup must not publish the final destination"
+        );
+        let leftover_names = fs::read_dir(&dir)
+            .expect("should inspect snapshot directory")
+            .map(|entry| {
+                entry
+                    .expect("should read snapshot entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(leftover_names, vec!["malformed.sqlite3"]);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn sqlite_snapshot_preserves_the_v1_archive_payload_layout() {
+        let dir = create_temp_backup_dir();
+        let source_path = dir.join("source.sqlite3");
+        let payload_dir = dir.join("payload");
+        fs::create_dir_all(payload_dir.join("attachments"))
+            .expect("should create archive attachment directory");
+        let source = Connection::open(&source_path).expect("should create source database");
+        source
+            .execute_batch("CREATE TABLE archive_rows (value TEXT NOT NULL);")
+            .expect("should create source table");
+        source
+            .execute(
+                "INSERT INTO archive_rows (value) VALUES ('archive row')",
+                [],
+            )
+            .expect("should insert source row");
+        drop(source);
+
+        let snapshot_path = payload_dir.join("tickettrail.sqlite3");
+        create_sqlite_snapshot(&source_path, &snapshot_path)
+            .expect("should create the archive SQLite payload");
+        fs::write(
+            payload_dir.join("attachments").join("ticket-1.txt"),
+            "attachment",
+        )
+        .expect("should create representative attachment payload");
+        let manifest = build_backup_manifest(
+            "backup-v1-snapshot".to_string(),
+            "Snapshot backup".to_string(),
+            "2026-08-20T00:00:00Z".to_string(),
+            1,
+            0,
+            1,
+            fs::metadata(&snapshot_path)
+                .expect("should inspect snapshot payload")
+                .len(),
+            true,
+        );
+        fs::write(
+            payload_dir.join("backup.json"),
+            serde_json::to_string_pretty(&manifest).expect("should serialize v1 manifest"),
+        )
+        .expect("should write archive manifest");
+
+        let validated = validate_backup_payload(&payload_dir)
+            .expect("new snapshot payload should retain existing v1 archive validation");
+        assert_eq!(validated.database_path, snapshot_path);
+        assert!(validated.attachments_present);
+        assert_eq!(
+            manifest.archive_format_version,
+            Some(ARCHIVE_FORMAT_VERSION)
+        );
+
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

@@ -482,7 +482,18 @@ Latest WebDAV checkpoint: `WEBDAV-BACKUP-001C` (guarded remote delete and two-st
 
 Latest frontend baseline checkpoint: `TEST-BASELINE-RAIL-001` (two stale rail/place test assertions aligned with existing approved overrides and exact-catalog canonicalization; no runtime or generated-data change).
 
-Recommended next task: `WEBDAV-AUTO-BACKUP-001` only after the accepted WebDAV restore safety boundary.
+Latest automatic-backup prerequisite checkpoint: `ARCHIVE-SQLITE-SNAPSHOT-001` (implemented and Rust-tested). It replaces raw live-main-file copying with SQLite's online backup API for both temporary WebDAV archives and persistent local backups, including committed WAL-resident data without a journal-mode change.
+
+Recommended next task: `WEBDAV-AUTO-BACKUP-001` only in the accepted staged order; no automatic runtime has been implemented yet.
+
+Completed prerequisite scope:
+
+- both live database snapshot call sites now use one `rusqlite` online-backup primitive;
+- focused tests prove a non-empty uncheckpointed WAL contains a committed row that a raw main-file copy misses while the SQLite snapshot preserves it;
+- the destination runs `PRAGMA quick_check(1)` before publication, format v1 and archive payload/restore validation remain unchanged, and no `.wal`/`.shm` files enter an archive;
+- no live journal-mode change, DB migration, attachment coordinator, or automatic runtime was added.
+
+The SQLite/WAL snapshot blocker is resolved. `WEBDAV-AUTO-BACKUP-001` is now unblocked for its remaining accepted state/journal, local-coordination, publisher, worker, interval, interaction, and UI stages; no automatic runtime is included in this checkpoint.
 
 Completed 001C scope:
 
@@ -492,15 +503,17 @@ Completed 001C scope:
 - implement manual destructive restore with protected IDs and cleanup reporting;
 - preserve offline archive export/import and current local backup behavior during the transition.
 - follow `docs/WEBDAV_RESTORE_SAFETY_REVIEW.md`: keep orchestration in Rust, use a two-step opaque restore token, and implement the mandatory destructive-call-counter tests before UI wiring;
-- do not implement automatic backup runtime until `WEBDAV-AUTO-BACKUP-001`
+- automatic backup runtime remains outside 001C; `WEBDAV-AUTO-BACKUP-001` is now the unblocked next implementation task
 
 The recommended next implementation order is now:
 
 1. `WEBDAV-BACKUP-001A`: configuration, device-local secret storage, and connection/capability test
 2. `WEBDAV-BACKUP-001B`: implemented and manually verified. Temporary archive engine extraction, manual upload, sidecar listing, and remote retention at 30
 3. `WEBDAV-BACKUP-001C`: remote history/delete/download and restore guarded by a successfully uploaded safety snapshot (implemented / manually verified)
-4. `WEBDAV-AUTO-BACKUP-001`: dirty revision tracking, Off / every-change / 1 / 3 / 7 day schedules, one backup event per meaningful change, single-flight queuing, and retry UX
-5. keep `ARCHIVE-BUNDLE-TEST-001`, `ARCHIVE-BUNDLE-INTEGRITY-001`, and `SETTINGS-EXPORT-FOLDER-001` as separate follow-up work
+4. `WEBDAV-AUTO-BACKUP-001-SAFETY-AMEND`: completed docs-only amendment defining semantic no-op outcomes, Journey/Stops cases, cloud -> local lock order, paused pending-event UX, and the SQLite/WAL blocker
+5. `ARCHIVE-SQLITE-SNAPSHOT-001`: implemented / Rust-tested WAL-safe shared SQLite snapshot prerequisite
+6. `WEBDAV-AUTO-BACKUP-001`: implement in the accepted order: journal, mutation outcome, reservation, local coordinator/lock invariant, publisher reuse, FIFO worker, intervals, interactions, then UI
+7. keep `ARCHIVE-BUNDLE-TEST-001`, `ARCHIVE-BUNDLE-INTEGRITY-001`, and `SETTINGS-EXPORT-FOLDER-001` as separate follow-up work
 
 - `DATA-HEALTH-FILTER-001` is paused for now and can resume later after the `Settings > Data & Backup` line reaches a checkpoint.
 

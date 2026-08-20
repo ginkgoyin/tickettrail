@@ -493,6 +493,25 @@
   - Real Jianguoyun manual verification passed: Restore replaced current local data from the selected backup; Prepare -> final confirmation -> Cancel left local data unchanged while the remote Safety backup remained; remote Delete removed the selected backup without modifying current Ticket/Journey data.
   - Automatic backup, sync, archive format v2, DB migration, AeroDataBox changes, and remote restore rollback remain out of scope.
   - Priority: `High`
+- `WEBDAV-AUTO-BACKUP-001-SAFETY`
+  - Status: `Completed with safety amendment / design only`
+  - Audits every authoritative Ticket, attachment, Journey, Stop, import, and restore mutation boundary before automatic backup runtime.
+  - Chooses one durable FIFO publication event per successful meaningful mutation with `changed = true`; semantic no-op writes cancel reservations and create no event.
+  - Queued archives capture the latest stable state when their event reaches the worker and are never coalesced; this guarantees publication-event count, not exact per-save point-in-time history.
+  - Records Journey/Stops no-op cases, the cloud-authority -> local-coordination lock order, and durable pending-event preservation when automatic backup is switched Off or to another mode.
+  - Requires a pre-mutation durable reservation, recoverable file generations, deterministic event/backup identity, single-flight reuse of the existing cloud lock, and conservative crash reconciliation.
+  - Defines interval, manual backup, Safety backup, replacement, retry, retention, multi-device, UI, and mandatory Terra test semantics in `docs/WEBDAV_AUTO_BACKUP_REVIEW.md`.
+  - SQLite/WAL audit found that the previous archive creation copied only the live main database file and did not enforce/checkpoint journal mode; the resulting `ARCHIVE-SQLITE-SNAPSHOT-001` prerequisite is now implemented separately, so automatic-backup implementation is unblocked for its remaining staged work.
+  - No automatic runtime, timer, selector, DB migration, sync, or archive-format change was implemented.
+  - Priority: `High`
+- `ARCHIVE-SQLITE-SNAPSHOT-001`
+  - Status: `Implemented / verified by Rust tests`
+  - Replaces both shared live-main-file copy paths with one SQLite online-backup primitive for temporary WebDAV archives and persistent local backups; archive format v1 and layout are unchanged.
+  - The narrowly enabled `rusqlite` `backup` feature produces a new independently verified destination database, including committed WAL-resident rows, without copying `-wal`/`-shm` or changing the live database journal mode.
+  - Focused tests prove ordinary snapshots, a deliberately uncheckpointed WAL row (and the unsafe raw-main-file control), independent opening, failure cleanup, and the existing v1 payload/attachment validation path.
+  - SQLite consistency is now satisfied; atomic coordination with the separate attachment filesystem remains a later `LocalDataCoordinator` concern for automatic backup.
+  - Real Jianguoyun manual verification passed: manual Create backup, WebDAV history visibility, live Ticket modification, and Restore to the earlier Ticket state; the expected `preRestoreSafety` backup remained functional.
+  - Priority: `High`
 - `TEST-BASELINE-RAIL-001`
   - Status: `Implemented / verified`
   - The two pre-existing railway/place test failures were stale assertions, not runtime or generated-data regressions.

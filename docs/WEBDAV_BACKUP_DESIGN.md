@@ -374,6 +374,10 @@ References:
 
 ## 11. Automatic Backup Model
 
+Implementation baseline: `docs/WEBDAV_AUTO_BACKUP_REVIEW.md` supersedes the earlier revision-only sketch below where the two differ. `After every change` requires a durable FIFO event journal in addition to revision/dirty state; distinct successful meaningful mutations must not be coalesced. The accepted MVP guarantees event/publication count, not exact point-in-time version history: each archive snapshot is taken when its event reaches the worker, so a queued event may include later already-committed changes.
+
+An authoritative command creates an event only when it reports `changed = true`. Write-shaped semantic no-ops, including an equal Ticket/status/Journey update or replacing Journey Stops with an equal ordered set, cancel their reservation without advancing revision or creating an event. Journey fields and Stops remain separate commands: two real changes create two events, while an equal half creates none for that command.
+
 ### 11.1 Local state
 
 Persist non-secret state in an app-config JSON file, written atomically with temp-file plus rename:
@@ -389,11 +393,16 @@ consecutiveFailures: integer
 nextRetryAt: optional UTC timestamp
 lastErrorCode: optional sanitized code
 pendingRemoteObjects: operation journal without credentials
+pendingEvents: durable ordered every-change obligations
 ```
 
-Dirty means `dataRevision > lastSuccessfulRevision`.
+For interval modes, dirty means `dataRevision > lastSuccessfulRevision`. For `After every change`, the durable event queue is authoritative and a manual backup must not clear it.
 
-No database migration is needed. A backend helper marks dirty after successful meaningful persisted mutations. A best-effort startup check against database/attachment modification times may conservatively mark dirty if a crash occurred between a database commit and state-file update; an unnecessary extra backup is safer than missing a change.
+No database migration is needed. To close the commit-to-journal crash window conservatively, the backend persists a reservation before each authoritative mutation and finalizes it after success. Startup promotes an unresolved reservation to pending/dirty; an unnecessary extra backup is safer than missing a required event. The detailed recoverable file-generation protocol is defined in `docs/WEBDAV_AUTO_BACKUP_REVIEW.md`.
+
+Automatic runtime also requires one `LocalDataCoordinator`, with the global order `cloud-operation authority -> local coordination`. Normal business mutations never wait for cloud authority. Snapshot paths release local coordination before ZIP compression/network upload; the short-lived cloud-state and automatic-state mutex guards are never held while waiting for local coordination or HTTP. WebDAV Restore Confirm must use its existing token/cloud boundary and acquire local coordination only inside the destructive backend seam, not through a generic outer wrapper.
+
+`ARCHIVE-SQLITE-SNAPSHOT-001` implemented the archive database boundary: temporary WebDAV archives and persistent local backups now call one `rusqlite` SQLite online-backup primitive instead of copying the live main `tickettrail.sqlite3` file. It creates an independently verified snapshot that includes committed WAL-resident pages without copying `-wal`/`-shm` or changing the live journal mode. The successful real Jianguoyun Create backup -> live Ticket change -> Restore verification confirms the shared path works through the existing WebDAV flow, including `preRestoreSafety`. SQLite plus attachment files are still separate storage engines; the later automatic-backup `LocalDataCoordinator` remains responsible for defining their shared in-process copy boundary.
 
 ### 11.2 Meaningful change triggers
 
@@ -415,6 +424,7 @@ Do not mark dirty for keystrokes, form drafts, navigation, filters, map state, b
 - Examples include one backup for creating, editing, or deleting a ticket; adding or deleting an attachment; creating, editing, or deleting a Journey; and each persisted Stay/Stop change.
 - UI-only activity such as navigation, filters, map state, and other non-persisted changes does not create an event.
 - A single-flight uploader is allowed, but if another meaningful change occurs while an upload is running, the later backup event must be preserved and processed afterward rather than silently merged into the in-flight event. Exact queue and retry behavior belongs to `WEBDAV-AUTO-BACKUP-001`.
+- Switching to `Off` pauses but never deletes durable every-change obligations. Switching to an interval mode also preserves them. With pending events, UI copy must explain that they are paused and will resume when automatic backup is enabled; no discard action is included.
 - When this mode is selected, warn that backups may be created frequently and may use more WebDAV traffic and storage. This frequency is a deliberate user choice.
 
 ### 11.4 Day intervals
