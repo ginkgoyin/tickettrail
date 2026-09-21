@@ -428,6 +428,29 @@ pub struct WebDavConfigSavePayload {
     pub clear_password: Option<bool>,
 }
 
+/// Compact, non-secret automatic-backup state for a later Settings UI. It
+/// intentionally omits state-file paths, revisions, credentials, and events.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoBackupStatusPayload {
+    pub mode: String,
+    pub pending_event_count: usize,
+    pub paused_pending_event_count: usize,
+    pub is_dirty: bool,
+    pub last_successful_backup_at: Option<String>,
+    pub last_attempt_at: Option<String>,
+    pub next_retry_at: Option<String>,
+    pub status_code: String,
+    pub last_error_code: Option<String>,
+    pub tracking_available: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoBackupModeSavePayload {
+    pub mode: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebDavConnectionTestPayload {

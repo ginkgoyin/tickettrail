@@ -2,6 +2,8 @@
 
 Task: `WEBDAV-AUTO-BACKUP-001-SAFETY`
 
+Implementation update: `WEBDAV-AUTO-BACKUP-001A` now provides the durable local state generation store, compatible mode initialization, reservation/finalization, data-revision/dirty foundation, FIFO obligation registration, semantic Ticket/Journey/Stops no-op detection, and `LocalDataCoordinator`. No automatic WebDAV transport, worker, retry execution, timer, interval scheduler, or UI is present. Temporary WebDAV payload materialization uses snapshot coordination only through its SQLite/attachment copy boundary; attachment and SQLite atomicity remain separate limitations.
+
 Status: Design/audit complete and amended by `WEBDAV-AUTO-BACKUP-001-SAFETY-AMEND`. `ARCHIVE-SQLITE-SNAPSHOT-001` is implemented, Rust-tested, and manually verified through the real Jianguoyun backup/restore flow. The SQLite/WAL prerequisite is resolved; automatic runtime implementation is unblocked but remains deferred pending the remaining staged state/journal and local-coordination work.
 
 ## 1. Scope and Current-Code Audit

@@ -1,14 +1,16 @@
 use crate::{
+    auto_backup::{self, MutationSource},
     db,
     flight_lookup::{
         self, AERODATABOX_GATEWAY_API_MARKET, AERODATABOX_GATEWAY_RAPID_API, PROVIDER_AERODATABOX,
         PROVIDER_MOCK,
     },
     models::{
-        AirlinePayload, BackupReadinessPayload, BackupRecordPayload, ExportFolderPayload,
-        FlightDataSourceConfigPayload, FlightDataSourceConfigSavePayload,
-        FlightLookupCandidatePayload, FlightLookupRequestPayload, JourneyMutationPayload,
-        JourneyPayload, JourneyStopMutationPayload, JourneyStopPayload, LocationDirectoryPayload,
+        AirlinePayload, AutoBackupModeSavePayload, AutoBackupStatusPayload, BackupReadinessPayload,
+        BackupRecordPayload, ExportFolderPayload, FlightDataSourceConfigPayload,
+        FlightDataSourceConfigSavePayload, FlightLookupCandidatePayload,
+        FlightLookupRequestPayload, JourneyMutationPayload, JourneyPayload,
+        JourneyStopMutationPayload, JourneyStopPayload, LocationDirectoryPayload,
         RestoreReadyPublicPayload, StubPreviewPayload, TicketAttachmentPayload,
         TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
         TicketRecordPayload, WebDavBackupNowPayload, WebDavConfigPayload, WebDavConfigSavePayload,
@@ -79,7 +81,12 @@ pub fn create_journey(
     app: AppHandle,
     input: JourneyMutationPayload,
 ) -> Result<JourneyPayload, String> {
-    db::create_journey(&app, input)
+    run_tracked_mutation(&app, MutationSource::JourneyCreate, || {
+        db::create_journey(&app, input).map(|value| db::MutationOutcome {
+            value,
+            changed: true,
+        })
+    })
 }
 
 #[command]
@@ -88,12 +95,19 @@ pub fn update_journey(
     journey_id: String,
     input: JourneyMutationPayload,
 ) -> Result<JourneyPayload, String> {
-    db::update_journey(&app, &journey_id, input)
+    run_tracked_mutation(&app, MutationSource::JourneyUpdate, || {
+        db::update_journey_with_outcome(&app, &journey_id, input)
+    })
 }
 
 #[command]
 pub fn delete_journey(app: AppHandle, journey_id: String) -> Result<(), String> {
-    db::delete_journey(&app, &journey_id)
+    run_tracked_mutation(&app, MutationSource::JourneyDelete, || {
+        db::delete_journey(&app, &journey_id).map(|value| db::MutationOutcome {
+            value,
+            changed: true,
+        })
+    })
 }
 
 #[command]
@@ -110,7 +124,9 @@ pub fn replace_journey_stops(
     journey_id: String,
     stops: Vec<JourneyStopMutationPayload>,
 ) -> Result<Vec<JourneyStopPayload>, String> {
-    db::replace_journey_stops(&app, &journey_id, stops)
+    run_tracked_mutation(&app, MutationSource::JourneyStopsReplace, || {
+        db::replace_journey_stops_with_outcome(&app, &journey_id, stops)
+    })
 }
 
 #[command]
@@ -118,7 +134,12 @@ pub fn create_ticket(
     app: AppHandle,
     draft: TicketDraftPayload,
 ) -> Result<TicketRecordPayload, String> {
-    db::create_ticket(&app, draft)
+    run_tracked_mutation(&app, MutationSource::TicketCreate, || {
+        db::create_ticket(&app, draft).map(|value| db::MutationOutcome {
+            value,
+            changed: true,
+        })
+    })
 }
 
 #[command]
@@ -127,7 +148,9 @@ pub fn update_ticket(
     ticket_id: String,
     draft: TicketDraftPayload,
 ) -> Result<TicketRecordPayload, String> {
-    db::update_ticket(&app, &ticket_id, draft)
+    run_tracked_mutation(&app, MutationSource::TicketUpdate, || {
+        db::update_ticket_with_outcome(&app, &ticket_id, draft)
+    })
 }
 
 #[command]
@@ -136,12 +159,19 @@ pub fn update_ticket_status(
     ticket_id: String,
     status: String,
 ) -> Result<TicketRecordPayload, String> {
-    db::update_ticket_status(&app, &ticket_id, &status)
+    run_tracked_mutation(&app, MutationSource::TicketStatusUpdate, || {
+        db::update_ticket_status_with_outcome(&app, &ticket_id, &status)
+    })
 }
 
 #[command]
 pub fn delete_ticket(app: AppHandle, ticket_id: String) -> Result<(), String> {
-    db::delete_ticket(&app, &ticket_id)
+    run_tracked_mutation(&app, MutationSource::TicketDelete, || {
+        db::delete_ticket(&app, &ticket_id).map(|value| db::MutationOutcome {
+            value,
+            changed: true,
+        })
+    })
 }
 
 #[command]
@@ -150,12 +180,22 @@ pub fn add_ticket_attachment(
     ticket_id: String,
     upload: TicketAttachmentUploadPayload,
 ) -> Result<TicketAttachmentPayload, String> {
-    db::add_ticket_attachment(&app, &ticket_id, upload)
+    run_tracked_mutation(&app, MutationSource::AttachmentAdd, || {
+        db::add_ticket_attachment(&app, &ticket_id, upload).map(|value| db::MutationOutcome {
+            value,
+            changed: true,
+        })
+    })
 }
 
 #[command]
 pub fn delete_ticket_attachment(app: AppHandle, attachment_id: String) -> Result<(), String> {
-    db::delete_ticket_attachment(&app, &attachment_id)
+    run_tracked_mutation(&app, MutationSource::AttachmentDelete, || {
+        db::delete_ticket_attachment(&app, &attachment_id).map(|value| db::MutationOutcome {
+            value,
+            changed: true,
+        })
+    })
 }
 
 #[command]
@@ -193,7 +233,12 @@ pub fn get_backup_readiness(app: AppHandle) -> Result<BackupReadinessPayload, St
 
 #[command]
 pub fn restore_backup(app: AppHandle, backup_id: String) -> Result<(), String> {
-    db::restore_backup(&app, &backup_id)
+    run_tracked_mutation(&app, MutationSource::LocalBackupRestore, || {
+        db::restore_backup(&app, &backup_id).map(|value| db::MutationOutcome {
+            value,
+            changed: true,
+        })
+    })
 }
 
 #[command]
@@ -213,7 +258,27 @@ pub fn export_archive_bundle(app: AppHandle) -> Result<String, String> {
 
 #[command]
 pub fn import_archive_bundle(app: AppHandle, bundle_path: String) -> Result<(), String> {
-    db::import_archive_bundle(&app, &bundle_path)
+    run_tracked_mutation(&app, MutationSource::ArchiveImport, || {
+        db::import_archive_bundle(&app, &bundle_path).map(|value| db::MutationOutcome {
+            value,
+            changed: true,
+        })
+    })
+}
+
+#[command]
+pub fn get_auto_backup_status(app: AppHandle) -> AutoBackupStatusPayload {
+    auto_backup::status(&app)
+}
+
+#[command]
+pub fn set_auto_backup_mode(
+    app: AppHandle,
+    input: AutoBackupModeSavePayload,
+) -> Result<AutoBackupStatusPayload, String> {
+    let mode = auto_backup::AutoBackupMode::parse(&input.mode)
+        .ok_or_else(|| "Unsupported automatic backup mode.".to_string())?;
+    auto_backup::set_mode(&app, mode)
 }
 
 #[command]
@@ -400,6 +465,33 @@ pub fn lookup_flight_candidates(
             api_key: value.api_key.clone(),
         });
     flight_lookup::lookup_candidates(&request, provider_config.as_ref())
+}
+
+fn run_tracked_mutation<T, F>(
+    app: &AppHandle,
+    source: MutationSource,
+    operation: F,
+) -> Result<T, String>
+where
+    F: FnOnce() -> Result<db::MutationOutcome<T>, String>,
+{
+    let _local_guard = auto_backup::acquire_local_mutation()?;
+    let reservation = auto_backup::begin_mutation(app, source);
+    let result = operation();
+    match result {
+        Ok(outcome) => {
+            if auto_backup::finish_mutation(app, reservation, outcome.changed).is_err() {
+                auto_backup::note_tracking_failure();
+            }
+            Ok(outcome.value)
+        }
+        Err(error) => {
+            if auto_backup::cancel_mutation(app, reservation).is_err() {
+                auto_backup::note_tracking_failure();
+            }
+            Err(error)
+        }
+    }
 }
 
 fn default_flight_data_source_config() -> EffectiveFlightDataSourceConfig {

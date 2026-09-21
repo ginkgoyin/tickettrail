@@ -484,7 +484,9 @@ Latest frontend baseline checkpoint: `TEST-BASELINE-RAIL-001` (two stale rail/pl
 
 Latest automatic-backup prerequisite checkpoint: `ARCHIVE-SQLITE-SNAPSHOT-001` (implemented and Rust-tested). It replaces raw live-main-file copying with SQLite's online backup API for both temporary WebDAV archives and persistent local backups, including committed WAL-resident data without a journal-mode change.
 
-Recommended next task: `WEBDAV-AUTO-BACKUP-001` only in the accepted staged order; no automatic runtime has been implemented yet.
+Latest automatic-backup checkpoint: `WEBDAV-AUTO-BACKUP-001A` implements durable local state/journal, meaningful mutation tracking, reservation recovery, revision/dirty tracking, FIFO obligations, and local coordination only. No automatic HTTP publication, worker, retry, interval scheduler, or UI exists yet.
+
+Recommended next task: `WEBDAV-AUTO-BACKUP-001B`, a separately scoped publisher/worker stage that consumes the existing queue without redesigning its semantics.
 
 Completed prerequisite scope:
 

@@ -1,10 +1,13 @@
-use crate::models::{
-    AirlinePayload, BackupReadinessPayload, BackupRecordPayload, JourneyCompanionPayload,
-    JourneyMutationPayload, JourneyPayload, JourneyStopMutationPayload, JourneyStopPayload,
-    LocationDirectoryPayload, MapPointPayload, MapRoutePayload, MapSegmentPayload,
-    MapViewportPayload, StubPreviewPayload, TicketAttachmentPayload, TicketAttachmentUploadPayload,
-    TicketDetailPayload, TicketDraftPayload, TicketLocationPayload, TicketRecordPayload,
-    TicketSegmentPayload,
+use crate::{
+    auto_backup,
+    models::{
+        AirlinePayload, BackupReadinessPayload, BackupRecordPayload, JourneyCompanionPayload,
+        JourneyMutationPayload, JourneyPayload, JourneyStopMutationPayload, JourneyStopPayload,
+        LocationDirectoryPayload, MapPointPayload, MapRoutePayload, MapSegmentPayload,
+        MapViewportPayload, StubPreviewPayload, TicketAttachmentPayload,
+        TicketAttachmentUploadPayload, TicketDetailPayload, TicketDraftPayload,
+        TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
+    },
 };
 use chrono::{DateTime, Local, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -37,6 +40,14 @@ const TICKET_SEGMENTS_TABLE: &str = "ticket_segments";
 const MAX_RETAINED_LOCAL_BACKUPS: usize = 30;
 const ARCHIVE_FORMAT_VERSION: u32 = 1;
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Internal persistence result consumed by the Rust command boundary. Public
+/// IPC responses continue returning only `value`; React never decides whether
+/// a saved operation was a meaningful business change.
+pub(crate) struct MutationOutcome<T> {
+    pub(crate) value: T,
+    pub(crate) changed: bool,
+}
 
 #[derive(Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -230,6 +241,7 @@ struct JourneyStopRowData {
     updated_at: String,
 }
 
+#[derive(Clone)]
 struct NormalizedJourneyMutation {
     title: String,
     destination: Option<String>,
@@ -530,23 +542,32 @@ pub(crate) fn create_temporary_archive_with_identity(
     let payload_dir = work_dir.join("payload");
     let result = (|| {
         fs::create_dir_all(&payload_dir).map_err(|err| err.to_string())?;
-        let conn = open_connection(app)?;
-        let ticket_count = list_tickets(app)?.len();
-        let journey_count = count_journeys(&conn)?;
-        let attachment_count = count_attachments(&conn)?;
-        drop(conn);
-
-        let created_at = Utc::now().to_rfc3339();
         let db_destination = payload_dir.join("tickettrail.sqlite3");
-        create_sqlite_snapshot(&database_path(app)?, &db_destination)?;
-        let attachment_source = attachment_root_dir(app)?;
-        let attachments_included = attachment_count > 0;
-        if attachments_included {
-            if !attachment_source.exists() {
-                return Err("Backup could not include attachments because the local attachments folder is missing.".to_string());
+        let (ticket_count, journey_count, attachment_count, attachments_included) = {
+            let _snapshot_guard = auto_backup::acquire_local_snapshot()?;
+            let conn = open_connection(app)?;
+            let ticket_count = list_tickets(app)?.len();
+            let journey_count = count_journeys(&conn)?;
+            let attachment_count = count_attachments(&conn)?;
+            drop(conn);
+
+            create_sqlite_snapshot(&database_path(app)?, &db_destination)?;
+            let attachment_source = attachment_root_dir(app)?;
+            let attachments_included = attachment_count > 0;
+            if attachments_included {
+                if !attachment_source.exists() {
+                    return Err("Backup could not include attachments because the local attachments folder is missing.".to_string());
+                }
+                copy_dir_recursive(&attachment_source, &payload_dir.join("attachments"))?;
             }
-            copy_dir_recursive(&attachment_source, &payload_dir.join("attachments"))?;
-        }
+            (
+                ticket_count,
+                journey_count,
+                attachment_count,
+                attachments_included,
+            )
+        };
+        let created_at = Utc::now().to_rfc3339();
         let manifest = build_backup_manifest(
             archive_id,
             label,
@@ -905,14 +926,20 @@ pub fn create_journey(
     result.and_then(|row| journey_row_to_payload(&conn, row))
 }
 
-pub fn update_journey(
+pub(crate) fn update_journey_with_outcome(
     app: &AppHandle,
     journey_id: &str,
     input: JourneyMutationPayload,
-) -> Result<JourneyPayload, String> {
+) -> Result<MutationOutcome<JourneyPayload>, String> {
     let conn = open_connection(app)?;
     let existing = get_journey_row(&conn, journey_id)?;
     let normalized = normalize_journey_mutation(&conn, input)?;
+    if journey_matches_normalized(&conn, &existing, &normalized)? {
+        return Ok(MutationOutcome {
+            value: journey_row_to_payload(&conn, existing)?,
+            changed: false,
+        });
+    }
     let updated_at = Utc::now().to_rfc3339();
 
     conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
@@ -971,7 +998,20 @@ pub fn update_journey(
         let _ = conn.execute_batch("ROLLBACK;");
     }
 
-    result.and_then(|row| journey_row_to_payload(&conn, row))
+    result
+        .and_then(|row| journey_row_to_payload(&conn, row))
+        .map(|value| MutationOutcome {
+            value,
+            changed: true,
+        })
+}
+
+pub fn update_journey(
+    app: &AppHandle,
+    journey_id: &str,
+    input: JourneyMutationPayload,
+) -> Result<JourneyPayload, String> {
+    update_journey_with_outcome(app, journey_id, input).map(|outcome| outcome.value)
 }
 
 pub fn delete_journey(app: &AppHandle, journey_id: &str) -> Result<(), String> {
@@ -1004,14 +1044,20 @@ pub fn list_journey_stops(
     load_journey_stops(&conn, journey_id)
 }
 
-pub fn replace_journey_stops(
+pub(crate) fn replace_journey_stops_with_outcome(
     app: &AppHandle,
     journey_id: &str,
     stops: Vec<JourneyStopMutationPayload>,
-) -> Result<Vec<JourneyStopPayload>, String> {
+) -> Result<MutationOutcome<Vec<JourneyStopPayload>>, String> {
     let conn = open_connection(app)?;
     let _ = get_journey_row(&conn, journey_id)?;
     let normalized = normalize_journey_stop_mutations(&conn, &stops)?;
+    if journey_stops_match_normalized(&conn, journey_id, &normalized)? {
+        return Ok(MutationOutcome {
+            value: load_journey_stops(&conn, journey_id)?,
+            changed: false,
+        });
+    }
     let updated_at = Utc::now().to_rfc3339();
 
     conn.execute_batch("BEGIN IMMEDIATE TRANSACTION;")
@@ -1035,7 +1081,18 @@ pub fn replace_journey_stops(
         let _ = conn.execute_batch("ROLLBACK;");
     }
 
-    result
+    result.map(|value| MutationOutcome {
+        value,
+        changed: true,
+    })
+}
+
+pub fn replace_journey_stops(
+    app: &AppHandle,
+    journey_id: &str,
+    stops: Vec<JourneyStopMutationPayload>,
+) -> Result<Vec<JourneyStopPayload>, String> {
+    replace_journey_stops_with_outcome(app, journey_id, stops).map(|outcome| outcome.value)
 }
 
 pub fn create_ticket(
@@ -1145,11 +1202,11 @@ pub fn create_ticket(
     result
 }
 
-pub fn update_ticket(
+pub(crate) fn update_ticket_with_outcome(
     app: &AppHandle,
     ticket_id: &str,
     draft: TicketDraftPayload,
-) -> Result<TicketRecordPayload, String> {
+) -> Result<MutationOutcome<TicketRecordPayload>, String> {
     validate_draft(&draft)?;
 
     let effective_segments = build_effective_segments(&draft);
@@ -1171,6 +1228,22 @@ pub fn update_ticket(
 
     let conn = open_connection(app)?;
     let existing_row = get_ticket_row(&conn, ticket_id)?;
+    let existing_draft = deserialize_ticket_draft(&existing_row.raw_payload_json)?;
+    if ticket_drafts_are_equivalent(&existing_draft, &draft) {
+        return Ok(MutationOutcome {
+            value: build_ticket_record(
+                existing_row.id,
+                existing_row.ticket_type,
+                existing_row.carrier_name,
+                existing_row.code,
+                existing_draft,
+                map_status(&existing_row.normalized_status),
+                existing_row.created_at,
+                existing_row.updated_at,
+            ),
+            changed: false,
+        });
+    }
     let itinerary_id = existing_row
         .journey_id
         .clone()
@@ -1262,18 +1335,45 @@ pub fn update_ticket(
         let _ = conn.execute_batch("ROLLBACK;");
     }
 
-    result
+    result.map(|value| MutationOutcome {
+        value,
+        changed: true,
+    })
 }
 
-pub fn update_ticket_status(
+pub fn update_ticket(
+    app: &AppHandle,
+    ticket_id: &str,
+    draft: TicketDraftPayload,
+) -> Result<TicketRecordPayload, String> {
+    update_ticket_with_outcome(app, ticket_id, draft).map(|outcome| outcome.value)
+}
+
+pub(crate) fn update_ticket_status_with_outcome(
     app: &AppHandle,
     ticket_id: &str,
     status: &str,
-) -> Result<TicketRecordPayload, String> {
+) -> Result<MutationOutcome<TicketRecordPayload>, String> {
     validate_status(status)?;
 
     let conn = open_connection(app)?;
     let existing_row = get_ticket_row(&conn, ticket_id)?;
+    if map_status(&existing_row.normalized_status) == status {
+        let draft = deserialize_ticket_draft(&existing_row.raw_payload_json)?;
+        return Ok(MutationOutcome {
+            value: build_ticket_record(
+                existing_row.id,
+                existing_row.ticket_type,
+                existing_row.carrier_name,
+                existing_row.code,
+                draft,
+                map_status(&existing_row.normalized_status),
+                existing_row.created_at,
+                existing_row.updated_at,
+            ),
+            changed: false,
+        });
+    }
     let itinerary_id = existing_row
         .journey_id
         .clone()
@@ -1327,7 +1427,18 @@ pub fn update_ticket_status(
         let _ = conn.execute_batch("ROLLBACK;");
     }
 
-    result
+    result.map(|value| MutationOutcome {
+        value,
+        changed: true,
+    })
+}
+
+pub fn update_ticket_status(
+    app: &AppHandle,
+    ticket_id: &str,
+    status: &str,
+) -> Result<TicketRecordPayload, String> {
+    update_ticket_status_with_outcome(app, ticket_id, status).map(|outcome| outcome.value)
 }
 
 pub fn delete_ticket(app: &AppHandle, ticket_id: &str) -> Result<(), String> {
@@ -1951,6 +2062,62 @@ fn normalize_journey_mutation(
     })
 }
 
+fn journey_matches_normalized(
+    conn: &Connection,
+    existing: &JourneyRowData,
+    normalized: &NormalizedJourneyMutation,
+) -> Result<bool, String> {
+    if existing.title != normalized.title
+        || existing.destination != normalized.destination
+        || existing.date_mode != normalized.date_mode
+        || existing.start_date != normalized.start_date
+        || existing.end_date != normalized.end_date
+        || existing.notes != normalized.notes
+        || existing.rating != normalized.rating
+        || existing.mood != normalized.mood
+        || existing.cost_amount != normalized.cost_amount
+        || existing.cost_currency != normalized.cost_currency
+        || existing.cost_exchange_rate_to_cny != normalized.cost_exchange_rate_to_cny
+        || existing.lodging != normalized.lodging
+    {
+        return Ok(false);
+    }
+    let existing_ticket_ids = load_journey_ticket_ids(conn, &existing.id)?;
+    if existing_ticket_ids != normalized.ticket_ids {
+        return Ok(false);
+    }
+    let existing_companion_names = load_journey_companions(conn, &existing.id)?
+        .into_iter()
+        .map(|companion| companion.name)
+        .collect::<Vec<_>>();
+    Ok(existing_companion_names == normalized.companion_names)
+}
+
+fn journey_stops_match_normalized(
+    conn: &Connection,
+    journey_id: &str,
+    normalized: &[NormalizedJourneyStopMutation],
+) -> Result<bool, String> {
+    let existing = load_journey_stop_rows(conn, journey_id)?;
+    if existing.len() != normalized.len() {
+        return Ok(false);
+    }
+    Ok(existing.iter().zip(normalized).all(|(row, stop)| {
+        row.place_name == stop.place_name
+            && row.place_key == stop.place_key
+            && row.country_code == stop.country_code
+            && row.arrival_date_time == stop.arrival_date_time
+            && row.departure_date_time == stop.departure_date_time
+            && row.lodging == stop.lodging
+            && row.notes == stop.notes
+            && row.source == stop.source
+            && row.arrival_ticket_id == stop.arrival_ticket_id
+            && row.departure_ticket_id == stop.departure_ticket_id
+            && row.sort_order == stop.sort_order
+            && row.user_edited == stop.user_edited
+    }))
+}
+
 fn normalize_journey_cost_exchange_rate(
     cost_currency: Option<&str>,
     cost_exchange_rate_to_cny: Option<f64>,
@@ -2361,6 +2528,13 @@ fn build_segment_metadata(segment: &TicketSegmentPayload) -> String {
 
 fn deserialize_ticket_draft(raw_payload_json: &str) -> Result<TicketDraftPayload, String> {
     serde_json::from_str(raw_payload_json).map_err(|err| err.to_string())
+}
+
+fn ticket_drafts_are_equivalent(
+    existing: &TicketDraftPayload,
+    submitted: &TicketDraftPayload,
+) -> bool {
+    serde_json::to_value(existing).ok() == serde_json::to_value(submitted).ok()
 }
 
 fn parse_ticket_row(row: &Row<'_>) -> rusqlite::Result<TicketRowData> {
@@ -3897,16 +4071,18 @@ mod tests {
         clear_journey_stop_ticket_references, compare_optional_date, create_sqlite_snapshot,
         delete_backup_dir_by_id, delete_journey_related_rows,
         derive_journey_date_range_from_linked_tickets, ensure_journey_schema_columns,
-        fallback_coordinates, load_journey_stops, lookup_generated_airport_coordinates,
+        fallback_coordinates, get_journey_row, journey_matches_normalized,
+        journey_stops_match_normalized, load_journey_stops, lookup_generated_airport_coordinates,
         lookup_rail_station_city_coordinates, migrate_legacy_ticket_journey_tables,
         normalize_companion_names, normalize_journey_cost_exchange_rate,
         normalize_journey_stop_mutations, normalize_lookup_value, normalize_to_utc,
         prune_local_backups, replace_journey_stop_rows, resolve_map_point, sanitize_file_name,
         scan_local_backup_entries, seed_location_directory, sort_linked_journey_ticket_records,
-        table_exists, table_has_column, validate_backup_manifest, validate_backup_payload,
-        validate_draft, BackupManifest, JourneyStopMutationPayload, LinkedJourneyTicketRecord,
-        TicketDraftPayload, TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload,
-        APP_VERSION, ARCHIVE_FORMAT_VERSION, SCHEMA_SQL,
+        table_exists, table_has_column, ticket_drafts_are_equivalent, validate_backup_manifest,
+        validate_backup_payload, validate_draft, BackupManifest, JourneyStopMutationPayload,
+        LinkedJourneyTicketRecord, NormalizedJourneyMutation, TicketDraftPayload,
+        TicketLocationPayload, TicketRecordPayload, TicketSegmentPayload, APP_VERSION,
+        ARCHIVE_FORMAT_VERSION, SCHEMA_SQL,
     };
     use rusqlite::{params, Connection};
     use std::{env, fs, path::PathBuf};
@@ -4345,6 +4521,140 @@ mod tests {
         draft.departure.timezone = "".to_string();
         let result = validate_draft(&draft);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn ticket_update_no_op_comparison_uses_persisted_draft_not_frontend_guesswork() {
+        let draft = sample_draft();
+        assert!(ticket_drafts_are_equivalent(&draft, &draft));
+        let mut changed = draft.clone();
+        changed.code = "MU999".to_string();
+        assert!(!ticket_drafts_are_equivalent(&draft, &changed));
+    }
+
+    #[test]
+    fn journey_update_no_op_comparison_includes_links_and_companions() {
+        let conn = create_journey_stop_test_connection();
+        insert_test_journey(&conn, "journey-noop");
+        let normalized = NormalizedJourneyMutation {
+            title: "Test journey".to_string(),
+            destination: None,
+            date_mode: "manual".to_string(),
+            start_date: None,
+            end_date: None,
+            notes: None,
+            rating: None,
+            mood: None,
+            cost_amount: None,
+            cost_currency: None,
+            cost_exchange_rate_to_cny: None,
+            lodging: None,
+            companion_names: Vec::new(),
+            ticket_ids: Vec::new(),
+        };
+        let existing = get_journey_row(&conn, "journey-noop").unwrap();
+        assert!(journey_matches_normalized(&conn, &existing, &normalized).unwrap());
+        let mut changed = normalized;
+        changed.title = "Changed journey".to_string();
+        assert!(!journey_matches_normalized(&conn, &existing, &changed).unwrap());
+    }
+
+    #[test]
+    fn journey_no_op_detection_includes_nonempty_ticket_links_and_companions() {
+        let conn = create_journey_stop_test_connection();
+        insert_test_journey(&conn, "journey-relations");
+        insert_test_ticket(&conn, "ticket-relations-1");
+        insert_test_ticket(&conn, "ticket-relations-2");
+        conn.execute(
+            "INSERT INTO journey_tickets (journey_id, ticket_id, created_at) VALUES (?1, ?2, ?3)",
+            params![
+                "journey-relations",
+                "ticket-relations-1",
+                "2026-06-12T00:00:00Z"
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO journey_tickets (journey_id, ticket_id, created_at) VALUES (?1, ?2, ?3)",
+            params![
+                "journey-relations",
+                "ticket-relations-2",
+                "2026-06-12T00:00:01Z"
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO journey_companions (id, journey_id, name, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params!["companion-1", "journey-relations", "Alice", "2026-06-12T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO journey_companions (id, journey_id, name, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params!["companion-2", "journey-relations", "Bob", "2026-06-12T00:00:01Z"],
+        )
+        .unwrap();
+
+        let normalized = NormalizedJourneyMutation {
+            title: "Test journey".to_string(),
+            destination: None,
+            date_mode: "manual".to_string(),
+            start_date: None,
+            end_date: None,
+            notes: None,
+            rating: None,
+            mood: None,
+            cost_amount: None,
+            cost_currency: None,
+            cost_exchange_rate_to_cny: None,
+            lodging: None,
+            companion_names: vec!["Alice".to_string(), "Bob".to_string()],
+            ticket_ids: vec![
+                "ticket-relations-1".to_string(),
+                "ticket-relations-2".to_string(),
+            ],
+        };
+        let existing = get_journey_row(&conn, "journey-relations").unwrap();
+        assert!(journey_matches_normalized(&conn, &existing, &normalized).unwrap());
+
+        let mut changed_ticket_link = normalized.clone();
+        changed_ticket_link.ticket_ids.pop();
+        assert!(!journey_matches_normalized(&conn, &existing, &changed_ticket_link).unwrap());
+
+        let mut changed_companion = normalized;
+        changed_companion.companion_names[1] = "Carol".to_string();
+        assert!(!journey_matches_normalized(&conn, &existing, &changed_companion).unwrap());
+    }
+    #[test]
+    fn identical_journey_stop_replacement_is_a_no_op() {
+        let conn = create_journey_stop_test_connection();
+        insert_test_journey(&conn, "journey-stops-noop");
+        let submitted = vec![JourneyStopMutationPayload {
+            id: None,
+            place_name: "Qingdao".to_string(),
+            place_key: Some("qingdao".to_string()),
+            country_code: Some("cn".to_string()),
+            arrival_date_time: Some("2026-06-01T09:00".to_string()),
+            departure_date_time: None,
+            lodging: None,
+            notes: Some("First stay".to_string()),
+            source: "manual".to_string(),
+            arrival_ticket_id: None,
+            departure_ticket_id: None,
+            sort_order: 0,
+            user_edited: false,
+        }];
+        let normalized = normalize_journey_stop_mutations(&conn, &submitted).unwrap();
+        replace_journey_stop_rows(
+            &conn,
+            "journey-stops-noop",
+            &normalized,
+            "2026-06-01T09:00:00Z",
+        )
+        .unwrap();
+        assert!(journey_stops_match_normalized(&conn, "journey-stops-noop", &normalized).unwrap());
+        let mut changed = normalized;
+        changed[0].notes = Some("Changed stay".to_string());
+        assert!(!journey_stops_match_normalized(&conn, "journey-stops-noop", &changed).unwrap());
     }
 
     #[test]

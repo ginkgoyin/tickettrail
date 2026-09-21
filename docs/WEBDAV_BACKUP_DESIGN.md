@@ -374,6 +374,8 @@ References:
 
 ## 11. Automatic Backup Model
 
+`WEBDAV-AUTO-BACKUP-001A` implements the backend-only foundation: a non-secret recoverable state store is authoritative for mode/state, meaningful mutations reserve then finalize local obligations, and temporary archive payload copying uses `LocalDataCoordinator`. This stage deliberately performs no automatic WebDAV HTTP request, worker execution, retry, interval scheduling, or UI work.
+
 Implementation baseline: `docs/WEBDAV_AUTO_BACKUP_REVIEW.md` supersedes the earlier revision-only sketch below where the two differ. `After every change` requires a durable FIFO event journal in addition to revision/dirty state; distinct successful meaningful mutations must not be coalesced. The accepted MVP guarantees event/publication count, not exact point-in-time version history: each archive snapshot is taken when its event reaches the worker, so a queued event may include later already-committed changes.
 
 An authoritative command creates an event only when it reports `changed = true`. Write-shaped semantic no-ops, including an equal Ticket/status/Journey update or replacing Journey Stops with an equal ordered set, cancel their reservation without advancing revision or creating an event. Journey fields and Stops remain separate commands: two real changes create two events, while an equal half creates none for that command.

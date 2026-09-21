@@ -505,6 +505,7 @@
   - No automatic runtime, timer, selector, DB migration, sync, or archive-format change was implemented.
   - Priority: `High`
 - `ARCHIVE-SQLITE-SNAPSHOT-001`
+  - `WEBDAV-AUTO-BACKUP-001A` follows this checkpoint: backend-only durable automatic state, semantic mutation tracking, reservations, revisions, and local coordination are implemented; automatic uploads remain out of scope.
   - Status: `Implemented / verified by Rust tests`
   - Replaces both shared live-main-file copy paths with one SQLite online-backup primitive for temporary WebDAV archives and persistent local backups; archive format v1 and layout are unchanged.
   - The narrowly enabled `rusqlite` `backup` feature produces a new independently verified destination database, including committed WAL-resident rows, without copying `-wal`/`-shm` or changing the live database journal mode.

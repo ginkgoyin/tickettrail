@@ -1,3 +1,4 @@
+mod auto_backup;
 mod commands;
 mod db;
 mod flight_lookup;
@@ -8,14 +9,14 @@ use commands::{
     add_ticket_attachment, backup_now_webdav, cancel_webdav_restore, confirm_webdav_restore,
     create_backup, create_journey, create_stub_preview, create_ticket, delete_backup,
     delete_journey, delete_ticket, delete_ticket_attachment, delete_webdav_backup,
-    export_archive_bundle, export_backup, get_backup_readiness, get_bootstrap_summary,
-    get_export_folder_info, get_flight_data_source_config, get_journey, get_local_data_folder_info,
-    get_ticket_detail, get_webdav_config, import_archive_bundle, list_backups, list_journey_stops,
-    list_journeys, list_tickets, list_webdav_backups, lookup_flight_candidates, open_export_folder,
-    open_local_data_folder, pick_archive_bundle_file, prepare_webdav_restore,
-    replace_journey_stops, restore_backup, save_flight_data_source_config, save_webdav_config,
-    search_airlines, search_locations, test_webdav_connection, update_journey, update_ticket,
-    update_ticket_status,
+    export_archive_bundle, export_backup, get_auto_backup_status, get_backup_readiness,
+    get_bootstrap_summary, get_export_folder_info, get_flight_data_source_config, get_journey,
+    get_local_data_folder_info, get_ticket_detail, get_webdav_config, import_archive_bundle,
+    list_backups, list_journey_stops, list_journeys, list_tickets, list_webdav_backups,
+    lookup_flight_candidates, open_export_folder, open_local_data_folder, pick_archive_bundle_file,
+    prepare_webdav_restore, replace_journey_stops, restore_backup, save_flight_data_source_config,
+    save_webdav_config, search_airlines, search_locations, set_auto_backup_mode,
+    test_webdav_connection, update_journey, update_ticket, update_ticket_status,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -47,6 +48,8 @@ pub fn run() {
             pick_archive_bundle_file,
             get_flight_data_source_config,
             save_flight_data_source_config,
+            get_auto_backup_status,
+            set_auto_backup_mode,
             get_webdav_config,
             save_webdav_config,
             test_webdav_connection,

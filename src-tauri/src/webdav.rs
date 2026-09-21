@@ -1,9 +1,9 @@
-use crate::db;
 use crate::models::{
     RestoreReadyPublicPayload, WebDavBackupNowPayload, WebDavCapabilityPayload,
     WebDavConfigPayload, WebDavConfigSavePayload, WebDavConnectionTestPayload,
     WebDavDeleteResultPayload, WebDavRemoteBackupPayload, WebDavRestoreResultPayload,
 };
+use crate::{auto_backup, db};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use reqwest::{
     blocking::{Client, RequestBuilder, Response},
@@ -896,11 +896,29 @@ fn effective_config<S: SecretStore>(
     })
 }
 
+fn with_authoritative_auto_mode(
+    mut payload: WebDavConfigPayload,
+    auto_mode: Result<String, String>,
+) -> WebDavConfigPayload {
+    if let Ok(mode) = auto_mode {
+        payload.auto_backup_mode = mode;
+    }
+    payload
+}
+
 pub fn get_public_config(app: &AppHandle) -> Result<WebDavConfigPayload, String> {
-    public_config(
+    let payload = public_config(
         load_stored_config(&config_path(app)?)?,
         &WindowsCredentialSecretStore,
-    )
+    )?;
+    Ok(with_authoritative_auto_mode(
+        payload,
+        auto_backup::mode_for_config(app),
+    ))
+}
+
+pub(crate) fn legacy_auto_backup_mode(app: &AppHandle) -> Result<String, String> {
+    Ok(load_stored_config(&config_path(app)?)?.auto_backup_mode)
 }
 
 fn save_config_with_store<S: SecretStore>(
@@ -945,7 +963,8 @@ pub fn save_config(
     input: WebDavConfigSavePayload,
 ) -> Result<WebDavConfigPayload, String> {
     begin_cloud_mutation("settings change")?;
-    let result = save_config_with_store(&config_path(app)?, input, &WindowsCredentialSecretStore);
+    let result = save_config_with_store(&config_path(app)?, input, &WindowsCredentialSecretStore)
+        .map(|payload| with_authoritative_auto_mode(payload, auto_backup::mode_for_config(app)));
     end_cloud_mutation();
     result
 }
@@ -1538,6 +1557,8 @@ pub fn confirm_webdav_restore(
         take_prepared_restore(&mut state, &operation_id, Utc::now())
     };
     let acquired_restore_lock = capability.is_ok();
+    let reservation = acquired_restore_lock
+        .then(|| auto_backup::begin_mutation(app, auto_backup::MutationSource::WebDavRestore));
     let result = consume_restore_capability(capability, |prepared| {
         let work_dir = prepared.work_dir.clone();
         let action_result = (|| {
@@ -1551,6 +1572,7 @@ pub fn confirm_webdav_restore(
                         .to_string(),
                 );
             }
+            let _local_guard = auto_backup::acquire_local_mutation()?;
             execute_prepared_restore(
                 &prepared,
                 repository_identity(app),
@@ -1568,7 +1590,24 @@ pub fn confirm_webdav_restore(
     if acquired_restore_lock {
         end_cloud_mutation();
     }
-    result
+    match result {
+        Ok(value) => {
+            if let Some(reservation) = reservation {
+                if auto_backup::finish_mutation(app, reservation, true).is_err() {
+                    auto_backup::note_tracking_failure();
+                }
+            }
+            Ok(value)
+        }
+        Err(error) => {
+            if let Some(reservation) = reservation {
+                if auto_backup::cancel_mutation(app, reservation).is_err() {
+                    auto_backup::note_tracking_failure();
+                }
+            }
+            Err(error)
+        }
+    }
 }
 
 pub fn cancel_webdav_restore(operation_id: String) -> Result<(), String> {
@@ -2126,8 +2165,9 @@ mod tests {
         extract_propfind_names, managed_directory_urls, normalize_remote_folder,
         normalize_server_url, parse_final_archive_name, parse_final_sidecar_name, public_config,
         save_config_with_store, select_retention_ids, take_prepared_restore, validate_sidecar,
-        CloudOperationState, CompleteRemoteBackup, PairObjectKind, PreparedRestore,
-        RemoteBackupSidecar, SecretStore, StoredWebDavConfig, WebDavError, WebDavErrorCode,
+        with_authoritative_auto_mode, CloudOperationState, CompleteRemoteBackup, PairObjectKind,
+        PreparedRestore, RemoteBackupSidecar, SecretStore, StoredWebDavConfig, WebDavError,
+        WebDavErrorCode,
     };
     use crate::models::{BackupRecordPayload, WebDavConfigSavePayload, WebDavRemoteBackupPayload};
     use chrono::{Duration as ChronoDuration, Utc};
@@ -2246,6 +2286,20 @@ mod tests {
         assert!(serialized_value.get("password").is_none());
     }
 
+    #[test]
+    fn public_config_falls_back_to_legacy_mode_when_auto_state_is_unavailable() {
+        let secrets = FakeSecretStore::default();
+        let payload = public_config(default_stored_config(), &secrets).unwrap();
+        let fallback = with_authoritative_auto_mode(
+            payload,
+            Err("Automatic backup tracking unavailable.".to_string()),
+        );
+        assert_eq!(fallback.auto_backup_mode, "off");
+
+        let authoritative =
+            with_authoritative_auto_mode(fallback, Ok("afterEveryChange".to_string()));
+        assert_eq!(authoritative.auto_backup_mode, "afterEveryChange");
+    }
     #[test]
     fn blank_password_preserves_existing_secret_and_clear_is_explicit() {
         let directory =
